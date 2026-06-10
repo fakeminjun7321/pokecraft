@@ -70,6 +70,16 @@ const UI = {
     if(orb) orb.onclick = () => this.openRecipes();
     $id('quit-btn').onclick = () => { saveGame(); location.reload(); };
     $id('respawn-btn').onclick = () => { player.respawn(); requestLock(); };
+    // 업적 버튼
+    const ab = $id('ach-btn');
+    if(ab) ab.onclick = () => this.openAchievements();
+    // BGM 토글
+    const bb = $id('bgm-toggle');
+    if(bb){
+      const opts = JSON.parse(localStorage.getItem('pokecraft_opts') || '{}');
+      bb.checked = opts.bgm !== false;
+      bb.onchange = () => Music.setOn(bb.checked);
+    }
     // 렌더 거리 설정
     const rd = $id('render-dist');
     if(rd){
@@ -85,7 +95,7 @@ const UI = {
 
   isOpen(){ return !!this.open; },
   showOverlay(id){
-    ['inv-overlay','furnace-overlay','chest-overlay','party-overlay','dex-overlay','pause-overlay','help-overlay','recipe-overlay','ench-overlay','trade-overlay'].forEach(o => $id(o).classList.add('hidden'));
+    ['inv-overlay','furnace-overlay','chest-overlay','party-overlay','dex-overlay','pause-overlay','help-overlay','recipe-overlay','ench-overlay','trade-overlay','ach-overlay'].forEach(o => $id(o).classList.add('hidden'));
     if(id) $id(id).classList.remove('hidden');
   },
 
@@ -467,6 +477,13 @@ const UI = {
         }
       });
     }
+    // 갑옷 슬롯 (투구/갑옷/바지)
+    const ag = $id('armor-grid');
+    ag.innerHTML = '';
+    for(let i = 0; i < 3; i++){
+      this._makeSlot(ag, { get: () => player.armor[i], set: v => { player.armor[i] = v; } },
+        { filter: s => armorInfo(s.id) && armorInfo(s.id).slot === i, quick: s => player.addItem(s.id, s.n, s.dur) });
+    }
     this._buildInvGrids('inv-grid', 'invbar-grid');
     this.showOverlay('inv-overlay');
     this.open = 'inv';
@@ -767,6 +784,35 @@ const UI = {
     if(document.exitPointerLock) document.exitPointerLock();
   },
 
+  // ---------- 업적 ----------
+  openAchievements(){
+    this.closeOnly();
+    const list = $id('ach-list');
+    list.innerHTML = '';
+    const data = Ach.data();
+    $id('ach-count').textContent = Ach.count() + ' / ' + Object.keys(ACH_DEFS).length;
+    for(const id in ACH_DEFS){
+      const row = document.createElement('div');
+      row.className = 'ach-row' + (data[id] ? ' done' : '');
+      const icon = document.createElement('span');
+      icon.textContent = data[id] ? '🏆' : '🔒';
+      const mid = document.createElement('div');
+      mid.className = 'world-mid';
+      const nm = document.createElement('span');
+      nm.className = 'w-name';
+      nm.textContent = ACH_DEFS[id].n;
+      const ds = document.createElement('span');
+      ds.className = 'w-meta';
+      ds.textContent = ACH_DEFS[id].d + (data[id] ? ' · ' + new Date(data[id]).toLocaleDateString('ko-KR') : '');
+      mid.appendChild(nm); mid.appendChild(ds);
+      row.appendChild(icon); row.appendChild(mid);
+      list.appendChild(row);
+    }
+    this.showOverlay('ach-overlay');
+    this.open = 'ach';
+    if(document.exitPointerLock) document.exitPointerLock();
+  },
+
   // ---------- 일시정지 ----------
   openPause(){
     this.closeOnly();
@@ -814,6 +860,12 @@ const UI = {
   // ---------- HUD ----------
   updateHUD(){
     if(!player) return;
+    // 버프 표시
+    const eff = $id('effects');
+    if(eff){
+      const names = { speed:'💨신속', jump:'🐇도약', regen:'💗재생' };
+      eff.textContent = Object.keys(player.effects).map(k => names[k] + ' ' + Math.ceil(player.effects[k]) + 's').join('  ');
+    }
     const hearts = $id('hearts').children;
     for(let i = 0; i < 10; i++){
       const need = (i + 1) * 2;

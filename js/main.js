@@ -12,7 +12,7 @@ const game = {
   time: 0.06, // 0 = 일출
   keys: {}, locked: false, inBattle: false, paused: false,
   shake: 0, swing: 0, sprint: false,
-  followerOn: true, chatOpen: false, camMode: 0,
+  followerOn: true, chatOpen: false, camMode: 0, riding: false, touch: false,
   get uiOpen(){ return typeof UI !== 'undefined' && UI.isOpen(); },
   isNight(){ return Math.sin(this.time * Math.PI * 2) < -0.05; },
   isDay(){ return !this.isNight(); },
@@ -297,6 +297,9 @@ window.addEventListener('load', () => {
   });
 
   bindInput();
+  Music.init();
+  Minimap.init();
+  Touch.init();
   requestAnimationFrame(loop);
 });
 
@@ -434,6 +437,11 @@ function updateSelfModel(dt){
   const sw = Math.sin(myModel.phase) * Math.min(1, sp) * 0.6;
   myModel.legs.forEach((l, i) => { l.rotation.x = (i % 2 ? -sw : sw); });
   (myModel.arms || []).forEach((a, i) => { a.rotation.x = (i % 2 ? sw : -sw) * 0.7; });
+  const armKey = player.armor.map(a => a ? a.id : 0).join(',');
+  if(myModel._armKey !== armKey){
+    myModel._armKey = armKey;
+    applyArmorOverlay(myModel, player.armor.map(a => a ? a.id : 0));
+  }
 }
 
 function updateHeldItem(){
@@ -540,6 +548,8 @@ function startGame(opts){
     loading.classList.add('hidden');
     document.getElementById('hud').classList.remove('hidden');
     game.started = true;
+    Music.start();
+    Minimap.reset();
     // 월드 준비 전에 접속해서 대기 중이던 게스트 처리
     if(Net.mode === 'host') Net.flushHello();
     UI.updateHotbar();
@@ -604,6 +614,7 @@ function startSleep(){
     game.paused = false;
     fade.style.opacity = 0;
     UI.toast('푹 잤다! 아침이 되었다 (스폰 지점 설정됨)');
+    if(typeof Ach !== 'undefined') Ach.unlock('sleep');
     saveGame();
   }, 1300);
 }
@@ -628,6 +639,25 @@ function tryBattle(){
   }
   if(!best){ UI.toast('근처에 야생 포켓몬이 없어요 (9블록 이내)'); return; }
   Battle.start(best);
+}
+
+// ---------- 포켓몬 타기 ----------
+function toggleRide(){
+  if(!game.started || game.inBattle || UI.isOpen() || !player || player.dead) return;
+  if(game.riding){
+    game.riding = false;
+    player.body.noGravity = false;
+    UI.toast(PokeMan.party.length ? PokeMan.party[0].name + '에서 내렸다' : '내렸다');
+    return;
+  }
+  if(!PokeMan.enabled || !PokeMan.party.length){ UI.toast('탈 포켓몬이 없어요!'); return; }
+  if(!game.followerOn){ UI.toast('파티 화면(P)에서 파트너 따라오기를 켜주세요'); return; }
+  const p0 = PokeMan.party[0];
+  if(p0.hp <= 0){ UI.toast(p0.name + '은(는) 지쳐서 태워줄 수 없어요...'); return; }
+  game.riding = true;
+  const rt = rideTypeFor(p0.sp);
+  UI.toast('🐾 ' + p0.name + RIDE_MSG[rt]);
+  SFX.play('pop');
 }
 
 // ---------- 체육관 도전 ----------
@@ -780,6 +810,11 @@ function bindInput(){
       }
     }
     if(e.code === 'KeyR') tryBattle();
+    if(e.code === 'KeyG') toggleRide();
+    if(e.code === 'KeyM'){
+      Minimap.visible = !Minimap.visible;
+      document.getElementById('minimap').classList.toggle('hidden', !Minimap.visible);
+    }
     if(e.code === 'KeyP'){
       if(UI.open === 'party') { UI.close(); requestLock(); }
       else if(!UI.isOpen() && !player.dead) UI.openParty();
@@ -794,6 +829,7 @@ function bindInput(){
       document.getElementById('debug').classList.toggle('hidden', !debugOn);
     }
   });
+  // 터치 이동축 → 가상 키 (매 프레임 갱신은 루프에서)
   document.addEventListener('keyup', e => {
     game.keys[e.code] = false;
     if(e.code === 'KeyW') game.sprint = false;
@@ -911,7 +947,18 @@ function tick(t){
   const isGuest = Net.mode === 'guest';
   // 멀티 호스트는 배틀 중에도 세계 시뮬레이션 유지 (게스트들이 멈추지 않게)
   const simRun = !hardPaused && (!game.inBattle || Net.mode === 'host');
+  if(game.riding && (game.inBattle || player.dead || !PokeMan.party.length || (PokeMan.party[0] && PokeMan.party[0].hp <= 0))){
+    game.riding = false;
+    player.body.noGravity = false;
+  }
   if(simRun){
+    if(game.touch){
+      game.keys['KeyW'] = Touch.move.z < -0.3;
+      game.keys['KeyS'] = Touch.move.z > 0.3;
+      game.keys['KeyA'] = Touch.move.x < -0.3;
+      game.keys['KeyD'] = Touch.move.x > 0.3;
+      game.locked = true; // 터치 모드는 포인터락 없이 조작
+    }
     player.update(dt);
     world.update(player.body.x, player.body.z);
     if(!isGuest){
@@ -929,6 +976,7 @@ function tick(t){
     Projectiles.update(dt, world, player);
     Follower.update(dt, world, player);
     updateSelfModel(dt);
+    Minimap.render(dt);
     game.time = (game.time + dt / 600) % 1;
     updateSky();
     updateHighlight();

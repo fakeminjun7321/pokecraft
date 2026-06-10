@@ -9,7 +9,8 @@ const B = {
   TALLGRASS:22, CRAFT:23, FURNACE:24, FURNACE_LIT:25, TORCH:26, TNT:27, WOOL:28,
   BRICKS:29, STONEBRICK:30, OBSIDIAN:31, PUMPKIN:32, BED:33,
   CHEST:34, FARMLAND:35, CROP:36, CROP_RIPE:37,
-  BIRCH_LOG:38, BIRCH_LEAVES:39, ACACIA_LOG:40, ENCHANT:41
+  BIRCH_LOG:38, BIRCH_LEAVES:39, ACACIA_LOG:40, ENCHANT:41,
+  LEVER_OFF:42, LEVER_ON:43, LAMP_OFF:44, LAMP_ON:45, IRON_DOOR:46, IRON_DOOR_OPEN:47
 };
 // 렌더 타입
 const RT = { SOLID:0, CROSS:1, WATER:2, GLASS:3 };
@@ -29,7 +30,12 @@ const I = {
   FISHING_ROD:165, BOW:166, ARROW:167, FLINT:168,
   FISH_RAW:169, FISH_COOKED:170, RARECANDY:171, GOLDEN_APPLE:172,
   EMERALD:174, ENDERPEARL:175,
-  BADGE_ROCK:176, BADGE_WATER:177, BADGE_ELEC:178, BADGE_FIRE:179
+  BADGE_ROCK:176, BADGE_WATER:177, BADGE_ELEC:178, BADGE_FIRE:179,
+  LEATHER:180,
+  L_HELM:181, L_CHEST:182, L_LEGS:183,
+  I_HELM:184, I_CHEST:185, I_LEGS:186,
+  D_HELM:187, D_CHEST:188, D_LEGS:189,
+  POTION_SPEED:190, POTION_JUMP:191, POTION_REGEN:192
 };
 
 // ----- 타일 인덱스 (아틀라스 16x16 그리드) -----
@@ -42,7 +48,8 @@ const T = {
   TNT_TOP:32, WOOL:33, BRICKS:34, STONEBRICK:35, OBSIDIAN:36, PUMPKIN_SIDE:37,
   PUMPKIN_FACE:38, PUMPKIN_TOP:39, BED_TOP:40,
   CHEST_FRONT:41, CHEST_SIDE:42, CHEST_TOP:43, FARMLAND_TOP:44, CROP1:45, CROP2:46,
-  BIRCH_SIDE:47, BIRCH_LEAVES:48, ACACIA_SIDE:49, ENCH_TOP:50, ENCH_SIDE:51
+  BIRCH_SIDE:47, BIRCH_LEAVES:48, ACACIA_SIDE:49, ENCH_TOP:50, ENCH_SIDE:51,
+  LEVER:52, LEVER_ON_T:53, LAMP:54, LAMP_ON_T:55, IRON_DOOR_T:56
 };
 
 // ----- 블록 정의 -----
@@ -100,6 +107,12 @@ defBlock(B.BIRCH_LEAVES,{ name:'자작나무 잎', tiles:{top:T.BIRCH_LEAVES, bo
                          drop:(rng)=> rng() < 0.08 ? [[I.APPLE,1]] : [] });
 defBlock(B.ACACIA_LOG,  { name:'아카시아 원목', tiles:{top:T.LOG_TOP, bottom:T.LOG_TOP, side:T.ACACIA_SIDE}, hard:2.2, tool:'axe' });
 defBlock(B.ENCHANT,     { name:'인챈트 테이블', tiles:{top:T.ENCH_TOP, bottom:T.OBSIDIAN, side:T.ENCH_SIDE}, hard:6, tool:'pick', tier:1 });
+defBlock(B.LEVER_OFF,   { name:'레버', rt:RT.CROSS, solid:false, tiles:{top:T.LEVER, bottom:T.LEVER, side:T.LEVER}, hard:0.3, drop:()=>[[B.LEVER_OFF,1]] });
+defBlock(B.LEVER_ON,    { name:'레버(켜짐)', rt:RT.CROSS, solid:false, tiles:{top:T.LEVER_ON_T, bottom:T.LEVER_ON_T, side:T.LEVER_ON_T}, hard:0.3, drop:()=>[[B.LEVER_OFF,1]] });
+defBlock(B.LAMP_OFF,    { name:'레드스톤 램프', tiles:{top:T.LAMP, bottom:T.LAMP, side:T.LAMP}, hard:0.8 });
+defBlock(B.LAMP_ON,     { name:'레드스톤 램프(켜짐)', tiles:{top:T.LAMP_ON_T, bottom:T.LAMP_ON_T, side:T.LAMP_ON_T}, hard:0.8, light:1, drop:()=>[[B.LAMP_OFF,1]] });
+defBlock(B.IRON_DOOR,   { name:'철문', tiles:{top:T.IRON_DOOR_T, bottom:T.IRON_DOOR_T, side:T.IRON_DOOR_T}, hard:4, tool:'pick' });
+defBlock(B.IRON_DOOR_OPEN,{ name:'철문(열림)', rt:RT.CROSS, solid:false, tiles:{top:T.IRON_DOOR_T, bottom:T.IRON_DOOR_T, side:T.IRON_DOOR_T}, hard:4, drop:()=>[[B.IRON_DOOR,1]] });
 defBlock(B.CROP_RIPE,  { name:'밀 (다 자람)', rt:RT.CROSS, solid:false, tiles:{top:T.CROP2, bottom:T.CROP2, side:T.CROP2}, hard:0.05,
                          drop:(rng)=>[[I.WHEAT,1], [I.SEEDS, 1 + Math.floor(rng() * 2)]] });
 
@@ -156,6 +169,15 @@ defItem(I.BADGE_ROCK, { name:'바위 배지', stack:1, badge:'rock' });
 defItem(I.BADGE_WATER,{ name:'물결 배지', stack:1, badge:'water' });
 defItem(I.BADGE_ELEC, { name:'전기 배지', stack:1, badge:'electric' });
 defItem(I.BADGE_FIRE, { name:'불꽃 배지', stack:1, badge:'fire' });
+defItem(I.LEATHER, { name:'가죽' });
+[['L','가죽',[1,2,1],80,'#9a6b35'], ['I','철',[2,3,2],180,'#d8d8d8'], ['D','다이아몬드',[3,4,3],400,'#4ee1d2']].forEach(([pre, kn, pts, dur])=>{
+  defItem(I[pre+'_HELM'],  { name:kn+' 투구', stack:1, armor:{slot:0, pts:pts[0], dur} });
+  defItem(I[pre+'_CHEST'], { name:kn+' 갑옷', stack:1, armor:{slot:1, pts:pts[1], dur} });
+  defItem(I[pre+'_LEGS'],  { name:kn+' 바지', stack:1, armor:{slot:2, pts:pts[2], dur} });
+});
+defItem(I.POTION_SPEED, { name:'신속의 물약', stack:16, buff:'speed' });
+defItem(I.POTION_JUMP,  { name:'도약의 물약', stack:16, buff:'jump' });
+defItem(I.POTION_REGEN, { name:'재생의 물약', stack:16, buff:'regen' });
 
 function isBlockId(id){ return id > 0 && id < 100; }
 function itemDef(id){ return isBlockId(id) ? BLOCKS[id] : ITEMS[id]; }
@@ -163,6 +185,8 @@ function itemName(id){ const d = itemDef(id); return d ? d.name : '?'; }
 function maxStack(id){ return isBlockId(id) ? 64 : (ITEMS[id] ? ITEMS[id].stack : 64); }
 function foodValue(id){ return (!isBlockId(id) && ITEMS[id] && ITEMS[id].food) || 0; }
 function toolInfo(id){ return (!isBlockId(id) && ITEMS[id] && ITEMS[id].tool) || null; }
+function armorInfo(id){ return (!isBlockId(id) && ITEMS[id] && ITEMS[id].armor) || null; }
+function buffOf(id){ return (!isBlockId(id) && ITEMS[id] && ITEMS[id].buff) || null; }
 function ballBonus(id){ return (!isBlockId(id) && ITEMS[id] && ITEMS[id].ball) || 0; }
 
 // 크리에이티브 목록
@@ -170,14 +194,16 @@ const CREATIVE_ITEMS = [
   B.GRASS,B.DIRT,B.STONE,B.COBBLE,B.SAND,B.GRAVEL,B.LOG,B.LEAVES,B.PLANKS,B.GLASS,
   B.COAL_ORE,B.IRON_ORE,B.GOLD_ORE,B.DIAMOND_ORE,B.REDSTONE_ORE,B.SNOWGRASS,B.CACTUS,
   B.FLOWER_R,B.FLOWER_Y,B.TALLGRASS,B.CRAFT,B.FURNACE,B.TORCH,B.TNT,B.WOOL,B.BRICKS,
-  B.STONEBRICK,B.OBSIDIAN,B.PUMPKIN,B.BED,B.CHEST,B.FARMLAND,B.BIRCH_LOG,B.BIRCH_LEAVES,B.ACACIA_LOG,B.ENCHANT,
+  B.STONEBRICK,B.OBSIDIAN,B.PUMPKIN,B.BED,B.CHEST,B.FARMLAND,B.BIRCH_LOG,B.BIRCH_LEAVES,B.ACACIA_LOG,B.ENCHANT,B.LEVER_OFF,B.LAMP_OFF,B.IRON_DOOR,
   I.STICK,I.COAL,I.IRON_INGOT,I.GOLD_INGOT,I.DIAMOND,I.REDSTONE,I.APPLE,I.PORK_COOKED,I.BEEF_COOKED,
   I.SEEDS,I.WHEAT,I.BREAD,I.BONEMEAL,I.STRING,I.FISHING_ROD,I.BOW,I.ARROW,I.FLINT,I.FISH_COOKED,
   I.WOOD_PICK,I.WOOD_AXE,I.WOOD_SHOVEL,I.WOOD_SWORD,I.WOOD_HOE,
   I.STONE_PICK,I.STONE_AXE,I.STONE_SHOVEL,I.STONE_SWORD,I.STONE_HOE,
   I.IRON_PICK,I.IRON_AXE,I.IRON_SHOVEL,I.IRON_SWORD,I.IRON_HOE,
   I.DIA_PICK,I.DIA_AXE,I.DIA_SHOVEL,I.DIA_SWORD,I.DIA_HOE,
-  I.POKEBALL,I.GREATBALL,I.ULTRABALL,I.POTION,I.RARECANDY,I.GOLDEN_APPLE,I.EMERALD,I.ENDERPEARL
+  I.POKEBALL,I.GREATBALL,I.ULTRABALL,I.POTION,I.RARECANDY,I.GOLDEN_APPLE,I.EMERALD,I.ENDERPEARL,
+  I.LEATHER,I.L_HELM,I.L_CHEST,I.L_LEGS,I.I_HELM,I.I_CHEST,I.I_LEGS,I.D_HELM,I.D_CHEST,I.D_LEGS,
+  I.POTION_SPEED,I.POTION_JUMP,I.POTION_REGEN
 ];
 
 // ===== 텍스처 아틀라스 =====
@@ -261,6 +287,11 @@ function buildAtlas(){
   paint(T.ACACIA_SIDE, p=>{ p.fill('#6a5a50'); for(let x=0;x<16;x+=3){ p.rect(x,0,1,16,'#584a40'); } p.speck('#7a6a60', 30); });
   paint(T.ENCH_TOP, p=>{ p.fill('#2a1a3a'); p.rect(1,1,14,14,'#3a2a50'); p.rect(6,6,4,4,'#e84d60'); p.speck('#8a5fa8', 20); p.px(7,7,'#f5d327'); });
   paint(T.ENCH_SIDE, p=>{ p.fill('#3a3a3a'); p.rect(0,0,16,3,'#2a1a3a'); p.rect(2,5,12,8,'#5a3a28'); p.speck('#8a5fa8', 12); });
+  paint(T.LEVER, p=>{ p.rect(7,8,2,7,'#8a6a3a'); p.rect(5,14,6,2,'#7a7a7a'); p.px(7,7,'#6a4a2a'); });
+  paint(T.LEVER_ON_T, p=>{ p.rect(7,8,2,7,'#8a6a3a'); p.rect(5,14,6,2,'#7a7a7a'); p.rect(7,5,2,3,'#e83a3a'); });
+  paint(T.LAMP, p=>{ p.fill('#5a4428'); p.rect(2,2,12,12,'#7a5a34'); p.rect(4,4,8,8,'#4a3420'); p.speck('#6a4a2c', 14); });
+  paint(T.LAMP_ON_T, p=>{ p.fill('#7a5a34'); p.rect(2,2,12,12,'#f5c860'); p.rect(4,4,8,8,'#ffe89a'); p.speck('#f5d878', 10); });
+  paint(T.IRON_DOOR_T, p=>{ p.fill('#b8b8b8'); for(let y=1;y<16;y+=4) p.rect(1,y,14,1,'#8a8a8a'); p.rect(1,1,1,14,'#8a8a8a'); p.rect(14,1,1,14,'#8a8a8a'); p.rect(11,8,2,2,'#5a5a5a'); });
   paint(T.CROP2, p=>{ for(let i=0;i<6;i++){ const x=1+i*2+(p.rng()*1|0); p.rect(x,4,1,12,'#b5a23c'); p.rect(x,2,1,3,'#d8c455'); p.px(x-1<0?0:x-1,3,'#d8c455'); p.px(x+1>15?15:x+1,4,'#d8c455'); } });
 
   ATLAS.canvas = cv;
@@ -399,6 +430,22 @@ function drawItemIcon(ctx, id){
     case I.BADGE_WATER: P(5,5,'#5a8fdd',6,6); P(7,4,'#5a8fdd',2,2); P(6,6,'#8ab8f0',3,3); break;
     case I.BADGE_ELEC: P(5,5,'#e8b820',6,6); P(7,4,'#e8b820',2,2); P(6,6,'#f5d868',3,3); break;
     case I.BADGE_FIRE: P(5,5,'#e8633a',6,6); P(7,4,'#e8633a',2,2); P(6,6,'#f59868',3,3); break;
+    case I.LEATHER: P(4,6,'#9a6b35',8,6); P(5,5,'#9a6b35',6,8); P(6,7,'#b8854a',4,3); break;
+    case I.L_HELM: case I.I_HELM: case I.D_HELM: {
+      const c = id===I.L_HELM ? '#9a6b35' : id===I.I_HELM ? '#d8d8d8' : '#4ee1d2';
+      P(4,5,c,8,4); P(3,7,c,10,3); P(4,10,c,2,2); P(10,10,c,2,2); break;
+    }
+    case I.L_CHEST: case I.I_CHEST: case I.D_CHEST: {
+      const c = id===I.L_CHEST ? '#9a6b35' : id===I.I_CHEST ? '#d8d8d8' : '#4ee1d2';
+      P(4,4,c,8,8); P(2,4,c,2,4); P(12,4,c,2,4); P(6,5,'#00000022',4,2); break;
+    }
+    case I.L_LEGS: case I.I_LEGS: case I.D_LEGS: {
+      const c = id===I.L_LEGS ? '#9a6b35' : id===I.I_LEGS ? '#d8d8d8' : '#4ee1d2';
+      P(4,4,c,8,3); P(4,7,c,3,7); P(9,7,c,3,7); break;
+    }
+    case I.POTION_SPEED: P(6,3,'#c8c8d8',4,2); P(5,5,'#d8e8f0',6,3); P(4,8,'#58c8e8',8,5); P(5,9,'#8adcf5',2,2); break;
+    case I.POTION_JUMP: P(6,3,'#c8c8d8',4,2); P(5,5,'#d8e8f0',6,3); P(4,8,'#8ae060',8,5); P(5,9,'#b8f098',2,2); break;
+    case I.POTION_REGEN: P(6,3,'#c8c8d8',4,2); P(5,5,'#d8e8f0',6,3); P(4,8,'#f06ba8',8,5); P(5,9,'#f8a8cc',2,2); break;
     case I.GOLDEN_APPLE: P(5,5,'#fce14c',6,6); P(4,6,'#fce14c',8,4); P(7,3,'#6b4a2a',1,2); P(8,3,'#3c8a28',2,1); P(5,6,'#fff08c',2,2); break;
     default: P(4,4,'#f0f','8',8); break;
   }
@@ -441,6 +488,20 @@ const RECIPES = [
   { p:[' D ','IRI',' I '], k:{D:I.DIAMOND, I:I.IRON_INGOT, R:I.REDSTONE}, out:[I.ULTRABALL,3] },
   { sl:[[B.FLOWER_R,2],[I.APPLE,1]], out:[I.POTION,2] },
   { p:['GGG','GAG','GGG'], k:{G:I.GOLD_INGOT, A:I.APPLE}, out:[I.GOLDEN_APPLE,1] },
+  // 갑옷
+  ...[[I.LEATHER,'L'], [I.IRON_INGOT,'I'], [I.DIAMOND,'D']].flatMap(([mat, pre])=>[
+    { p:['MMM','M.M'], k:{M:mat}, out:[I[pre+'_HELM'],1] },
+    { p:['M.M','MMM','MMM'], k:{M:mat}, out:[I[pre+'_CHEST'],1] },
+    { p:['MMM','M.M','M.M'], k:{M:mat}, out:[I[pre+'_LEGS'],1] },
+  ]),
+  // 레드스톤 간이
+  { p:['S','C'], k:{S:I.STICK, C:B.COBBLE}, out:[B.LEVER_OFF,1] },
+  { p:['.R.','RGR','.R.'], k:{R:I.REDSTONE, G:B.GLASS}, out:[B.LAMP_OFF,1] },
+  { p:['II','II','II'], k:{I:I.IRON_INGOT}, out:[B.IRON_DOOR,1] },
+  // 물약
+  { sl:[[I.WHEAT,2],[I.REDSTONE,1]], out:[I.POTION_SPEED,1] },
+  { sl:[[I.FEATHER,2],[I.REDSTONE,1]], out:[I.POTION_JUMP,1] },
+  { sl:[[I.APPLE,2],[I.REDSTONE,1]], out:[I.POTION_REGEN,1] },
 ];
 
 // 레시피 패턴 → 2차원 id 배열

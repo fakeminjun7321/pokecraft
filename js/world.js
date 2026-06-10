@@ -334,8 +334,8 @@ class World {
     }
 
     const pk = wx + ',' + wy + ',' + wz;
-    if(old === B.TORCH) c.torches.delete(pk);
-    if(id === B.TORCH) c.torches.add(pk);
+    if(BLOCKS[old].light >= 1) c.torches.delete(pk);
+    if(BLOCKS[id].light >= 1) c.torches.add(pk);
     const wasFurn = World.isFurnaceId(old), isFurn = World.isFurnaceId(id);
     // 컨테이너 내용물 드롭은 권위 측(싱글/호스트)에서만 — 게스트도 드롭하면 인원수만큼 복제됨
     const authoritative = typeof Net === 'undefined' || Net.mode !== 'guest';
@@ -362,6 +362,7 @@ class World {
     // 멀티플레이 동기화
     if(!fromNet && typeof Net !== 'undefined' && Net.mode !== 'off') Net.blockChanged(wx, wy, wz, id);
 
+    if(typeof Minimap !== 'undefined') Minimap.invalidate(ck(cx, cz));
     // 리메시 대상
     const lightChanged = old === B.TORCH || id === B.TORCH || BLOCKS[old].light > 0 || BLOCKS[id].light > 0;
     const r = lightChanged ? 1 : 0;

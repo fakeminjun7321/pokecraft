@@ -138,6 +138,8 @@ const Net = {
           p.x = m.x; p.y = m.y; p.z = m.z;
           p.yaw = _validNum(m.yaw, -100, 100) ? m.yaw : 0;
           p.fol = (Number.isInteger(m.fol) && SPECIES[m.fol]) ? m.fol : 0;
+          p.rid = m.rid ? 1 : 0;
+          p.arm = Array.isArray(m.arm) ? m.arm.slice(0, 3).map(a => _validItemId(a) && armorInfo(a) ? a : 0) : null;
         }
         break;
       }
@@ -397,7 +399,8 @@ const Net = {
       if(this._sendAcc >= 0.1){
         this._sendAcc = 0;
         this.toHost({ t: 'pos', x: player.body.x, y: player.body.y, z: player.body.z,
-                      yaw: player.yaw, fol: (game.followerOn && PokeMan.party.length) ? PokeMan.party[0].sp : 0 });
+                      yaw: player.yaw, fol: (game.followerOn && PokeMan.party.length) ? PokeMan.party[0].sp : 0,
+                      rid: game.riding ? 1 : 0, arm: player.armor.map(a => a ? a.id : 0) });
       }
       this._lerpPuppets(dt);
       this._tryPickup();
@@ -410,8 +413,9 @@ const Net = {
         t: 'snap',
         players: [
           { id: 'host', name: this.myName, x: player.body.x, y: player.body.y, z: player.body.z,
-            yaw: player.yaw, fol: (game.followerOn && PokeMan.party.length) ? PokeMan.party[0].sp : 0 },
-          ...[...this.players.entries()].map(([id, p]) => ({ id, name: p.name, x: p.x, y: p.y, z: p.z, yaw: p.yaw, fol: p.fol }))
+            yaw: player.yaw, fol: (game.followerOn && PokeMan.party.length) ? PokeMan.party[0].sp : 0,
+            rid: game.riding ? 1 : 0, arm: player.armor.map(a => a ? a.id : 0) },
+          ...[...this.players.entries()].map(([id, p]) => ({ id, name: p.name, x: p.x, y: p.y, z: p.z, yaw: p.yaw, fol: p.fol, rid: p.rid, arm: p.arm }))
         ],
         mobs: MobManager.list.map(m => ({ id: m.netId, type: m.type, x: m.body.x, y: m.body.y, z: m.body.z, dir: m.dir })),
         wilds: PokeMan.wilds.map(w => ({ id: w.netId, sp: w.inst.sp, lv: w.inst.level, hp: w.inst.hp,
@@ -473,8 +477,18 @@ const Net = {
     }
     if(p.model.folEnt){
       const f = p.model.folEnt.root;
-      f.position.set(g.position.x - Math.sin(tyaw) * -1.3, g.position.y, g.position.z - Math.cos(tyaw) * -1.3);
+      if(p.rid){
+        f.position.set(g.position.x, g.position.y - 0.35, g.position.z);
+      } else {
+        f.position.set(g.position.x - Math.sin(tyaw) * -1.3, g.position.y, g.position.z - Math.cos(tyaw) * -1.3);
+      }
       f.rotation.y = tyaw + Math.PI;
+    }
+    // 갑옷 표시 (변경 시에만 갱신)
+    const armKey = (p.arm || []).join(',');
+    if(p.model._armKey !== armKey){
+      p.model._armKey = armKey;
+      applyArmorOverlay(p.model, p.arm);
     }
   },
 
@@ -487,6 +501,7 @@ const Net = {
       let p = this.players.get(pp.id);
       if(!p){ p = { name: pp.name }; this.players.set(pp.id, p); }
       p.tx = pp.x; p.ty = pp.y; p.tz = pp.z; p.tyaw = pp.yaw; p.fol = pp.fol;
+      p.rid = pp.rid; p.arm = pp.arm;
       p.x = pp.x; p.y = pp.y; p.z = pp.z;
     });
     for(const [id, p] of this.players){

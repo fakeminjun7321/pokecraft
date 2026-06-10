@@ -22,6 +22,8 @@ class Player {
     this.reach = 4.5;
     this.bobber = null;   // 낚시찌
     this.charging = -1;   // 활 차징 (-1 = 안 함)
+    this.armor = [null, null, null]; // 투구/갑옷/바지
+    this.effects = {};    // {speed:t, jump:t, regen:t}
   }
 
   spawnAt(p){
@@ -66,23 +68,37 @@ class Player {
     if(ml > 0){ mx /= ml; mz /= ml; }
 
     const sprint = canControl && (k['ControlLeft'] || game.sprint) && fw > 0;
+    // 라이드 타입
+    const ride = game.riding && PokeMan.party.length ? rideTypeFor(PokeMan.party[0].sp) : null;
     let speed;
-    if(this.fly) speed = sprint ? 14 : 9;
+    if(ride === 'fly') speed = 12;
+    else if(ride === 'surf' && b.inWater) speed = 9.5;
+    else if(ride === 'run' || (ride === 'surf' && !b.inWater)) speed = 8.5;
+    else if(this.fly) speed = sprint ? 14 : 9;
     else if(b.inWater) speed = 2.6;
     else speed = sprint ? 5.8 : 4.3;
+    if(this.effects.speed > 0) speed *= 1.4;
 
     const accel = b.onGround || this.fly || b.inWater ? 10 : 3;
     b.vx = lerp(b.vx, mx * speed, Math.min(1, dt * accel));
     b.vz = lerp(b.vz, mz * speed, Math.min(1, dt * accel));
 
-    if(this.fly){
+    if(ride === 'fly' || (ride === 'surf' && b.inWater)){
+      // 포켓몬 라이드: 자유 비행 / 수면 유영
+      b.noGravity = true;
+      const vmax = ride === 'fly' ? 9 : 5;
+      b.vy = lerp(b.vy, (jump ? 1 : 0) * vmax + (down ? -1 : 0) * vmax, Math.min(1, dt * 8));
+      if(ride === 'fly' && Math.abs(b.vy) > 1 && typeof Ach !== 'undefined') Ach.unlock('first_fly');
+      if(ride === 'surf' && typeof Ach !== 'undefined') Ach.unlock('first_surf');
+    } else if(this.fly){
       b.noGravity = true;
       b.vy = lerp(b.vy, (jump ? 1 : 0) * 9 + (down ? -1 : 0) * 9, Math.min(1, dt * 10));
     } else {
       b.noGravity = false;
+      const jumpV = (ride === 'run' ? 11 : 8.6) * (this.effects.jump > 0 ? 1.25 : 1);
       if(jump){
         if(b.inWater) b.vy = Math.min(b.vy + 28 * dt, 3.4);
-        else if(b.onGround) b.vy = 8.6;
+        else if(b.onGround) b.vy = jumpV;
       }
     }
 
@@ -108,9 +124,14 @@ class Player {
       this.drownAcc = 0;
     }
 
-    // 자연 회복
+    // 버프 타이머
+    for(const k in this.effects){
+      this.effects[k] -= dt;
+      if(this.effects[k] <= 0) delete this.effects[k];
+    }
+    // 자연 회복 (재생 물약이면 2.5초마다)
     this.regenTimer += dt;
-    if(this.regenTimer > 5){
+    if(this.regenTimer > (this.effects.regen > 0 ? 2.5 : 5)){
       this.regenTimer = 0;
       if(this.health < this.maxHealth) this.health++;
     }
@@ -189,6 +210,10 @@ class Player {
   }
   breakBlock(hit, withDrops){
     const def = BLOCKS[hit.id];
+    if(typeof Ach !== 'undefined'){
+      if(hit.id === B.LOG || hit.id === B.BIRCH_LOG || hit.id === B.ACACIA_LOG) Ach.unlock('first_tree');
+      if(hit.id === B.DIAMOND_ORE) Ach.unlock('first_diamond');
+    }
     this.world.setBlock(hit.bx, hit.by, hit.bz, B.AIR);
     SFX.play('break');
     Particles.blockBreak(hit.bx, hit.by, hit.bz, hit.id);
@@ -267,14 +292,39 @@ class Player {
     if(this.dead || game.uiOpen || game.inBattle || !game.locked) return;
     const hit = this.raycastBlock();
     game.swing = 0.25;
-    // NPC 상호작용 (주민 거래 / 관장 도전)
+    // NPC/동물 상호작용 (거래 / 도전 / 번식 / 길들이기)
     {
       const e0 = this.eye(), d0 = this.dir();
       const npc = MobManager.rayHit(e0.x, e0.y, e0.z, d0.x, d0.y, d0.z, 3.5);
-      if(npc && npc.def.npc && (!hit || hit.dist > 3.5)){
-        if(npc.def.leader && npc.gym) startGymBattle(npc.gym);
-        else if(npc.type === 'villager') UI.openTrade();
-        return;
+      if(npc && (!hit || hit.dist > 3.5)){
+        const held = this.currentItem();
+        if(npc.def.npc){
+          if(npc.def.leader && npc.gym) startGymBattle(npc.gym);
+          else if(npc.type === 'villager'){ UI.openTrade(); if(typeof Ach !== 'undefined') Ach.unlock('trade'); }
+          return;
+        }
+        // 늑대 길들이기 (뼈다귀)
+        if(npc.def.tameable && !npc.tamed && held && held.id === I.BONE){
+          this.consumeSelected();
+          if(Math.random() < 0.4){
+            npc.tamed = true;
+            npc.setTag('🐶 내 늑대');
+            Particles.spawn(npc.body.x, npc.body.y + 1, npc.body.z, 0xf06ba8, 16, 2, 0.8, 1.5);
+            SFX.play('caught');
+            UI.toast('늑대를 길들였다!');
+            if(typeof Ach !== 'undefined') Ach.unlock('first_tame');
+          } else {
+            Particles.spawn(npc.body.x, npc.body.y + 1, npc.body.z, 0x888888, 8, 1.5, 0.5, 1);
+          }
+          return;
+        }
+        // 번식 (밀)
+        if(!npc.def.hostile && !npc.def.npc && !npc.def.tameable && held && held.id === I.WHEAT && npc.love <= 0 && npc.babyT <= 0){
+          this.consumeSelected();
+          npc.love = 30;
+          SFX.play('eat');
+          return;
+        }
       }
     }
     // 상호작용 블록
@@ -283,6 +333,21 @@ class Player {
       if(hit.id === B.FURNACE || hit.id === B.FURNACE_LIT){ UI.openFurnace(hit.bx + ',' + hit.by + ',' + hit.bz); return; }
       if(hit.id === B.CHEST){ UI.openChest(hit.bx + ',' + hit.by + ',' + hit.bz); return; }
       if(hit.id === B.ENCHANT){ UI.openEnchant(); return; }
+      // 레버: 토글 + 주변 3블록 내 철문/램프 작동
+      if(hit.id === B.LEVER_OFF || hit.id === B.LEVER_ON){
+        const on = hit.id === B.LEVER_OFF;
+        this.world.setBlock(hit.bx, hit.by, hit.bz, on ? B.LEVER_ON : B.LEVER_OFF);
+        SFX.play('click');
+        for(let dx = -3; dx <= 3; dx++) for(let dy = -3; dy <= 3; dy++) for(let dz = -3; dz <= 3; dz++){
+          const id2 = this.world.getBlock(hit.bx + dx, hit.by + dy, hit.bz + dz);
+          if(id2 === B.LAMP_OFF && on) this.world.setBlock(hit.bx + dx, hit.by + dy, hit.bz + dz, B.LAMP_ON);
+          else if(id2 === B.LAMP_ON && !on) this.world.setBlock(hit.bx + dx, hit.by + dy, hit.bz + dz, B.LAMP_OFF);
+          else if(id2 === B.IRON_DOOR && on) this.world.setBlock(hit.bx + dx, hit.by + dy, hit.bz + dz, B.IRON_DOOR_OPEN);
+          else if(id2 === B.IRON_DOOR_OPEN && !on) this.world.setBlock(hit.bx + dx, hit.by + dy, hit.bz + dz, B.IRON_DOOR);
+        }
+        return;
+      }
+      if(hit.id === B.IRON_DOOR){ UI.toast('철문은 레버로만 열려요'); return; }
       if(hit.id === B.BED){ this.trySleep(hit); return; }
       if(hit.id === B.TNT){
         this.world.setBlock(hit.bx, hit.by, hit.bz, B.AIR);
@@ -344,6 +409,26 @@ class Player {
       return;
     }
     if(item.id === I.POTION){ UI.toast('상처약은 파티 화면(P)이나 배틀 중에 사용할 수 있어요'); return; }
+    // 물약 마시기
+    if(buffOf(item.id)){
+      this.effects[buffOf(item.id)] = 60;
+      SFX.play('eat');
+      Particles.spawn(this.body.x, this.body.y + 1.4, this.body.z,
+        item.id === I.POTION_SPEED ? 0x58c8e8 : item.id === I.POTION_JUMP ? 0x8ae060 : 0xf06ba8, 10, 1.5, 0.6, 1);
+      this.consumeSelected();
+      return;
+    }
+    // 갑옷 착용 (우클릭)
+    if(armorInfo(item.id)){
+      const slot = armorInfo(item.id).slot;
+      const prev = this.armor[slot];
+      this.armor[slot] = { ...item, n: 1 };
+      this.inventory[this.selected] = prev ? { ...prev } : null;
+      SFX.play('place');
+      UI.toast(itemName(item.id) + ' 착용! (방어 ' + this.armorPts() + ')');
+      UI.updateHotbar();
+      return;
+    }
     // 엔더 진주: 던져서 순간이동
     if(item.id === I.ENDERPEARL){
       const e = this.eye(), d = this.dir();
@@ -409,6 +494,7 @@ class Player {
     this.clearBobber();
     if(!bite){ SFX.play('splash'); return; }
     SFX.play('caught');
+    if(typeof Ach !== 'undefined') Ach.unlock('first_fish');
     this.damageTool(item);
     const r = Math.random();
     const bx = this.body.x, by = this.body.y + 1.2, bz = this.body.z;
@@ -510,11 +596,30 @@ class Player {
   }
 
   // ----- 데미지/죽음 -----
+  armorPts(){
+    return this.armor.reduce((s, a) => s + (a ? armorInfo(a.id).pts : 0), 0);
+  }
   hurt(dmg, kx, kz, ignoreInvuln){
     if(this.dead) return;
     if(game.mode === 'creative') return;
     if(game.inBattle) return; // 포켓몬 배틀 중에는 무적
     if(!ignoreInvuln && this.invuln > 0) return;
+    // 갑옷: 포인트당 5% 감소 (최대 60%) + 무작위 부위 내구 소모
+    const pts = this.armorPts();
+    if(pts > 0){
+      dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.6, pts * 0.05))));
+      const worn = this.armor.map((a, i) => a ? i : -1).filter(i => i >= 0);
+      const idx = worn[Math.floor(Math.random() * worn.length)];
+      const piece = this.armor[idx];
+      const info = armorInfo(piece.id);
+      if(piece.dur === undefined) piece.dur = info.dur;
+      piece.dur -= dmg;
+      if(piece.dur <= 0){
+        this.armor[idx] = null;
+        SFX.play('fail');
+        UI.toast(itemName(piece.id) + '이(가) 부서졌다!');
+      }
+    }
     this.health -= dmg;
     this.invuln = 0.6;
     SFX.play('hurt');
@@ -596,10 +701,12 @@ class Player {
     UI.updateHotbar();
   }
   serialize(){
+    const pets = MobManager.list.filter(m => m.tamed).length;
     return {
       x: this.body.x, y: this.body.y, z: this.body.z,
       yaw: this.yaw, pitch: this.pitch,
-      health: this.health, inv: this.inventory, sel: this.selected
+      health: this.health, inv: this.inventory, sel: this.selected,
+      armor: this.armor, effects: this.effects, pets
     };
   }
   deserialize(d){
@@ -610,6 +717,15 @@ class Player {
     this.inventory = (d.inv || new Array(36).fill(null)).map(s => s ? { ...s } : null);
     while(this.inventory.length < 36) this.inventory.push(null);
     this.selected = d.sel || 0;
+    this.armor = (d.armor || [null, null, null]).map(a => a ? { ...a } : null);
+    this.effects = d.effects || {};
+    // 길들인 늑대 복원
+    for(let i = 0; i < (d.pets || 0); i++){
+      const w = new Mob('wolf', this.body.x + 1 + i, this.body.y + 1, this.body.z + 1);
+      w.tamed = true;
+      w.setTag('🐶 내 늑대');
+      MobManager.list.push(w);
+    }
     // 저장 당시 커서/제작칸에 있던 아이템 복원
     (d.extra || []).forEach(s => { if(s) this.addItem(s.id, s.n, s.dur); });
   }

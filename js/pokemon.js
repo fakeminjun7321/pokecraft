@@ -159,12 +159,15 @@ function autoLearn(types){
   const t2 = types[1] ? (TYPE_MOVES[types[1]] || []) : [];
   const pick = (arr, i, fb) => arr[Math.min(i, arr.length - 1)] || fb;
   const ls = [];
-  ls.push([1, t1[0] || 'tackle']);
-  ls.push([8, pick(t1, 1, 'quick')]);
-  ls.push([16, t2.length ? pick(t2, Math.min(1, t2.length - 1), 'headbutt') : 'headbutt']);
-  ls.push([26, pick(t1, t1.length >= 3 ? 2 : 1, 'bodyslam')]);
+  // 1레벨부터 기술 2개 (기본기 + 타입기)
+  ls.push([1, types[0] === 'normal' ? 'quick' : 'tackle']);
+  ls.push([1, t1[0] || 'scratch']);
+  ls.push([7, pick(t1, 1, 'quick')]);
+  ls.push([13, t2.length ? pick(t2, Math.min(1, t2.length - 1), 'headbutt') : 'headbutt']);
+  ls.push([20, pick(t1, t1.length >= 3 ? 2 : 1, 'bodyslam')]);
+  ls.push([28, t2.length >= 3 ? t2[2] : 'bodyslam']);
   ls.push([36, t1[t1.length - 1] || 'bodyslam']);
-  // 연속 중복 제거
+  // 중복 제거
   const out = [];
   const seen = new Set();
   ls.forEach(([lv, k]) => { if(!seen.has(k)){ seen.add(k); out.push([lv, k]); } });
@@ -632,6 +635,7 @@ class PokeInst {
     return this.level >= e.lv ? e.to : null;
   }
   doEvolve(to){
+    if(typeof Ach !== 'undefined') Ach.unlock('first_evolve');
     const ratio = this.hp / this.maxHp;
     this.sp = to;
     this.calc();
@@ -796,6 +800,14 @@ const PokeMan = {
   addCaught(inst){
     this.seen.add(inst.sp);
     this.caught.add(inst.sp);
+    if(typeof Ach !== 'undefined'){
+      Ach.unlock('first_catch');
+      if(LEGENDARIES.includes(inst.sp)) Ach.unlock('legend');
+      const n = this.caught.size;
+      if(n >= 10) Ach.unlock('dex10');
+      if(n >= 50) Ach.unlock('dex50');
+      if(n >= 151) Ach.unlock('dex151');
+    }
     if(this.party.length < 6){ this.party.push(inst); return 'party'; }
     this.box.push(inst);
     return 'box';
@@ -906,6 +918,18 @@ const Follower = {
       this.sp = want;
     }
     const e = this.ent, b = e.body;
+    // 라이딩 중: 플레이어 발 밑에 고정
+    if(game.riding){
+      const pb = player.body;
+      e.bob += dt;
+      e.dir = player.yaw + Math.PI;
+      e.group.position.set(pb.x, pb.y - 0.35, pb.z);
+      e.group.rotation.y = e.dir;
+      (e.built.wings || []).forEach((wg, i) => { wg.rotation.z = (i === 0 ? 1 : -1) * Math.sin(e.bob * 10) * 0.6; });
+      (e.built.legs || []).forEach((l, i) => { l.rotation.x = Math.sin(e.bob * 8 + i) * 0.5; });
+      b.x = pb.x; b.y = pb.y; b.z = pb.z;
+      return;
+    }
     const d = dist3(b.x, b.y, b.z, player.body.x, player.body.y, player.body.z);
     if(d > 24){ // 너무 멀면 순간이동
       b.x = player.body.x - 1; b.y = player.body.y + 1; b.z = player.body.z - 1;
@@ -1313,6 +1337,7 @@ const Battle = {
       if(typeof world !== 'undefined' && !world.gymsBeaten.has(this.trainer.gymKey)){
         world.gymsBeaten.add(this.trainer.gymKey);
         PokeMan.badges.add(this.trainer.type);
+        if(typeof Ach !== 'undefined'){ Ach.unlock('badge1'); if(PokeMan.badges.size >= 4) Ach.unlock('badge4'); }
         player.addItem(this.trainer.badge, 1);
         player.addItem(I.EMERALD, 5);
         await this.say(itemName(this.trainer.badge) + '을(를) 획득했다! (포켓몬 공격력 +4%)');

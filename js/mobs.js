@@ -108,7 +108,7 @@ function buildBird(o){
 const MOB_DEFS = {
   pig: { name:'돼지', hp:10, speed:1.2, w:0.42, h:0.85, drops:[[I.PORK_RAW,1,2]],
     model:()=> buildQuad({ body:'#f0a3a3', snout:'#e58c8c', legC:'#e89292' }) },
-  cow: { name:'소', hp:10, speed:1.1, w:0.45, h:1.25, drops:[[I.BEEF_RAW,1,2]],
+  cow: { name:'소', hp:10, speed:1.1, w:0.45, h:1.25, drops:[[I.BEEF_RAW,1,2],[I.LEATHER,0,2]],
     model:()=> { const m = buildQuad({ body:'#5d4231', bh:0.65, bd:1.1, legH:0.45, hs:0.5, snout:'#d8c8b8', legC:'#4d3829' });
       makeBox(m.head, 0.08, 0.1, 0.08, '#d8d8d8', -0.28, 0.22, 0); makeBox(m.head, 0.08, 0.1, 0.08, '#d8d8d8', 0.28, 0.22, 0);
       makeBox(m.body, 0.64, 0.2, 0.3, '#e8e8e8', 0, -0.25, 0.2); return m; } },
@@ -153,6 +153,10 @@ const MOB_DEFS = {
       [[-0.45,0.35,0],[0.45,0.35,0],[0,0.45,-0.3],[0,0.45,0.3]].forEach(([x,y,z]) => makeBox(body, 0.08, 0.25, 0.08, '#c8b888', x, y, z));
       makeBox(g, 0.15, 0.3, 0.3, '#4a7a68', 0, 0.4, -0.5);
       return { group: g, legs: [], head: body }; } },
+  wolf: { name:'늑대', hp:12, speed:1.9, w:0.35, h:0.85, tameable:true, drops:[[I.BONE,0,1]],
+    model:()=> { const m = buildQuad({ body:'#b8b8c0', bw:0.5, bh:0.42, bd:0.8, legH:0.32, hs:0.42, headC:'#c8c8d0', ears:'#9a9aa8', snout:'#8a8a98' });
+      makeBox(m.group, 0.1, 0.1, 0.4, '#b8b8c0', 0, 0.62, -0.55);
+      return m; } },
   villager: { name:'주민', hp:20, speed:0.8, w:0.3, h:1.8, npc:true, drops:[[I.EMERALD,0,1]],
     model:()=> { const m = buildBiped({ body:'#8a6a4a', headC:'#d8a888', legC:'#6a5038', armC:'#8a6a4a', legH:0.7, bh:0.75 });
       makeBox(m.head, 0.12, 0.22, 0.1, '#c89878', 0, -0.05, 0.28);
@@ -185,7 +189,13 @@ class Mob {
     this.hurtFlash = 0; this.walkPhase = 0;
     this.dead = false;
     this.angry = false; this.hopT = 0; this.tpT = 3;
+    this.love = 0; this.tamed = false; this.babyT = 0; // 번식/펫/아기
     if(this.def.npc) this.setTag(this.def.leader ? '체육관 관장' : '주민');
+  }
+  makeBaby(){
+    this.babyT = 180; // 3분 뒤 성체
+    this.group.scale.setScalar(0.5);
+    this.body.h *= 0.5; this.body.w *= 0.6;
   }
   setTag(text){
     if(this.tag){ this.group.remove(this.tag); disposeObject(this.tag); }
@@ -206,6 +216,33 @@ class Mob {
     const dToP = dist3(b.x, b.y, b.z, tgt.x, tgt.y, tgt.z);
     let speed = 0;
 
+    // 번식 하트 / 아기 성장 / 길들인 늑대는 주인 따라다님
+    if(this.love > 0){
+      this.love -= dt;
+      if(Math.random() < dt * 3) Particles.spawn(b.x, b.y + this.body.h + 0.3, b.z, 0xf06ba8, 2, 1, 0.5, 1);
+    }
+    if(this.babyT > 0){
+      this.babyT -= dt;
+      if(this.babyT <= 0){ this.group.scale.setScalar(1); this.body.h /= 0.5; this.body.w /= 0.6; }
+    }
+    if(this.tamed){
+      const d2 = dist3(b.x, b.y, b.z, player.body.x, player.body.y, player.body.z);
+      if(d2 > 20){ b.x = player.body.x - 1; b.y = player.body.y + 1; b.z = player.body.z - 1; }
+      let sp2 = 0;
+      if(d2 > 3){ this.dir = Math.atan2(player.body.x - b.x, player.body.z - b.z); sp2 = clamp((d2 - 2) * 1.3, 1, 6); }
+      b.vx = lerp(b.vx, Math.sin(this.dir) * sp2, Math.min(1, dt * 8));
+      b.vz = lerp(b.vz, Math.cos(this.dir) * sp2, Math.min(1, dt * 8));
+      if(b.hitWall && b.onGround && sp2 > 0) b.vy = 7.5;
+      if(b.inWater) b.vy = Math.max(b.vy, 1.5);
+      b.update(dt, world);
+      const spd = Math.hypot(b.vx, b.vz);
+      this.walkPhase += spd * dt * 4;
+      const sww = Math.sin(this.walkPhase) * Math.min(1, spd) * 0.7;
+      this.legs.forEach((l, i) => { l.rotation.x = (i % 2 === 0 ? sww : -sww); });
+      this.group.position.set(b.x, b.y, b.z);
+      this.group.rotation.y = this.dir;
+      return;
+    }
     const aggro = (def.hostile || (def.neutral && this.angry)) && !def.npc;
     if(aggro && !tgt.dead && dToP < (def.neutral ? 28 : 16)){
       this.dir = Math.atan2(tgt.x - b.x, tgt.z - b.z);
@@ -376,9 +413,25 @@ const MobManager = {
   count(hostile){ return this.list.filter(m => !!m.def.hostile === hostile).length; },
   update(dt, world, player){
     for(const m of this.list.slice()) m.update(dt, world, player);
-    // 너무 먼 몹 디스폰 (NPC 제외)
+    // 번식: 사랑에 빠진 같은 종 2마리가 가까우면 아기
+    const lovers = this.list.filter(x => x.love > 0 && !x.dead && x.babyT <= 0);
+    for(let i = 0; i < lovers.length; i++){
+      for(let j = i + 1; j < lovers.length; j++){
+        const a = lovers[i], b2 = lovers[j];
+        if(a.type !== b2.type || a.love <= 0 || b2.love <= 0) continue;
+        if(dist3(a.body.x, a.body.y, a.body.z, b2.body.x, b2.body.y, b2.body.z) > 4) continue;
+        a.love = 0; b2.love = 0;
+        const baby = new Mob(a.type, (a.body.x + b2.body.x) / 2, a.body.y + 0.5, (a.body.z + b2.body.z) / 2);
+        baby.makeBaby();
+        this.list.push(baby);
+        Particles.spawn(baby.body.x, baby.body.y + 1, baby.body.z, 0xf06ba8, 14, 2, 0.8, 1.5);
+        SFX.play('pop');
+        if(typeof Ach !== 'undefined') Ach.unlock('first_breed');
+      }
+    }
+    // 너무 먼 몹 디스폰 (NPC/펫 제외)
     for(const m of this.list.slice()){
-      if(m.def.npc) continue;
+      if(m.def.npc || m.tamed) continue;
       if(dist3(m.body.x, m.body.y, m.body.z, player.body.x, player.body.y, player.body.z) > 90){
         m.dead = true;
         scene.remove(m.group);
@@ -451,7 +504,9 @@ const MobManager = {
         type = r < 0.3 ? 'zombie' : r < 0.55 ? 'skeleton' : r < 0.7 ? 'creeper' : r < 0.85 ? 'spider' : r < 0.93 ? 'slime' : 'enderman';
       } else {
         const r = Math.random();
-        type = r < 0.3 ? 'pig' : r < 0.55 ? 'cow' : r < 0.8 ? 'sheep' : 'chicken';
+        const biome = world.biomeAt(Math.floor(x), Math.floor(z));
+        if((biome === 'forest' || biome === 'snow' || biome === 'birch') && r < 0.15) type = 'wolf';
+        else type = r < 0.3 ? 'pig' : r < 0.55 ? 'cow' : r < 0.8 ? 'sheep' : 'chicken';
       }
       this.list.push(new Mob(type, Math.floor(x) + 0.5, y + 0.1, Math.floor(z) + 0.5));
       return;
