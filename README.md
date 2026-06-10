@@ -79,6 +79,20 @@ python3 -m http.server 8000
 - **📖 조합법 책 (B키)**: 모든 레시피를 카테고리별로 열람, 재료가 충분하면 초록색으로 표시
 - **F1**: 게임 중 언제든 조작법 보기 / **황금 사과**(금괴8+사과): 체력 전체 회복
 
+## 🤝 공동개발 가이드
+
+```bash
+git clone https://github.com/fakeminjun7321/pokecraft.git
+cd pokecraft
+python3 -m http.server 8000   # http://localhost:8000 에서 테스트
+```
+
+- **빌드 과정 없음** — 파일 수정하고 새로고침하면 끝. main에 푸시하면 몇 분 안에 Pages에 자동 반영돼요.
+- **꼭 지킬 것**: JS/CSS를 수정해 푸시할 때는 `index.html`의 `?v=4`를 `?v=5`처럼 올려주세요 (브라우저 캐시 때문에 안 올리면 유저가 옛 코드를 봐요).
+- 큰 기능은 브랜치 파서 작업 후 PR로 합치는 걸 추천: `git checkout -b feature/이름`
+- 파일 지도: `world.js`(지형·청크·메싱) / `pokemon.js`(151종 데이터·배틀 — DEX 테이블에 종 추가) / `content.js`(블록·아이템·조합법) / `net.js`(멀티 동기화) / `player.js`(조작) / `ui.js`(인벤토리·메뉴) / `main.js`(루프·입력) / `account.js`(계정·세이브 버전)
+- **세이브 형식을 바꿀 때는** `account.js`의 `SAVE_VERSION`을 올리고 `migrateSave`에 변환 코드를 추가해야 유저 세이브가 안 깨져요.
+
 ## 팁
 - 시드가 같으면 같은 세계. 다이아몬드는 y<14 (F3로 좌표 확인)
 - 스폰에서 멀어질수록 야생 포켓몬 레벨 상승 (최대 32, 전설은 35+)
