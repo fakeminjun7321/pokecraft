@@ -140,9 +140,10 @@ const TOOL_DUR   = [60, 132, 251, 800];
 [['PICK','곡괭이','pick'], ['AXE','도끼','axe'], ['SHOVEL','삽','shovel'], ['SWORD','검','sword'], ['HOE','호미','hoe']].forEach(([suf, kn, kind])=>{
   ['WOOD','STONE','IRON','DIA'].forEach((mat, tier)=>{
     const id = I[mat + '_' + suf];
+    const dmg = kind === 'sword' ? 4 + tier : kind === 'axe' ? 3 + tier : 1 + tier;
     defItem(id, {
       name: TIER_NAMES[tier] + ' ' + kn, stack:1,
-      tool: { kind, tier, speed:TOOL_SPEED[tier], dmg: kind==='sword' ? 4+tier : 2+tier, dur:TOOL_DUR[tier] }
+      tool: { kind, tier, speed:TOOL_SPEED[tier], dmg, dur:TOOL_DUR[tier] }
     });
   });
 });

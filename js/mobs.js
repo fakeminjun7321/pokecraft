@@ -496,7 +496,7 @@ const MobManager = {
       const y = world.colTop(x, z) + 1;
       if(y <= SEA + 1 || y >= WORLD_H - 2) continue;
       const ground = world.getBlock(x, y - 1, z);
-      if(!BLOCKS[ground].solid || ground === B.WATER) continue;
+      if(!BLOCKS[ground].solid || ground === B.WATER || ground === B.LEAVES || ground === B.BIRCH_LEAVES) continue;
       if(world.getBlock(x, y, z) !== B.AIR) continue;
       let type;
       if(hostile){

@@ -104,6 +104,7 @@ class Player {
 
     const prevVy = b.vy;
     b.update(dt, this.world);
+    if(b.inWater && jump && b.hitWall && (fw || rt)) b.vy = Math.max(b.vy, 5.2);
     if(this.fly && b.onGround) this.fly = false;
 
     // 낙하 데미지
@@ -274,7 +275,7 @@ class Player {
     if(typeof Net !== 'undefined' && Net.mode === 'guest'){
       if(this.attackCd <= 0 && Net.guestMeleeHit(e.x, e.y, e.z, d.x, d.y, d.z, 3.5, dmg)){
         this.attackCd = 0.35;
-        if(tool && tool.kind === 'sword') this.damageTool(item);
+        if(tool && (tool.kind === 'sword' || tool.kind === 'axe')) this.damageTool(item);
       }
       return;
     }
@@ -283,7 +284,7 @@ class Player {
       this.attackCd = 0.35;
       const sharp = item && item.ench && item.ench.k === 'sharp' ? item.ench.l : 0;
       mob.hurt(dmg + sharp, d.x * 0.6, d.z * 0.6);
-      if(tool && tool.kind === 'sword') this.damageTool(item);
+      if(tool && (tool.kind === 'sword' || tool.kind === 'axe')) this.damageTool(item);
     }
   }
 
