@@ -15,6 +15,7 @@ const FACE_DEFS = [
 const FACE_UV = [[0,0],[1,0],[1,1],[0,1]];
 
 function ck(cx, cz){ return cx + ',' + cz; }
+function def_isFluid(id){ return id === B.WATER || id === B.LAVA; }
 
 // 미니 블록 지오메트리(드롭 아이템/손에 든 블록용)
 function makeBlockGeometry(id, size){
@@ -53,8 +54,10 @@ class Chunk {
 }
 
 class World {
-  constructor(seed){
+  constructor(seed, dim){
     this.seed = seed | 0;
+    this.dim = dim || 'over';
+    this.portals = new Set(); // "x,y,z" 포탈 블록 위치
     this.chunks = new Map();
     this.edits = {};        // { "cx,cz": { idx: blockId } }
     this.furnaces = new Map(); // "x,y,z" -> {in,fuel,out,burn,burnMax,prog}
@@ -87,7 +90,18 @@ class World {
     this.waterTex.magFilter = THREE.NearestFilter; this.waterTex.minFilter = THREE.NearestFilter;
     this.waterTex.wrapS = this.waterTex.wrapT = THREE.RepeatWrapping;
     this.matWater = new THREE.MeshLambertMaterial({ map: this.waterTex, vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide });
-    [this.matSolid, this.matCutout, this.matWater].forEach(m => { m.userData.shared = true; });
+    // 용암 텍스처 (자체발광 느낌은 버텍스 밝기로)
+    const lc = document.createElement('canvas'); lc.width = lc.height = 16;
+    const lctx = lc.getContext('2d');
+    const lrng = mulberry32(77);
+    lctx.fillStyle = '#d8540f'; lctx.fillRect(0, 0, 16, 16);
+    for(let i = 0; i < 45; i++){ lctx.fillStyle = lrng() < 0.5 ? '#f08020' : '#b8400a'; lctx.fillRect(lrng()*16|0, lrng()*16|0, 2, 1); }
+    for(let i = 0; i < 12; i++){ lctx.fillStyle = '#ffce3d'; lctx.fillRect(lrng()*16|0, lrng()*16|0, 2, 2); }
+    this.lavaTex = new THREE.CanvasTexture(lc);
+    this.lavaTex.magFilter = THREE.NearestFilter; this.lavaTex.minFilter = THREE.NearestFilter;
+    this.lavaTex.wrapS = this.lavaTex.wrapT = THREE.RepeatWrapping;
+    this.matLava = new THREE.MeshBasicMaterial({ map: this.lavaTex, vertexColors: true, side: THREE.DoubleSide });
+    [this.matSolid, this.matCutout, this.matWater, this.matLava].forEach(m => { m.userData.shared = true; });
 
     // 청크 로딩 순서(가까운 곳부터)
     this._offsets = [];
@@ -106,6 +120,7 @@ class World {
     return Math.floor(clamp(h, 4, WORLD_H - 6));
   }
   biomeAt(wx, wz){
+    if(this.dim === 'nether') return 'nether';
     const h = this.terrainH(wx, wz);
     let temp = this.nTemp.fbm(wx * 0.0022, wz * 0.0022, 3) - (h - 30) * 0.004;
     const moist = this.nMoist.fbm(wx * 0.0025, wz * 0.0025, 3);
@@ -153,6 +168,7 @@ class World {
     const seed = this.seed;
     const put = (lx, y, lz, id) => { d[lx + lz*CHUNK + y*CHUNK*CHUNK] = id; };
     const get = (lx, y, lz) => d[lx + lz*CHUNK + y*CHUNK*CHUNK];
+    if(this.dim === 'nether') return this._genNetherChunk(c, cx, cz, put, get);
 
     for(let lx = 0; lx < CHUNK; lx++){
       for(let lz = 0; lz < CHUNK; lz++){
@@ -262,11 +278,11 @@ class World {
       for(const k in ed){
         const idx = +k;
         d[idx] = ed[k];
-        if(ed[k] === B.TORCH){
-          const y = Math.floor(idx / (CHUNK*CHUNK));
-          const rem = idx % (CHUNK*CHUNK);
-          c.torches.add((cx*CHUNK + rem % CHUNK) + ',' + y + ',' + (cz*CHUNK + Math.floor(rem / CHUNK)));
-        }
+        const y = Math.floor(idx / (CHUNK*CHUNK));
+        const rem = idx % (CHUNK*CHUNK);
+        const pk = (cx*CHUNK + rem % CHUNK) + ',' + y + ',' + (cz*CHUNK + Math.floor(rem / CHUNK));
+        if(BLOCKS[ed[k]] && BLOCKS[ed[k]].light >= 1) c.torches.add(pk);
+        if(ed[k] === B.PORTAL) this.portals.add(pk);
       }
     }
 
@@ -311,6 +327,7 @@ class World {
   setBlock(wx, wy, wz, id, fromNet){
     if(!Number.isFinite(wx) || !Number.isFinite(wy) || !Number.isFinite(wz)) return;
     if(id !== B.AIR && !BLOCKS[id]) return; // 알 수 없는 블록 id 방어
+    if(this.dim === 'nether' && id === B.WATER) return; // 네더에선 물이 증발
     if(wy < 0 || wy >= WORLD_H) return;
     wx = Math.floor(wx); wy = Math.floor(wy); wz = Math.floor(wz);
     const cx = Math.floor(wx / CHUNK), cz = Math.floor(wz / CHUNK);
@@ -321,10 +338,18 @@ class World {
     if(old === id) return;
     c.data[idx] = id;
     (this.edits[ck(cx, cz)] || (this.edits[ck(cx, cz)] = {}))[idx] = id;
-    c.heights[lz*CHUNK + lx] = this._calcColTop(c, lx, lz);
+    if(this.dim === 'nether'){
+      let h = 0;
+      for(let y = 31; y >= 0; y--){
+        if(c.data[lx + lz*CHUNK + y*CHUNK*CHUNK] !== B.AIR){ h = y; break; }
+      }
+      c.heights[lz*CHUNK + lx] = h;
+    } else {
+      c.heights[lz*CHUNK + lx] = this._calcColTop(c, lx, lz);
+    }
 
-    // 물 흐름: 공기가 생기거나 물이 놓이면 주변 갱신 예약
-    if(id === B.AIR || id === B.WATER){
+    // 물 흐름: 공기가 생기거나 물/용암이 놓이면 주변 갱신 예약
+    if(id === B.AIR || id === B.WATER || id === B.LAVA){
       this.fluidQ.add(wx + ',' + wy + ',' + wz);
       this.fluidQ.add((wx+1) + ',' + wy + ',' + wz);
       this.fluidQ.add((wx-1) + ',' + wy + ',' + wz);
@@ -336,6 +361,8 @@ class World {
     const pk = wx + ',' + wy + ',' + wz;
     if(BLOCKS[old].light >= 1) c.torches.delete(pk);
     if(BLOCKS[id].light >= 1) c.torches.add(pk);
+    if(old === B.PORTAL) this.portals.delete(pk);
+    if(id === B.PORTAL) this.portals.add(pk);
     const wasFurn = World.isFurnaceId(old), isFurn = World.isFurnaceId(id);
     // 컨테이너 내용물 드롭은 권위 측(싱글/호스트)에서만 — 게스트도 드롭하면 인원수만큼 복제됨
     const authoritative = typeof Net === 'undefined' || Net.mode !== 'guest';
@@ -399,8 +426,13 @@ class World {
   }
   _faceLight(wx, wy, wz, torches){
     // (wx,wy,wz) = 면이 노출된 셀
-    const top = this.colTop(wx, wz);
-    let l = wy >= top ? 1 : Math.max(0.18, 1 - 0.13 * (top - wy));
+    let l;
+    if(this.dim === 'nether'){
+      l = 0.52; // 네더는 은은한 자체 조명
+    } else {
+      const top = this.colTop(wx, wz);
+      l = wy >= top ? 1 : Math.max(0.18, 1 - 0.13 * (top - wy));
+    }
     for(let i = 0; i < torches.length; i++){
       const t = torches[i];
       const d = dist3(wx + 0.5, wy + 0.5, wz + 0.5, t[0], t[1], t[2]);
@@ -412,7 +444,7 @@ class World {
     if(nb === B.AIR) return true;
     const nd = BLOCKS[nb];
     if(nd.rt === RT.CROSS) return true;
-    if(id === B.WATER) return nd.rt === RT.GLASS; // 물은 공기/식물/유리에만 면 생성
+    if(def_isFluid(id)) return nd.rt === RT.GLASS || (nd.rt === RT.WATER && nb !== id); // 유체: 공기/식물/유리/다른 유체에 면 생성
     if(nd.rt === RT.WATER) return true;           // 물에 잠긴 블록 면은 그림
     if(nd.rt === RT.GLASS) return id !== nb;
     return false; // 불투명 이웃
@@ -430,6 +462,7 @@ class World {
       solid: { pos:[], nor:[], uv:[], col:[], idx:[] },
       cutout:{ pos:[], nor:[], uv:[], col:[], idx:[] },
       water: { pos:[], nor:[], uv:[], col:[], idx:[] },
+      lava:  { pos:[], nor:[], uv:[], col:[], idx:[] },
     };
     const ox = cx * CHUNK, oz = cz * CHUNK;
     const data = chunk.data;
@@ -469,8 +502,9 @@ class World {
             continue;
           }
 
-          const L = def.rt === RT.WATER ? layers.water : def.rt === RT.GLASS ? layers.cutout : layers.solid;
+          const L = def.rt === RT.WATER ? (id === B.LAVA ? layers.lava : layers.water) : def.rt === RT.GLASS ? layers.cutout : layers.solid;
           const isWater = def.rt === RT.WATER;
+          const isLava = id === B.LAVA;
           const isSolidLayer = L === layers.solid;
           for(let f = 0; f < 6; f++){
             const fd = FACE_DEFS[f];
@@ -480,6 +514,7 @@ class World {
             const [u0, v0, u1, v1] = tileUV(tile);
             let light = this._faceLight(ox + lx + fd.n[0], y + fd.n[1], oz + lz + fd.n[2], torches);
             if(def.light) light = Math.max(light, 1.0 + def.light * 0.3);
+            if(isLava) light = 1.0; // 용암은 자체발광 (MeshBasic)
             const sh = fd.shade * light;
             // 물 표면 셀은 모든 면을 살짝 낮게 (옆면이 수면 위로 튀어나오지 않게)
             const yScale = (isWater && blockAt(lx, y+1, lz) !== B.WATER) ? 0.875 : 1;
@@ -530,7 +565,7 @@ class World {
     // 기존 메시 제거
     this.disposeChunkMeshes(chunk);
     chunk.meshes = {};
-    const mats = { solid: this.matSolid, cutout: this.matCutout, water: this.matWater };
+    const mats = { solid: this.matSolid, cutout: this.matCutout, water: this.matWater, lava: this.matLava };
     for(const name in layers){
       const L = layers[name];
       if(!L.idx.length){ chunk.meshes[name] = null; continue; }
@@ -545,6 +580,7 @@ class World {
       m.matrixAutoUpdate = false;
       m.updateMatrix();
       if(name === 'water') m.renderOrder = 2;
+      if(name === 'lava') m.renderOrder = 1;
       this.group.add(m);
       chunk.meshes[name] = m;
     }
@@ -681,6 +717,117 @@ class World {
     this.gymsBeaten = new Set(d.gyms || []);
   }
 
+  // ---------- 네더 청크 ----------
+  _genNetherChunk(c, cx, cz, put, get){
+    const seed = this.seed;
+    for(let lx = 0; lx < CHUNK; lx++){
+      for(let lz = 0; lz < CHUNK; lz++){
+        const wx = cx*CHUNK + lx, wz = cz*CHUNK + lz;
+        const floorH = Math.floor(9 + this.nCont.fbm(wx * 0.022, wz * 0.022, 3) * 9);
+        const ceilH = Math.floor(45 + this.nDet.fbm(wx * 0.02 + 500, wz * 0.02 + 500, 3) * 10);
+        for(let y = 0; y < WORLD_H; y++){
+          let id = B.AIR;
+          if(y === 0 || y >= WORLD_H - 1) id = B.BEDROCK;
+          else if(y <= floorH || y >= ceilH){
+            id = B.NETHERRACK;
+            const r = rand3(wx, y, wz, seed ^ 0xE71);
+            if(r < 0.015) id = B.QUARTZ_ORE;
+            if(y === floorH && rand2(wx, wz, seed ^ 0xE72) < 0.12) id = B.SOULSAND;
+          }
+          else if(y <= 12) id = B.LAVA; // 용암 바다
+          put(lx, y, lz, id);
+        }
+        // 발광석 매달림
+        if(rand2(wx, wz, seed ^ 0xE73) < 0.02){
+          const n = 1 + Math.floor(rand2(wx, wz, seed ^ 0xE74) * 3);
+          for(let i = 1; i <= n && ceilH - i > 14; i++){
+            put(lx, ceilH - i, lz, B.GLOWSTONE);
+            c.torches.add(wx + ',' + (ceilH - i) + ',' + wz);
+          }
+        }
+      }
+    }
+    // 네더 요새
+    this._stampStructures(c, cx, cz);
+    // 저장된 수정사항
+    const ed = this.edits[ck(cx, cz)];
+    if(ed){
+      for(const k in ed){
+        const idx = +k;
+        d2: {
+          c.data[idx] = ed[k];
+          const y = Math.floor(idx / (CHUNK*CHUNK));
+          const rem = idx % (CHUNK*CHUNK);
+          const wx = cx*CHUNK + rem % CHUNK, wz = cz*CHUNK + Math.floor(rem / CHUNK);
+          const pk = wx + ',' + y + ',' + wz;
+          if(BLOCKS[ed[k]].light >= 1) c.torches.add(pk);
+          if(ed[k] === B.PORTAL) this.portals.add(pk);
+        }
+      }
+    }
+    for(let lx = 0; lx < CHUNK; lx++){
+      for(let lz = 0; lz < CHUNK; lz++){
+        // 천장이 아닌 바닥 높이 (미니맵용): y32 아래에서 최상단 고체/용암 탐색
+        let h = 0;
+        for(let y = 31; y >= 0; y--){
+          const id = c.data[lx + lz*CHUNK + y*CHUNK*CHUNK];
+          if(id !== B.AIR){ h = y; break; }
+        }
+        c.heights[lz*CHUNK + lx] = h;
+      }
+    }
+    return c;
+  }
+  // 네더 요새 (region 256)
+  fortressAt(rx, rz){
+    if(this.dim !== 'nether') return null;
+    if(rand2(rx, rz, this.seed ^ 0xF011) >= 0.5) return null;
+    const cx = rx * 256 + 50 + Math.floor(rand2(rx, rz, this.seed ^ 0xF012) * 150);
+    const cz = rz * 256 + 50 + Math.floor(rand2(rx, rz, this.seed ^ 0xF013) * 150);
+    return { x: cx, z: cz, y: 22, key: 'f' + rx + ',' + rz };
+  }
+  fortressesNear(wx, wz){ return this._regionsNear(wx, wz, 256, (a, b) => this.fortressAt(a, b)); }
+  _stampFortress(wput, f, loot){
+    const y0 = f.y;
+    // 중앙 방 9x9
+    for(let wx = f.x - 4; wx <= f.x + 4; wx++){
+      for(let wz = f.z - 4; wz <= f.z + 4; wz++){
+        wput(wx, y0, wz, B.NETHERBRICK);
+        const edge = Math.abs(wx - f.x) === 4 || Math.abs(wz - f.z) === 4;
+        for(let wy = y0 + 1; wy <= y0 + 4; wy++) wput(wx, wy, wz, edge ? B.NETHERBRICK : B.AIR);
+        wput(wx, y0 + 5, wz, B.NETHERBRICK);
+      }
+    }
+    // 십자 복도 (4방향, 길이 14, 폭 3)
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx, dz]) => {
+      for(let i = 5; i <= 18; i++){
+        for(let t = -1; t <= 1; t++){
+          const wx = f.x + dx * i + (dz !== 0 ? t : 0);
+          const wz = f.z + dz * i + (dx !== 0 ? t : 0);
+          wput(wx, y0, wz, B.NETHERBRICK);
+          for(let wy = y0 + 1; wy <= y0 + 3; wy++) wput(wx, wy, wz, Math.abs(t) === 1 && i % 4 !== 0 ? B.NETHERBRICK : B.AIR);
+          wput(wx, y0 + 4, wz, B.NETHERBRICK);
+        }
+      }
+      // 복도 입구 뚫기
+      for(let t = -1; t <= 1; t++){
+        for(let wy = y0 + 1; wy <= y0 + 3; wy++){
+          wput(f.x + dx * 4 + (dz !== 0 ? t : 0), wy, f.z + dz * 4 + (dx !== 0 ? t : 0), B.AIR);
+        }
+      }
+    });
+    wput(f.x - 2, y0 + 2, f.z - 2, B.TORCH);
+    wput(f.x + 2, y0 + 2, f.z + 2, B.TORCH);
+    if(wput(f.x, y0 + 1, f.z - 3, B.CHEST)){
+      const r = (k) => 1 + Math.floor(rand2(f.x + k, f.z, this.seed ^ 0xF22) * 3);
+      loot.push([f.x + ',' + (y0 + 1) + ',' + (f.z - 3), this._lootSlots([
+        { id: I.DIAMOND, n: r(1) }, { id: I.BLAZE_ROD, n: r(2) + 1 },
+        { id: I.GOLDEN_APPLE, n: 1 }, { id: I.QUARTZ, n: r(3) + 2 },
+        { id: I.RARECANDY, n: r(4) }, { id: I.ULTRABALL, n: r(5) }
+      ])]);
+    }
+  }
+
   // ---------- 물 흐름 (간이 무한수원 규칙) ----------
   // 공기 칸이 (위가 물) 또는 (수평 이웃 2칸 이상이 물)이면 물이 됨
   tickFluids(dt){
@@ -693,21 +840,36 @@ class World {
     for(const k of batch){
       const [x, y, z] = k.split(',').map(Number);
       if(y < 1 || y >= WORLD_H - 1) continue;
-      if(this.getBlock(x, y, z) !== B.AIR) continue;
-      const above = this.getBlock(x, y + 1, z) === B.WATER;
-      let horiz = 0;
-      if(this.getBlock(x + 1, y, z) === B.WATER) horiz++;
-      if(this.getBlock(x - 1, y, z) === B.WATER) horiz++;
-      if(this.getBlock(x, y, z + 1) === B.WATER) horiz++;
-      if(this.getBlock(x, y, z - 1) === B.WATER) horiz++;
-      if(above || horiz >= 2){
-        this.setBlock(x, y, z, B.WATER); // setBlock이 이웃을 다시 큐에 넣음
+      const cur = this.getBlock(x, y, z);
+      if(cur === B.LAVA){
+        // 물과 직접 접촉한 용암 → 흑요석
+        const touchW = this.getBlock(x, y + 1, z) === B.WATER
+          || [[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]].some(([dx,dy,dz]) => this.getBlock(x + dx, y + dy, z + dz) === B.WATER);
+        if(touchW) this.setBlock(x, y, z, B.OBSIDIAN);
+        continue;
       }
+      if(cur !== B.AIR) continue;
+      let wAbove = false, lAbove = false, wH = 0, lH = 0;
+      const ab = this.getBlock(x, y + 1, z);
+      if(ab === B.WATER) wAbove = true;
+      if(ab === B.LAVA) lAbove = true;
+      [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx, dz]) => {
+        const n = this.getBlock(x + dx, y, z + dz);
+        if(n === B.WATER) wH++;
+        if(n === B.LAVA) lH++;
+      });
+      const wantWater = wAbove || wH >= 2;
+      const wantLava = lAbove || lH >= 2;
+      if(wantWater && (wantLava || lH > 0 || lAbove)) this.setBlock(x, y, z, B.OBSIDIAN); // 물+용암 = 흑요석!
+      else if(wantLava && wH > 0) this.setBlock(x, y, z, B.OBSIDIAN);
+      else if(wantWater) this.setBlock(x, y, z, B.WATER);
+      else if(wantLava) this.setBlock(x, y, z, B.LAVA);
     }
   }
 
   // ---------- 구조물 (마을 / 체육관 / 해저신전) — 모두 시드 결정론 ----------
   villageAt(rx, rz){
+    if(this.dim === 'nether') return null;
     if(rand2(rx, rz, this.seed ^ 0x7711) >= 0.22) return null;
     const cx = rx * 128 + 24 + Math.floor(rand2(rx, rz, this.seed ^ 0x7712) * 80);
     const cz = rz * 128 + 24 + Math.floor(rand2(rx, rz, this.seed ^ 0x7713) * 80);
@@ -728,6 +890,7 @@ class World {
     return houses;
   }
   gymAt(rx, rz){
+    if(this.dim === 'nether') return null;
     if(rand2(rx, rz, this.seed ^ 0x8811) >= 0.3) return null;
     const cx = rx * 160 + 30 + Math.floor(rand2(rx, rz, this.seed ^ 0x8812) * 100);
     const cz = rz * 160 + 30 + Math.floor(rand2(rx, rz, this.seed ^ 0x8813) * 100);
@@ -742,6 +905,7 @@ class World {
     return { x: cx, z: cz, y: h, type, key: 'g' + rx + ',' + rz };
   }
   monumentAt(rx, rz){
+    if(this.dim === 'nether') return null;
     if(rand2(rx, rz, this.seed ^ 0x9911) >= 0.35) return null;
     const cx = rx * 192 + 40 + Math.floor(rand2(rx, rz, this.seed ^ 0x9912) * 110);
     const cz = rz * 192 + 40 + Math.floor(rand2(rx, rz, this.seed ^ 0x9913) * 110);
@@ -777,11 +941,15 @@ class World {
       return true;
     };
     const loot = [];
-    for(const v of this.villagesNear(x0 + 8, z0 + 8)){
-      for(const hs of this.villageHouses(v)) this._stampHouse(wput, hs, loot);
+    if(this.dim === 'nether'){
+      for(const f of this.fortressesNear(x0 + 8, z0 + 8)) this._stampFortress(wput, f, loot);
+    } else {
+      for(const v of this.villagesNear(x0 + 8, z0 + 8)){
+        for(const hs of this.villageHouses(v)) this._stampHouse(wput, hs, loot);
+      }
+      for(const g of this.gymsNear(x0 + 8, z0 + 8)) this._stampGym(wput, g);
+      for(const m of this.monumentsNear(x0 + 8, z0 + 8)) this._stampMonument(wput, m, loot);
     }
-    for(const g of this.gymsNear(x0 + 8, z0 + 8)) this._stampGym(wput, g);
-    for(const m of this.monumentsNear(x0 + 8, z0 + 8)) this._stampMonument(wput, m, loot);
     // 전리품 상자: 최초 생성 시에만 채움 (저장된 상자는 유지)
     for(const [key, slots] of loot){
       if(!this.chests.has(key)) this.chests.set(key, { slots });
@@ -907,6 +1075,90 @@ class World {
         }
       }
     }
+  }
+
+  // ---------- 네더 포탈 ----------
+  // 흑요석 프레임(내부 2x3) 점화 — hit 블록이 프레임 바닥이라 가정, 양 축 시도
+  ignitePortal(bx, by, bz){
+    for(const [dx, dz] of [[1, 0], [0, 1]]){
+      for(const off of [0, -1]){
+        const ox = bx + off * dx, oz = bz + off * dz;
+        // 내부 2x3 (바닥 위)
+        let ok = true;
+        const inner = [];
+        for(let i = 0; i < 2 && ok; i++){
+          for(let j = 1; j <= 3 && ok; j++){
+            const x = ox + i * dx, y = by + j, z = oz + i * dz;
+            if(this.getBlock(x, y, z) !== B.AIR) ok = false;
+            inner.push([x, y, z]);
+          }
+        }
+        if(!ok) continue;
+        // 프레임: 아래2 위2 양옆3x2
+        const frame = [];
+        for(let i = 0; i < 2; i++){
+          frame.push([ox + i * dx, by, oz + i * dz]);
+          frame.push([ox + i * dx, by + 4, oz + i * dz]);
+        }
+        for(let j = 1; j <= 3; j++){
+          frame.push([ox - dx, by + j, oz - dz]);
+          frame.push([ox + 2 * dx, by + j, oz + 2 * dz]);
+        }
+        if(!frame.every(([x, y, z]) => this.getBlock(x, y, z) === B.OBSIDIAN)) continue;
+        inner.forEach(([x, y, z]) => this.setBlock(x, y, z, B.PORTAL));
+        return true;
+      }
+    }
+    return false;
+  }
+  nearestPortal(wx, wz, maxD){
+    let best = null, bd = maxD || 24;
+    for(const k of this.portals){
+      const [x, y, z] = k.split(',').map(Number);
+      const d = Math.hypot(x - wx, z - wz);
+      if(d < bd){ bd = d; best = { x, y, z }; }
+    }
+    return best;
+  }
+  // 도착 지점에 발판+포탈 건설, 설 위치 반환
+  buildArrivalPortal(wx, wz){
+    wx = Math.floor(wx); wz = Math.floor(wz);
+    let y;
+    if(this.dim === 'nether'){
+      y = 14;
+      for(let ty = 14; ty < 38; ty++){
+        if(this.getBlock(wx, ty, wz) !== B.AIR && this.getBlock(wx, ty + 1, wz) === B.AIR && this.getBlock(wx, ty + 2, wz) === B.AIR){ y = ty; break; }
+      }
+    } else {
+      y = this.colTop(wx, wz);
+    }
+    const base = this.dim === 'nether' ? B.NETHERRACK : B.STONE;
+    // 발판 5x5 + 공간 비우기
+    for(let dx = -2; dx <= 2; dx++){
+      for(let dz = -2; dz <= 2; dz++){
+        this.setBlock(wx + dx, y, wz + dz, base);
+        for(let dy = 1; dy <= 5; dy++) this.setBlock(wx + dx, y + dy, wz + dz, B.AIR);
+      }
+    }
+    // 프레임 (x축 방향)
+    for(let i = 0; i < 2; i++){
+      this.setBlock(wx + i, y, wz, B.OBSIDIAN);
+      this.setBlock(wx + i, y + 4, wz, B.OBSIDIAN);
+    }
+    for(let j = 1; j <= 3; j++){
+      this.setBlock(wx - 1, y + j, wz, B.OBSIDIAN);
+      this.setBlock(wx + 2, y + j, wz, B.OBSIDIAN);
+    }
+    for(let i = 0; i < 2; i++) for(let j = 1; j <= 3; j++) this.setBlock(wx + i, y + j, wz, B.PORTAL);
+    return { x: wx + 0.5, y: y + 1.2, z: wz + 1.5 };
+  }
+
+  // 네더 바닥 스폰 위치 (몹/포켓몬용)
+  netherFloorY(wx, wz){
+    for(let y = 4; y < 40; y++){
+      if(this.isSolid(wx, y, wz) && this.getBlock(wx, y + 1, wz) === B.AIR && this.getBlock(wx, y + 2, wz) === B.AIR) return y + 1;
+    }
+    return -1;
   }
 
   // 스폰 지점 찾기 (물 위 제외)

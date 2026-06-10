@@ -10,7 +10,8 @@ const B = {
   BRICKS:29, STONEBRICK:30, OBSIDIAN:31, PUMPKIN:32, BED:33,
   CHEST:34, FARMLAND:35, CROP:36, CROP_RIPE:37,
   BIRCH_LOG:38, BIRCH_LEAVES:39, ACACIA_LOG:40, ENCHANT:41,
-  LEVER_OFF:42, LEVER_ON:43, LAMP_OFF:44, LAMP_ON:45, IRON_DOOR:46, IRON_DOOR_OPEN:47
+  LEVER_OFF:42, LEVER_ON:43, LAMP_OFF:44, LAMP_ON:45, IRON_DOOR:46, IRON_DOOR_OPEN:47,
+  LAVA:48, NETHERRACK:49, SOULSAND:50, GLOWSTONE:51, NETHERBRICK:52, PORTAL:53, QUARTZ_ORE:54
 };
 // 렌더 타입
 const RT = { SOLID:0, CROSS:1, WATER:2, GLASS:3 };
@@ -35,7 +36,8 @@ const I = {
   L_HELM:181, L_CHEST:182, L_LEGS:183,
   I_HELM:184, I_CHEST:185, I_LEGS:186,
   D_HELM:187, D_CHEST:188, D_LEGS:189,
-  POTION_SPEED:190, POTION_JUMP:191, POTION_REGEN:192
+  POTION_SPEED:190, POTION_JUMP:191, POTION_REGEN:192,
+  FLINT_STEEL:193, QUARTZ:194, GLOWDUST:195, BLAZE_ROD:196
 };
 
 // ----- 타일 인덱스 (아틀라스 16x16 그리드) -----
@@ -49,7 +51,8 @@ const T = {
   PUMPKIN_FACE:38, PUMPKIN_TOP:39, BED_TOP:40,
   CHEST_FRONT:41, CHEST_SIDE:42, CHEST_TOP:43, FARMLAND_TOP:44, CROP1:45, CROP2:46,
   BIRCH_SIDE:47, BIRCH_LEAVES:48, ACACIA_SIDE:49, ENCH_TOP:50, ENCH_SIDE:51,
-  LEVER:52, LEVER_ON_T:53, LAMP:54, LAMP_ON_T:55, IRON_DOOR_T:56
+  LEVER:52, LEVER_ON_T:53, LAMP:54, LAMP_ON_T:55, IRON_DOOR_T:56,
+  LAVA_T:57, NETHERRACK_T:58, SOULSAND_T:59, GLOWSTONE_T:60, NETHERBRICK_T:61, PORTAL_T:62, QUARTZ_T:63
 };
 
 // ----- 블록 정의 -----
@@ -113,6 +116,15 @@ defBlock(B.LAMP_OFF,    { name:'레드스톤 램프', tiles:{top:T.LAMP, bottom:
 defBlock(B.LAMP_ON,     { name:'레드스톤 램프(켜짐)', tiles:{top:T.LAMP_ON_T, bottom:T.LAMP_ON_T, side:T.LAMP_ON_T}, hard:0.8, light:1, drop:()=>[[B.LAMP_OFF,1]] });
 defBlock(B.IRON_DOOR,   { name:'철문', tiles:{top:T.IRON_DOOR_T, bottom:T.IRON_DOOR_T, side:T.IRON_DOOR_T}, hard:4, tool:'pick' });
 defBlock(B.IRON_DOOR_OPEN,{ name:'철문(열림)', rt:RT.CROSS, solid:false, tiles:{top:T.IRON_DOOR_T, bottom:T.IRON_DOOR_T, side:T.IRON_DOOR_T}, hard:4, drop:()=>[[B.IRON_DOOR,1]] });
+defBlock(B.LAVA,       { name:'용암', rt:RT.WATER, solid:false, hard:-1, tiles:{top:T.LAVA_T, bottom:T.LAVA_T, side:T.LAVA_T} });
+defBlock(B.NETHERRACK, { name:'네더랙', tiles:{top:T.NETHERRACK_T, bottom:T.NETHERRACK_T, side:T.NETHERRACK_T}, hard:0.5, tool:'pick' });
+defBlock(B.SOULSAND,   { name:'영혼 모래', tiles:{top:T.SOULSAND_T, bottom:T.SOULSAND_T, side:T.SOULSAND_T}, hard:0.6, tool:'shovel' });
+defBlock(B.GLOWSTONE,  { name:'발광석', tiles:{top:T.GLOWSTONE_T, bottom:T.GLOWSTONE_T, side:T.GLOWSTONE_T}, hard:0.4, light:1,
+                         drop:(rng)=>[[I.GLOWDUST, 2 + Math.floor(rng() * 3)]] });
+defBlock(B.NETHERBRICK,{ name:'네더 벽돌', tiles:{top:T.NETHERBRICK_T, bottom:T.NETHERBRICK_T, side:T.NETHERBRICK_T}, hard:2.5, tool:'pick' });
+defBlock(B.PORTAL,     { name:'네더 포탈', rt:RT.GLASS, solid:false, hard:-1, light:1, tiles:{top:T.PORTAL_T, bottom:T.PORTAL_T, side:T.PORTAL_T}, drop:()=>[] });
+defBlock(B.QUARTZ_ORE, { name:'네더 석영 광석', tiles:{top:T.QUARTZ_T, bottom:T.QUARTZ_T, side:T.QUARTZ_T}, hard:2.5, tool:'pick',
+                         drop:()=>[[I.QUARTZ,1]] });
 defBlock(B.CROP_RIPE,  { name:'밀 (다 자람)', rt:RT.CROSS, solid:false, tiles:{top:T.CROP2, bottom:T.CROP2, side:T.CROP2}, hard:0.05,
                          drop:(rng)=>[[I.WHEAT,1], [I.SEEDS, 1 + Math.floor(rng() * 2)]] });
 
@@ -178,6 +190,10 @@ defItem(I.LEATHER, { name:'가죽' });
 defItem(I.POTION_SPEED, { name:'신속의 물약', stack:16, buff:'speed' });
 defItem(I.POTION_JUMP,  { name:'도약의 물약', stack:16, buff:'jump' });
 defItem(I.POTION_REGEN, { name:'재생의 물약', stack:16, buff:'regen' });
+defItem(I.FLINT_STEEL, { name:'부싯돌과 부시', stack:1, tool:{ kind:'igniter', tier:0, speed:1, dmg:1, dur:64 } });
+defItem(I.QUARTZ,    { name:'네더 석영' });
+defItem(I.GLOWDUST,  { name:'발광석 가루' });
+defItem(I.BLAZE_ROD, { name:'블레이즈 막대' });
 
 function isBlockId(id){ return id > 0 && id < 100; }
 function itemDef(id){ return isBlockId(id) ? BLOCKS[id] : ITEMS[id]; }
@@ -194,7 +210,7 @@ const CREATIVE_ITEMS = [
   B.GRASS,B.DIRT,B.STONE,B.COBBLE,B.SAND,B.GRAVEL,B.LOG,B.LEAVES,B.PLANKS,B.GLASS,
   B.COAL_ORE,B.IRON_ORE,B.GOLD_ORE,B.DIAMOND_ORE,B.REDSTONE_ORE,B.SNOWGRASS,B.CACTUS,
   B.FLOWER_R,B.FLOWER_Y,B.TALLGRASS,B.CRAFT,B.FURNACE,B.TORCH,B.TNT,B.WOOL,B.BRICKS,
-  B.STONEBRICK,B.OBSIDIAN,B.PUMPKIN,B.BED,B.CHEST,B.FARMLAND,B.BIRCH_LOG,B.BIRCH_LEAVES,B.ACACIA_LOG,B.ENCHANT,B.LEVER_OFF,B.LAMP_OFF,B.IRON_DOOR,
+  B.STONEBRICK,B.OBSIDIAN,B.PUMPKIN,B.BED,B.CHEST,B.FARMLAND,B.BIRCH_LOG,B.BIRCH_LEAVES,B.ACACIA_LOG,B.ENCHANT,B.LEVER_OFF,B.LAMP_OFF,B.IRON_DOOR,B.LAVA,B.NETHERRACK,B.SOULSAND,B.GLOWSTONE,B.NETHERBRICK,B.QUARTZ_ORE,
   I.STICK,I.COAL,I.IRON_INGOT,I.GOLD_INGOT,I.DIAMOND,I.REDSTONE,I.APPLE,I.PORK_COOKED,I.BEEF_COOKED,
   I.SEEDS,I.WHEAT,I.BREAD,I.BONEMEAL,I.STRING,I.FISHING_ROD,I.BOW,I.ARROW,I.FLINT,I.FISH_COOKED,
   I.WOOD_PICK,I.WOOD_AXE,I.WOOD_SHOVEL,I.WOOD_SWORD,I.WOOD_HOE,
@@ -203,7 +219,7 @@ const CREATIVE_ITEMS = [
   I.DIA_PICK,I.DIA_AXE,I.DIA_SHOVEL,I.DIA_SWORD,I.DIA_HOE,
   I.POKEBALL,I.GREATBALL,I.ULTRABALL,I.POTION,I.RARECANDY,I.GOLDEN_APPLE,I.EMERALD,I.ENDERPEARL,
   I.LEATHER,I.L_HELM,I.L_CHEST,I.L_LEGS,I.I_HELM,I.I_CHEST,I.I_LEGS,I.D_HELM,I.D_CHEST,I.D_LEGS,
-  I.POTION_SPEED,I.POTION_JUMP,I.POTION_REGEN
+  I.POTION_SPEED,I.POTION_JUMP,I.POTION_REGEN,I.FLINT_STEEL,I.QUARTZ,I.GLOWDUST,I.BLAZE_ROD
 ];
 
 // ===== 텍스처 아틀라스 =====
@@ -292,6 +308,13 @@ function buildAtlas(){
   paint(T.LAMP, p=>{ p.fill('#5a4428'); p.rect(2,2,12,12,'#7a5a34'); p.rect(4,4,8,8,'#4a3420'); p.speck('#6a4a2c', 14); });
   paint(T.LAMP_ON_T, p=>{ p.fill('#7a5a34'); p.rect(2,2,12,12,'#f5c860'); p.rect(4,4,8,8,'#ffe89a'); p.speck('#f5d878', 10); });
   paint(T.IRON_DOOR_T, p=>{ p.fill('#b8b8b8'); for(let y=1;y<16;y+=4) p.rect(1,y,14,1,'#8a8a8a'); p.rect(1,1,1,14,'#8a8a8a'); p.rect(14,1,1,14,'#8a8a8a'); p.rect(11,8,2,2,'#5a5a5a'); });
+  paint(T.LAVA_T, p=>{ p.fill('#d8540f'); p.speck('#f08020', 50); p.speck('#b8400a', 45); p.speck('#ffce3d', 16); });
+  paint(T.NETHERRACK_T, p=>{ p.fill('#6e3533'); p.speck('#5a2a28', 60); p.speck('#824240', 50); p.speck('#4a2020', 25); });
+  paint(T.SOULSAND_T, p=>{ p.fill('#574238'); p.speck('#473428', 55); p.speck('#675046', 40); p.rect(4,5,2,2,'#3a2a20'); p.rect(10,9,2,2,'#3a2a20'); p.rect(7,12,2,1,'#3a2a20'); });
+  paint(T.GLOWSTONE_T, p=>{ p.fill('#c8a858'); p.blob('#f5d878', 10, 3); p.blob('#a88848', 8, 2); p.speck('#ffe89a', 22); });
+  paint(T.NETHERBRICK_T, p=>{ p.fill('#2e1618'); for(let y=0;y<16;y+=4){ p.rect(0,y,16,1,'#1e0e10'); const off=(y/4%2)*4; for(let x=off;x<16;x+=8) p.rect(x,y,1,4,'#1e0e10'); } p.speck('#3e2022', 18); });
+  paint(T.PORTAL_T, p=>{ p.fill('#5a1a9a'); p.speck('#7a3ac8', 60); p.speck('#3a0a6a', 45); p.speck('#b88ae8', 22); });
+  paint(T.QUARTZ_T, p=>{ p.fill('#6e3533'); p.speck('#5a2a28', 40); for(let i=0;i<5;i++){ const x=1+(p.rng()*13|0), y=1+(p.rng()*13|0); p.rect(x,y,2,2,'#e8dcd0'); p.px(x,y,'#f8f0e8'); } });
   paint(T.CROP2, p=>{ for(let i=0;i<6;i++){ const x=1+i*2+(p.rng()*1|0); p.rect(x,4,1,12,'#b5a23c'); p.rect(x,2,1,3,'#d8c455'); p.px(x-1<0?0:x-1,3,'#d8c455'); p.px(x+1>15?15:x+1,4,'#d8c455'); } });
 
   ATLAS.canvas = cv;
@@ -446,6 +469,10 @@ function drawItemIcon(ctx, id){
     case I.POTION_SPEED: P(6,3,'#c8c8d8',4,2); P(5,5,'#d8e8f0',6,3); P(4,8,'#58c8e8',8,5); P(5,9,'#8adcf5',2,2); break;
     case I.POTION_JUMP: P(6,3,'#c8c8d8',4,2); P(5,5,'#d8e8f0',6,3); P(4,8,'#8ae060',8,5); P(5,9,'#b8f098',2,2); break;
     case I.POTION_REGEN: P(6,3,'#c8c8d8',4,2); P(5,5,'#d8e8f0',6,3); P(4,8,'#f06ba8',8,5); P(5,9,'#f8a8cc',2,2); break;
+    case I.QUARTZ: P(6,5,'#e8dcd0',4,5); P(5,7,'#e8dcd0',6,3); P(7,4,'#f8f0e8',2,2); break;
+    case I.GLOWDUST: P(5,9,'#f5d878',6,3); P(7,7,'#f5d878',3,2); P(4,11,'#e8c858',8,1); P(7,8,'#ffe89a',2,1); break;
+    case I.BLAZE_ROD: for(let i=0;i<9;i++) P(5+i*0.7|0, 13-i, '#f0a020'); P(5,12,'#ffce3d',2,2); P(10,5,'#ffce3d',2,2); break;
+    case I.FLINT_STEEL: P(4,5,'#3a3a42',5,5); P(9,8,'#c8c8c8',4,2); P(10,6,'#c8c8c8',2,5); break;
     case I.GOLDEN_APPLE: P(5,5,'#fce14c',6,6); P(4,6,'#fce14c',8,4); P(7,3,'#6b4a2a',1,2); P(8,3,'#3c8a28',2,1); P(5,6,'#fff08c',2,2); break;
     default: P(4,4,'#f0f','8',8); break;
   }
@@ -502,6 +529,9 @@ const RECIPES = [
   { sl:[[I.WHEAT,2],[I.REDSTONE,1]], out:[I.POTION_SPEED,1] },
   { sl:[[I.FEATHER,2],[I.REDSTONE,1]], out:[I.POTION_JUMP,1] },
   { sl:[[I.APPLE,2],[I.REDSTONE,1]], out:[I.POTION_REGEN,1] },
+  { sl:[[I.IRON_INGOT,1],[I.FLINT,1]], out:[I.FLINT_STEEL,1] },
+  { p:['GG','GG'], k:{G:I.GLOWDUST}, out:[B.GLOWSTONE,1] },
+  { sl:[[I.QUARTZ,4]], out:[I.EMERALD,2] },
 ];
 
 // 레시피 패턴 → 2차원 id 배열

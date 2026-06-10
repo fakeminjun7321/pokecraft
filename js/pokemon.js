@@ -512,7 +512,7 @@ for(const idStr in DEX){
 
 // 스폰 테이블 자동 생성 — 희귀도: 1흔함 2보통 3드묾 4희귀 5전설
 const RARE_WEIGHT = { 1: 20, 2: 10, 3: 3.5, 4: 1, 5: 0.12 };
-const SPAWN_TABLES = { plains: [], forest: [], desert: [], mountain: [], snow: [], water: [], ocean: [] };
+const SPAWN_TABLES = { plains: [], forest: [], desert: [], mountain: [], snow: [], water: [], ocean: [], nether: [] };
 for(let id = 1; id < SPECIES.length; id++){
   const sp = SPECIES[id];
   if(!sp || !sp.spawn.biomes.length) continue;
@@ -523,6 +523,8 @@ for(let id = 1; id < SPECIES.length; id++){
   });
 }
 const LEGENDARIES = [144, 145, 146, 149, 150, 151];
+// 네더: 불꽃 타입 천국 (파이어는 네더에서 더 잘 나옴)
+SPAWN_TABLES.nether = [[4, 10], [37, 10], [58, 10], [77, 8], [126, 7], [136, 5], [146, 0.5]];
 
 // 체육관 관장 팀
 const GYM_TEAMS = {
@@ -629,7 +631,7 @@ class PokeInst {
         }
       }
       if(water) return 134;   // 샤미드
-      if(b === 'desert' || b === 'mountain') return 136; // 부스터
+      if(b === 'desert' || b === 'mountain' || b === 'nether') return 136; // 부스터
       return 135;               // 쥬피썬더
     }
     return this.level >= e.lv ? e.to : null;
@@ -769,11 +771,17 @@ const PokeMan = {
       const dist = 18 + Math.random() * 27;
       const x = Math.floor(player.body.x + Math.sin(ang) * dist) + 0.5;
       const z = Math.floor(player.body.z + Math.cos(ang) * dist) + 0.5;
-      const y = world.colTop(x, z) + 1;
-      if(y <= SEA || y >= WORLD_H - 2) continue;
-      const ground = world.getBlock(x, y - 1, z);
-      if(!BLOCKS[ground].solid) continue;
-      if(world.getBlock(x, y, z) !== B.AIR) continue;
+      let y;
+      if(world.dim === 'nether'){
+        y = world.netherFloorY(Math.floor(x), Math.floor(z));
+        if(y < 0) continue;
+      } else {
+        y = world.colTop(x, z) + 1;
+        if(y <= SEA || y >= WORLD_H - 2) continue;
+        const ground = world.getBlock(x, y - 1, z);
+        if(!BLOCKS[ground].solid) continue;
+        if(world.getBlock(x, y, z) !== B.AIR) continue;
+      }
       // 물가 체크
       let waterNear = false;
       for(let dx = -4; dx <= 4 && !waterNear; dx += 2){
@@ -789,8 +797,9 @@ const PokeMan = {
       const spawnP = world.spawnPoint || { x:0, z:0 };
       const d = Math.hypot(x - spawnP.x, z - spawnP.z);
       let lv = clamp(Math.floor(2 + d / 70 + Math.random() * 5 - 2), 2, 32);
+      if(world.dim === 'nether') lv = clamp(lv + 8, 10, 40); // 네더는 강한 개체
       // 밤에는 아주 낮은 확률로 뮤츠 출현
-      if(game.isNight() && Math.random() < 0.012) sp = 150;
+      if(game.isNight() && world.dim !== 'nether' && Math.random() < 0.012) sp = 150;
       if(LEGENDARIES.includes(sp)) lv = 35 + Math.floor(Math.random() * 10);
       this.wilds.push(new WildPoke(sp, lv, x, y + 0.1, z));
       this.seen.add(sp);

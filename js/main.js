@@ -2,6 +2,8 @@
 'use strict';
 
 let renderer = null, scene = null, camera = null, world = null, player = null;
+let worlds = {};          // 차원별 World 인스턴스
+let pendingWorldSaves = {}; // 로드한 세이브의 차원별 데이터 (지연 역직렬화)
 let sunLight, ambLight, sunSprite, moonSprite, stars, cloudMesh;
 let highlightBox, crackBox, heldGroup;
 let lastT = 0, autosaveAcc = 0, fpsAcc = 0, fpsCnt = 0, fpsShow = 0;
@@ -13,6 +15,7 @@ const game = {
   keys: {}, locked: false, inBattle: false, paused: false,
   shake: 0, swing: 0, sprint: false,
   followerOn: true, chatOpen: false, camMode: 0, riding: false, touch: false,
+  dim: 'over', portalCd: 0,
   get uiOpen(){ return typeof UI !== 'undefined' && UI.isOpen(); },
   isNight(){ return Math.sin(this.time * Math.PI * 2) < -0.05; },
   isDay(){ return !this.isNight(); },
@@ -468,7 +471,12 @@ function startGame(opts){
   const loading = document.getElementById('loading-screen');
   loading.classList.remove('hidden');
 
-  world = new World(game.seed);
+  worlds = {};
+  pendingWorldSaves = {};
+  game.dim = (opts.loadData && opts.loadData.dim) || 'over';
+  if(opts.loadData && opts.loadData.netherWorld) pendingWorldSaves.nether = opts.loadData.netherWorld;
+  if(opts.netInit && opts.netInit.nether) pendingWorldSaves.nether = opts.netInit.nether;
+  world = getWorld(game.dim);
   const userOpts = JSON.parse(localStorage.getItem('pokecraft_opts') || '{}');
   if(userOpts.renderDist) world.renderDist = clamp(userOpts.renderDist, 3, 6);
   scene.add(world.group);
@@ -485,7 +493,7 @@ function startGame(opts){
   if(opts.netInit){
     // ===== 멀티 게스트: 호스트가 보낸 세계 정보로 시작 =====
     const init = opts.netInit;
-    world.deserialize({ edits: init.edits, furnaces: init.furnaces, chests: init.chests, spawn: init.spawn });
+    getWorld('over').deserialize({ edits: init.edits, furnaces: init.furnaces, chests: init.chests, spawn: init.spawn });
     PokeMan.enabled = init.pokeOn !== false;
     if(!world.spawnPoint) world.spawnPoint = world.findSpawn();
     if(opts.guestSave){
@@ -507,7 +515,8 @@ function startGame(opts){
     }
   } else if(opts.loadData){
     const d = opts.loadData;
-    world.deserialize(d.world);
+    if(game.dim === 'over') world.deserialize(d.world);
+    else pendingWorldSaves.over = d.world; // 네더에서 저장했으면 오버월드는 지연 로드
     PokeMan.deserialize(d.poke);
     game.time = d.time !== undefined ? d.time : 0.06;
     player.deserialize(d.player);
@@ -564,6 +573,7 @@ function saveGame(){
   if(!game.started || !world) return;
   try {
     const pdata = player.serialize();
+    const overW = worlds.over || world;
     // 커서/제작칸에 들고 있던 아이템도 저장 (소실 방지)
     pdata.extra = [UI.cursor, ...(UI.craftCells || [])].filter(Boolean);
     if(Net.mode === 'guest'){
@@ -575,8 +585,9 @@ function saveGame(){
     const data = {
       v: SAVE_VERSION, savedAt: Date.now(),
       seed: game.seed, seedStr: game.seedStr || ('세계 ' + game.seed),
-      mode: game.mode, time: game.time,
-      world: world.serialize(),
+      mode: game.mode, time: game.time, dim: game.dim,
+      world: worlds.over ? worlds.over.serialize() : (pendingWorldSaves.over || overW.serialize()),
+      netherWorld: worlds.nether ? worlds.nether.serialize() : (pendingWorldSaves.nether || null),
       player: pdata,
       poke: PokeMan.serialize(),
     };
@@ -639,6 +650,66 @@ function tryBattle(){
   }
   if(!best){ UI.toast('근처에 야생 포켓몬이 없어요 (9블록 이내)'); return; }
   Battle.start(best);
+}
+
+// ---------- 차원 (오버월드 ↔ 네더) ----------
+function getWorld(dim){
+  if(!worlds[dim]){
+    worlds[dim] = new World(game.seed, dim);
+    if(pendingWorldSaves[dim]){
+      worlds[dim].deserialize(pendingWorldSaves[dim]);
+      delete pendingWorldSaves[dim];
+    }
+  }
+  return worlds[dim];
+}
+function swapWorldTo(to){
+  // 이전 차원 정리 (펫은 같이 이동)
+  scene.remove(world.group);
+  MobManager.list.slice().forEach(mb => {
+    if(mb.tamed) return;
+    mb.dead = true; scene.remove(mb.group); disposeObject(mb.group);
+  });
+  MobManager.list = MobManager.list.filter(mb => mb.tamed);
+  PokeMan.wilds.slice().forEach(w2 => PokeMan.removeWild(w2, false));
+  Projectiles.clear(); TNTs.clear();
+  game.dim = to;
+  world = getWorld(to);
+  scene.add(world.group);
+  player.world = world;
+  Minimap.reset();
+  ItemDrops.list.forEach(d => {
+    d.dim = d.dim || 'over';
+    d.mesh.visible = d.dim === to;
+  });
+}
+function switchDimension(){
+  const to = game.dim === 'over' ? 'nether' : 'over';
+  const fade = document.getElementById('fade');
+  fade.style.opacity = 1;
+  game.portalCd = 5;
+  // 좌표 매핑 (네더 1칸 = 오버월드 8칸)
+  const sx = to === 'nether' ? player.body.x / 8 : player.body.x * 8;
+  const sz = to === 'nether' ? player.body.z / 8 : player.body.z * 8;
+  swapWorldTo(to);
+  setTimeout(() => {
+    // 도착 지점 청크 먼저 생성 (포탈 레지스트리가 채워져야 기존 포탈을 찾음)
+    const pg0 = world.pregen(sx, sz);
+    for(let i = 0; i < pg0.todo.length && pg0.todo[i][2] <= 2.5; i++) pg0.step(i);
+    // 도착 포탈 찾기/건설
+    let dest = world.nearestPortal(sx, sz, 24);
+    if(dest) dest = { x: dest.x + 0.5, y: dest.y + 0.2, z: dest.z + 0.5 };
+    else dest = world.buildArrivalPortal(sx, sz);
+    player.portalArmed = false; // 도착 포탈에서 나가야 재발동
+    player.spawnAt(dest);
+    // 펫 이동
+    MobManager.list.forEach(mb => { if(mb.tamed){ mb.body.x = dest.x + 1; mb.body.y = dest.y + 1; mb.body.z = dest.z + 1; } });
+    world.update(dest.x, dest.z);
+    fade.style.opacity = 0;
+    UI.toast(to === 'nether' ? '🔥 네더에 도착했다...' : '🌍 오버월드로 돌아왔다!');
+    if(to === 'nether' && typeof Ach !== 'undefined') Ach.unlock('nether');
+    saveGame();
+  }, 700);
 }
 
 // ---------- 포켓몬 타기 ----------
@@ -849,6 +920,18 @@ const skySunset = new THREE.Color(0xe8915a);
 const _skyColor = new THREE.Color();
 
 function updateSky(){
+  if(game.dim === 'nether'){
+    ambLight.intensity = 0.55;
+    sunLight.intensity = 0.12;
+    _skyColor.setHex(0x2a0d0d);
+    scene.background = _skyColor;
+    scene.fog.color.copy(_skyColor);
+    scene.fog.near = 10; scene.fog.far = 52;
+    sunSprite.material.opacity = 0; moonSprite.material.opacity = 0;
+    stars.material.opacity = 0; cloudMesh.material.opacity = 0;
+    document.getElementById('water-tint').style.opacity = 0;
+    return;
+  }
   const ang = game.time * Math.PI * 2;
   const sunH = Math.sin(ang);
   const dayF = clamp((sunH + 0.12) / 0.35, 0, 1);
@@ -972,6 +1055,7 @@ function tick(t){
       MobManager.update(dt, world, player);
       PokeMan.update(dt, world, player);
     }
+    if(isGuest) ItemDrops.update(dt, world, player); // 게스트 로컬 드롭(다른 차원)
     Particles.update(dt);
     Projectiles.update(dt, world, player);
     Follower.update(dt, world, player);
@@ -984,9 +1068,11 @@ function tick(t){
     UI.updateHUD();
     updateDebug(dt);
 
-    // 물 흐름 애니메이션
+    // 물/용암 흐름 애니메이션
     world.waterTex.offset.y = (world.waterTex.offset.y + dt * 0.03) % 1;
     world.waterTex.offset.x = (world.waterTex.offset.x + dt * 0.012) % 1;
+    world.lavaTex.offset.y = (world.lavaTex.offset.y + dt * 0.008) % 1;
+    world.lavaTex.offset.x = (world.lavaTex.offset.x + dt * 0.005) % 1;
 
     // 달리기/활 FOV 효과
     const moving = Math.hypot(player.body.vx, player.body.vz) > 4.5;
@@ -1027,6 +1113,10 @@ function tick(t){
       for(const [, p] of Net.players){
         const px = p.tx !== undefined ? p.tx : p.x, pz = p.tz !== undefined ? p.tz : p.z;
         if(px === undefined) continue;
+        if((p.dm || 'over') !== game.dim){
+          txt += '\n👤 ' + p.name + ' · ' + ((p.dm === 'nether') ? '🔥 네더에 있음' : '🌍 오버월드에 있음');
+          continue;
+        }
         const dx = px - cb.x, dz = pz - cb.z;
         const dist = Math.round(Math.hypot(dx, dz));
         let a = Math.atan2(dx, -dz) * 180 / Math.PI;

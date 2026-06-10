@@ -111,6 +111,30 @@ class Player {
       this.hurt(Math.floor((-prevVy - 13) * 0.7), 0, 0, true);
     }
 
+    // 용암 데미지
+    if(b.inLava){
+      this.lavaAcc = (this.lavaAcc || 0) + dt;
+      if(this.lavaAcc > 0.5){
+        this.lavaAcc = 0;
+        this.hurt(3, 0, 0, true);
+        Particles.spawn(b.x, b.y + 1, b.z, 0xf08020, 8, 2, 0.5, 2);
+        SFX.play('hurt');
+      }
+    }
+    // 네더 포탈에 서 있으면 차원 이동 (도착 후 한 번 나갔다 와야 재발동 — 무한 왕복 방지)
+    if(this.world.getBlock(b.x, b.y + 0.5, b.z) === B.PORTAL){
+      if(this.portalArmed !== false){
+        this.portalT = (this.portalT || 0) + dt;
+        if(this.portalT === dt) UI.toast('🌀 포탈 이동 중... 2초만 기다리세요');
+        if(this.portalT > 2 && (!game.portalCd || game.portalCd <= 0)){
+          this.portalT = 0;
+          this.portalArmed = false;
+          switchDimension();
+        }
+      }
+    } else { this.portalT = 0; this.portalArmed = true; }
+    if(game.portalCd > 0) game.portalCd -= dt;
+
     // 익사
     const eyeBlock = this.world.getBlock(b.x, b.y + 1.62, b.z);
     if(BLOCKS[eyeBlock].rt === RT.WATER){
@@ -348,6 +372,29 @@ class Player {
         return;
       }
       if(hit.id === B.IRON_DOOR){ UI.toast('철문은 레버로만 열려요'); return; }
+      // 부싯돌과 부시: 흑요석 프레임 점화
+      {
+        const held0 = this.currentItem();
+        if(held0 && toolInfo(held0.id) && toolInfo(held0.id).kind === 'igniter'){
+          if(hit.id === B.OBSIDIAN){
+            if(this.world.ignitePortal(hit.bx, hit.by, hit.bz)){
+              SFX.play('evolve');
+              UI.toast('🌀 네더 포탈이 열렸다! 포탈 안에 2초간 서 있으면 이동해요');
+              this.damageTool(held0);
+            } else {
+              UI.toast('흑요석 프레임(안쪽 2×3 비움)이 필요해요 — 프레임 바닥을 클릭!');
+            }
+            return;
+          }
+          if(hit.id === B.TNT){
+            this.world.setBlock(hit.bx, hit.by, hit.bz, B.AIR);
+            if(typeof Net !== 'undefined' && Net.mode === 'guest') Net.sendIgnite(hit.bx, hit.by, hit.bz);
+            else TNTs.spawn(hit.bx + 0.5, hit.by + 0.5, hit.bz + 0.5, 3);
+            this.damageTool(held0);
+            return;
+          }
+        }
+      }
       if(hit.id === B.BED){ this.trySleep(hit); return; }
       if(hit.id === B.TNT){
         this.world.setBlock(hit.bx, hit.by, hit.bz, B.AIR);
@@ -563,6 +610,12 @@ class Player {
   }
 
   trySleep(hit){
+    if(this.world.dim === 'nether'){
+      UI.toast('💥 네더에서 침대는... 폭발한다!!');
+      this.world.setBlock(hit.bx, hit.by, hit.bz, B.AIR);
+      explode(this.world, hit.bx + 0.5, hit.by + 0.5, hit.bz + 0.5, 3, false);
+      return;
+    }
     if(game.isNight()){
       this.world.spawnPoint = { x: hit.bx + 0.5, y: hit.by + 1.2, z: hit.bz + 0.5 };
       if(typeof Net !== 'undefined' && Net.mode === 'guest'){
@@ -649,6 +702,12 @@ class Player {
     this.air = 10;
     this.fly = false;
     this.body.noGravity = false;
+    // 네더에서 죽으면 오버월드 스폰으로 복귀 (마크와 동일)
+    if(typeof game !== 'undefined' && game.dim !== 'over' && typeof swapWorldTo === 'function'){
+      swapWorldTo('over');
+      game.portalCd = 3;
+      UI.toast('🌍 오버월드에서 다시 시작합니다');
+    }
     const sp = this.world.spawnPoint || this.world.findSpawn();
     // 침대 스폰 좌표가 막혀 있지 않으면 그대로, 막혔으면 컬럼 꼭대기로
     let y = sp.y;

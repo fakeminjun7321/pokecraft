@@ -111,10 +111,12 @@ const Net = {
     const furn = {}, chst = {};
     for(const [k, f] of world.furnaces) furn[k] = f;
     for(const [k, c] of world.chests) chst[k] = c;
+    const overW = worlds.over || world;
     this.send(conn, {
       t: 'init', seed: game.seed, time: game.time, mode: game.mode,
-      pokeOn: PokeMan.enabled, edits: world.edits, furnaces: furn, chests: chst,
-      spawn: world.spawnPoint
+      pokeOn: PokeMan.enabled, edits: overW.edits, furnaces: furn, chests: chst,
+      spawn: overW.spawnPoint,
+      nether: worlds.nether ? worlds.nether.serialize() : null
     });
     this.players.set(pid, { name: (name || '친구').slice(0, 12), x: 0, y: 0, z: 0, yaw: 0, fol: 0 });
     this.chat('[' + this.players.get(pid).name + '님이 접속했습니다]');
@@ -139,12 +141,16 @@ const Net = {
           p.yaw = _validNum(m.yaw, -100, 100) ? m.yaw : 0;
           p.fol = (Number.isInteger(m.fol) && SPECIES[m.fol]) ? m.fol : 0;
           p.rid = m.rid ? 1 : 0;
+          p.dm = m.dm === 'nether' ? 'nether' : 'over';
           p.arm = Array.isArray(m.arm) ? m.arm.slice(0, 3).map(a => _validItemId(a) && armorInfo(a) ? a : 0) : null;
         }
         break;
       }
       case 'set':
-        if(_validBlockMsg(m)){ world.setBlock(m.x, m.y, m.z, m.id, true); this.broadcast(m, pid); }
+        if(_validBlockMsg(m)){
+          getWorld(m.d === 'nether' ? 'nether' : 'over').setBlock(m.x, m.y, m.z, m.id, true);
+          this.broadcast(m, pid);
+        }
         break;
       case 'drop':
         if(_validItemId(m.id) && _validNum(m.n, 1, 64) && _validNum(m.x, -1e7, 1e7) && _validNum(m.y, -100, 1000) && _validNum(m.z, -1e7, 1e7)){
@@ -226,7 +232,7 @@ const Net = {
   onGuestMsg(m){
     if(!game.started || !world || !player) return; // init 처리 전 도착한 메시지 무시
     switch(m.t){
-      case 'set': if(_validBlockMsg(m)) world.setBlock(m.x, m.y, m.z, m.id, true); break;
+      case 'set': if(_validBlockMsg(m)) getWorld(m.d === 'nether' ? 'nether' : 'over').setBlock(m.x, m.y, m.z, m.id, true); break;
       case 'snap': this._applySnap(m); break;
       case 'give': {
         const left = player.addItem(m.id, m.n, m.dur, m.ench);
@@ -270,9 +276,10 @@ const Net = {
   },
 
   // ---------- 게임 코드에서 호출하는 훅 ----------
-  blockChanged(x, y, z, id){
-    if(this.mode === 'host') this.broadcast({ t: 'set', x, y, z, id });
-    else if(this.mode === 'guest') this.toHost({ t: 'set', x, y, z, id });
+  blockChanged(x, y, z, id, dim){
+    const msg = { t: 'set', x, y, z, id, d: dim || game.dim };
+    if(this.mode === 'host') this.broadcast(msg);
+    else if(this.mode === 'guest') this.toHost(msg);
   },
   sendSpawnDrop(x, y, z, id, n, dur, ench){ this.toHost({ t: 'drop', x, y, z, id, n, dur, ench }); },
   sendSpawnWild(sp, lv, x, y, z){ this.toHost({ t: 'spawnWild', sp, lv, x, y, z }); },
@@ -298,6 +305,7 @@ const Net = {
     // 호스트가 배틀 중이면 몹이 호스트를 노리지 않음
     let bd = (player.dead || game.inBattle) ? Infinity : dist3(x, y, z, best.x, best.y, best.z);
     for(const [id, p] of this.players){
+      if((p.dm || 'over') !== game.dim) continue; // 다른 차원은 제외
       const d = dist3(x, y, z, p.x, p.y, p.z);
       if(d < bd){
         bd = d;
@@ -400,7 +408,7 @@ const Net = {
         this._sendAcc = 0;
         this.toHost({ t: 'pos', x: player.body.x, y: player.body.y, z: player.body.z,
                       yaw: player.yaw, fol: (game.followerOn && PokeMan.party.length) ? PokeMan.party[0].sp : 0,
-                      rid: game.riding ? 1 : 0, arm: player.armor.map(a => a ? a.id : 0) });
+                      rid: game.riding ? 1 : 0, arm: player.armor.map(a => a ? a.id : 0), dm: game.dim });
       }
       this._lerpPuppets(dt);
       this._tryPickup();
@@ -410,17 +418,17 @@ const Net = {
     if(this._sendAcc >= 0.1){
       this._sendAcc = 0;
       const snap = {
-        t: 'snap',
+        t: 'snap', dim: game.dim,
         players: [
           { id: 'host', name: this.myName, x: player.body.x, y: player.body.y, z: player.body.z,
             yaw: player.yaw, fol: (game.followerOn && PokeMan.party.length) ? PokeMan.party[0].sp : 0,
-            rid: game.riding ? 1 : 0, arm: player.armor.map(a => a ? a.id : 0) },
-          ...[...this.players.entries()].map(([id, p]) => ({ id, name: p.name, x: p.x, y: p.y, z: p.z, yaw: p.yaw, fol: p.fol, rid: p.rid, arm: p.arm }))
+            rid: game.riding ? 1 : 0, arm: player.armor.map(a => a ? a.id : 0), dm: game.dim },
+          ...[...this.players.entries()].map(([id, p]) => ({ id, name: p.name, x: p.x, y: p.y, z: p.z, yaw: p.yaw, fol: p.fol, rid: p.rid, arm: p.arm, dm: p.dm }))
         ],
         mobs: MobManager.list.map(m => ({ id: m.netId, type: m.type, x: m.body.x, y: m.body.y, z: m.body.z, dir: m.dir })),
         wilds: PokeMan.wilds.map(w => ({ id: w.netId, sp: w.inst.sp, lv: w.inst.level, hp: w.inst.hp,
                                           x: w.body.x, y: w.body.y, z: w.body.z, dir: w.dir, frozen: !!w.catching })),
-        drops: ItemDrops.list.map(d => ({ id: d.netId, item: d.id, n: d.n, x: d.x, y: d.y, z: d.z })),
+        drops: ItemDrops.list.filter(d => (d.dim || 'over') === game.dim).map(d => ({ id: d.netId, item: d.id, n: d.n, x: d.x, y: d.y, z: d.z })),
         tnts: TNTs.list.map(e => ({ x: e.x, y: e.y, z: e.z })),
       };
       // 각 게스트에게 그 게스트 자신은 제외하고 전송
@@ -455,6 +463,10 @@ const Net = {
   _lerpPlayer(p, dt){
     if(!p.model) p.model = this._makePlayerModel(p.name);
     const g = p.model.group;
+    const sameDim = (p.dm || 'over') === game.dim;
+    g.visible = sameDim;
+    if(p.model.folEnt) p.model.folEnt.root.visible = sameDim;
+    if(!sameDim) return;
     const tx = p.tx !== undefined ? p.tx : p.x, ty = p.ty !== undefined ? p.ty : p.y, tz = p.tz !== undefined ? p.tz : p.z;
     const k = Math.min(1, dt * 12);
     const dx = tx - g.position.x, dz = tz - g.position.z;
@@ -494,6 +506,22 @@ const Net = {
 
   // ---------- 게스트 퍼펫 ----------
   _applySnap(m){
+    this.hostDim = m.dim || 'over';
+    const dimMatch = this.hostDim === game.dim;
+    [this.pMobs, this.pWilds, this.pDrops].forEach(map => {
+      for(const [, pp] of map) pp.group.visible = dimMatch;
+    });
+    if(!dimMatch){
+      // 플레이어 위치만 갱신하고 퍼펫은 패스
+      m.players.forEach(pp => {
+        let p = this.players.get(pp.id);
+        if(!p){ p = { name: pp.name }; this.players.set(pp.id, p); }
+        p.tx = pp.x; p.ty = pp.y; p.tz = pp.z; p.tyaw = pp.yaw; p.fol = pp.fol;
+        p.rid = pp.rid; p.arm = pp.arm; p.dm = pp.dm;
+        p.x = pp.x; p.y = pp.y; p.z = pp.z;
+      });
+      return;
+    }
     // 플레이어
     const seen = new Set();
     m.players.forEach(pp => {
@@ -501,7 +529,7 @@ const Net = {
       let p = this.players.get(pp.id);
       if(!p){ p = { name: pp.name }; this.players.set(pp.id, p); }
       p.tx = pp.x; p.ty = pp.y; p.tz = pp.z; p.tyaw = pp.yaw; p.fol = pp.fol;
-      p.rid = pp.rid; p.arm = pp.arm;
+      p.rid = pp.rid; p.arm = pp.arm; p.dm = pp.dm;
       p.x = pp.x; p.y = pp.y; p.z = pp.z;
     });
     for(const [id, p] of this.players){

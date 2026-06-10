@@ -23,6 +23,8 @@ const ACH_DEFS = {
   sleep:         { n:'잘 자요',        d:'침대에서 잤다' },
   trade:         { n:'단골 손님',      d:'주민과 거래했다' },
   monument:      { n:'심해 탐험가',    d:'해저신전의 상자를 열었다' },
+  nether:        { n:'지옥에 오신 것을 환영합니다', d:'네더에 발을 디뎠다' },
+  fortress:      { n:'요새 침입자',    d:'네더 요새를 발견했다' },
 };
 const Ach = {
   _key(){ return storeKey('ach'); },
@@ -185,6 +187,7 @@ const Minimap = {
     if(typeof Net !== 'undefined' && Net.mode !== 'off'){
       for(const [, p] of Net.players){
         if(p.x === undefined) continue;
+        if((p.dm || 'over') !== game.dim) continue; // 다른 차원 친구는 표시 안 함
         mark(p.x, p.z, '#4ae8e8');
       }
     }

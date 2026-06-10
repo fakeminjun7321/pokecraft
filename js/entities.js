@@ -15,7 +15,9 @@ class PhysBody {
     // 두 지점 샘플로 수면 경계에서의 상태 깜빡임(떨림) 방지
     const wa = world.getBlock(this.x, this.y + 0.25, this.z);
     const wb = world.getBlock(this.x, this.y + this.h * 0.55, this.z);
-    this.inWater = BLOCKS[wa].rt === RT.WATER || BLOCKS[wb].rt === RT.WATER;
+    this.inWater = wa === B.WATER || wb === B.WATER;
+    this.inLava = wa === B.LAVA || wb === B.LAVA;
+    if(this.inLava) this.inWater = true; // 용암도 헤엄 물리 적용 (느리게 가라앉음)
     if(this.noClip){
       this.x += this.vx * dt; this.y += this.vy * dt; this.z += this.vz * dt;
       this.y = clamp(this.y, 1, WORLD_H + 20);
@@ -121,8 +123,8 @@ const ItemDrops = {
   },
   _idc: 0,
   spawn(x, y, z, id, n, dur, ench, vel){
-    // 멀티 게스트: 드롭은 호스트 소유 — 호스트로 보내고 로컬 생성 안 함
-    if(typeof Net !== 'undefined' && Net.mode === 'guest'){
+    // 멀티 게스트: 드롭은 호스트 소유 — 단, 호스트와 다른 차원이면 로컬 처리
+    if(typeof Net !== 'undefined' && Net.mode === 'guest' && (Net.hostDim || 'over') === game.dim){
       Net.sendSpawnDrop(x, y, z, id, n, dur, ench);
       return;
     }
@@ -135,7 +137,7 @@ const ItemDrops = {
       mesh.scale.set(0.45, 0.45, 0.45);
     }
     const e = {
-      x, y, z, id, n, dur, ench, netId: ++this._idc,
+      x, y, z, id, n, dur, ench, dim: game.dim, netId: ++this._idc,
       vx: vel ? vel.x : (Math.random() - 0.5) * 2.5,
       vy: vel ? vel.y : 2.5 + Math.random() * 1.5,
       vz: vel ? vel.z : (Math.random() - 0.5) * 2.5,
@@ -148,6 +150,8 @@ const ItemDrops = {
   update(dt, world, player){
     for(let i = this.list.length - 1; i >= 0; i--){
       const e = this.list[i];
+      if((e.dim || 'over') !== game.dim){ e.mesh.visible = false; continue; }
+      e.mesh.visible = true;
       e.age += dt;
       if(e.age > 300){ this.group.remove(e.mesh); this.list.splice(i, 1); continue; }
       // 자석/줍기
@@ -275,6 +279,27 @@ const Projectiles = {
     this.list.push({ type:'ball', ballId, x, y, z, vx: dx*14, vy: dy*14 + 2.5, vz: dz*14, age:0, mesh });
     SFX.play('throw');
   },
+  // 가스트/블레이즈 화염구
+  _fireMat(){
+    if(!this.__fireMat){
+      const c = document.createElement('canvas'); c.width = c.height = 32;
+      const x = c.getContext('2d');
+      const g = x.createRadialGradient(16, 16, 2, 16, 16, 16);
+      g.addColorStop(0, '#fff0a0'); g.addColorStop(0.5, '#f08020'); g.addColorStop(1, 'rgba(216,84,15,0)');
+      x.fillStyle = g; x.fillRect(0, 0, 32, 32);
+      this.__fireMat = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true });
+      this.__fireMat.userData.shared = true;
+    }
+    return this.__fireMat;
+  },
+  shootFireball(x, y, z, dx, dy, dz, r){
+    const mesh = new THREE.Sprite(this._fireMat());
+    mesh.scale.set(0.8, 0.8, 0.8);
+    mesh.position.set(x, y, z);
+    this.group.add(mesh);
+    this.list.push({ type:'fireball', x, y, z, vx: dx*7, vy: dy*7, vz: dz*7, age:0, mesh, r: r || 2 });
+    SFX.play('throw');
+  },
   throwPearl(x, y, z, dx, dy, dz){
     const mesh = new THREE.Sprite(iconSpriteMaterial(I.ENDERPEARL));
     mesh.scale.set(0.3, 0.3, 0.3);
@@ -333,6 +358,16 @@ const Projectiles = {
         if(world.isSolid(e.x, e.y, e.z) || e.age > 6){
           this._remove(i);
           ItemDrops.spawn(e.x - e.vx*dt*2, e.y - e.vy*dt*2 + 0.3, e.z - e.vz*dt*2, e.ballId, 1);
+          continue;
+        }
+      } else if(e.type === 'fireball'){
+        // 중력 없음, 직선 비행
+        e.vy += 7 * dt; // 위에서 보정 (전체 중력 -16 적용되므로 약하게 상쇄)
+        if(Math.random() < dt * 20) Particles.spawn(e.x, e.y, e.z, 0xf08020, 1, 0.5, 0.3);
+        const hitPlayer = player && !player.dead && dist3(e.x, e.y, e.z, player.body.x, player.body.y + 0.9, player.body.z) < 1.1;
+        if(world.isSolid(e.x, e.y, e.z) || hitPlayer || e.age > 8){
+          this._remove(i);
+          explode(world, e.x, e.y, e.z, e.r, false);
           continue;
         }
       } else if(e.type === 'pearl'){

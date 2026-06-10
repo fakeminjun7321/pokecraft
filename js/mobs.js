@@ -157,6 +157,31 @@ const MOB_DEFS = {
     model:()=> { const m = buildQuad({ body:'#b8b8c0', bw:0.5, bh:0.42, bd:0.8, legH:0.32, hs:0.42, headC:'#c8c8d0', ears:'#9a9aa8', snout:'#8a8a98' });
       makeBox(m.group, 0.1, 0.1, 0.4, '#b8b8c0', 0, 0.62, -0.55);
       return m; } },
+  pigman: { name:'좀비피그맨', hp:25, speed:1.8, w:0.3, h:1.8, neutral:true, dmg:4, fireImmune:true, drops:[[I.GOLD_INGOT,0,1],[I.ROTTEN,1,2]],
+    model:()=> buildBiped({ body:'#e8a0a8', headC:'#e8a0a8', legC:'#8a5a4a', armC:'#e8a0a8', legH:0.75, bh:0.7, zombieArms:true,
+      eyeC:'#3a3a3a' }) },
+  ghast: { name:'가스트', hp:12, speed:1.2, w:0.8, h:1.5, hostile:true, flier:true, fireball:3.2, fireballR:2, fireImmune:true, drops:[[I.GUNPOWDER,1,3]],
+    model:()=> { const g = new THREE.Group();
+      const body = makeBox(g, 1.4, 1.4, 1.4, '#e8e8e8', 0, 1.0, 0);
+      makeBox(body, 0.16, 0.25, 0.04, '#3a3a3a', -0.3, 0.15, 0.71); makeBox(body, 0.16, 0.25, 0.04, '#3a3a3a', 0.3, 0.15, 0.71);
+      makeBox(body, 0.5, 0.12, 0.04, '#3a3a3a', 0, -0.25, 0.71);
+      for(let i = 0; i < 5; i++) makeBox(g, 0.14, 0.6, 0.14, '#d8d8d8', (i - 2) * 0.28, 0.15, (i % 2) * 0.3 - 0.15);
+      return { group: g, legs: [], head: body }; } },
+  blaze: { name:'블레이즈', hp:20, speed:1.0, w:0.4, h:1.6, hostile:true, flier:true, fireball:2.4, fireballR:1, fireImmune:true, drops:[[I.BLAZE_ROD,1,2]],
+    model:()=> { const g = new THREE.Group();
+      const body = makeBox(g, 0.4, 0.5, 0.4, '#f0a020', 0, 1.0, 0);
+      addEyes(body, 0.4, 0.4, '#3a2a0a');
+      for(let i = 0; i < 6; i++){
+        const a = i / 6 * Math.PI * 2;
+        makeBox(g, 0.14, 0.45, 0.14, '#c87810', Math.sin(a) * 0.45, 0.55 + (i % 2) * 0.35, Math.cos(a) * 0.45);
+      }
+      return { group: g, legs: [], head: body }; } },
+  magma: { name:'마그마큐브', hp:12, speed:0.9, w:0.45, h:0.85, hostile:true, dmg:3, bounce:true, fireImmune:true, drops:[[I.COAL,0,2]],
+    model:()=> { const g = new THREE.Group();
+      const outer = makeBox(g, 0.9, 0.85, 0.9, '#6e3533', 0, 0.43, 0);
+      makeBox(g, 0.5, 0.45, 0.5, '#f08020', 0, 0.4, 0);
+      makeBox(g, 0.1, 0.1, 0.02, '#ffce3d', -0.15, 0.55, 0.46); makeBox(g, 0.1, 0.1, 0.02, '#ffce3d', 0.15, 0.55, 0.46);
+      return { group: g, legs: [], head: outer }; } },
   villager: { name:'주민', hp:20, speed:0.8, w:0.3, h:1.8, npc:true, drops:[[I.EMERALD,0,1]],
     model:()=> { const m = buildBiped({ body:'#8a6a4a', headC:'#d8a888', legC:'#6a5038', armC:'#8a6a4a', legH:0.7, bh:0.75 });
       makeBox(m.head, 0.12, 0.22, 0.1, '#c89878', 0, -0.05, 0.28);
@@ -188,7 +213,7 @@ class Mob {
     this.attackCd = 0; this.fuse = -1; this.burnAcc = 0;
     this.hurtFlash = 0; this.walkPhase = 0;
     this.dead = false;
-    this.angry = false; this.hopT = 0; this.tpT = 3;
+    this.angry = false; this.hopT = 0; this.tpT = 3; this.bobSeed = Math.random() * 10; this.lavaAcc = 0;
     this.love = 0; this.tamed = false; this.babyT = 0; // 번식/펫/아기
     if(this.def.npc) this.setTag(this.def.leader ? '체육관 관장' : '주민');
   }
@@ -259,6 +284,18 @@ class Mob {
           this.fuse = -1; this.setTint(null);
           speed = def.speed;
         }
+      } else if(def.fireball){
+        // 거리 유지하며 화염구
+        speed = dToP > 14 ? def.speed : (dToP < 8 ? -def.speed * 0.7 : 0);
+        this.attackCd -= dt;
+        if(dToP < 22 && this.attackCd <= 0){
+          this.attackCd = def.fireball;
+          const sx = b.x, sy = b.y + b.h * 0.6, sz = b.z;
+          const dx = tgt.x - sx, dy = (tgt.y + 1) - sy, dz = tgt.z - sz;
+          const len = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+          Projectiles.shootFireball(sx, sy, sz, dx/len, dy/len, dz/len, def.fireballR);
+          SFX.play('fuse');
+        }
       } else if(def.ranged){
         speed = dToP > 9 ? def.speed : (dToP < 5 ? -def.speed * 0.6 : 0);
         this.attackCd -= dt;
@@ -301,6 +338,13 @@ class Mob {
       b.vx = lerp(b.vx, tvx, Math.min(1, dt * 8));
       b.vz = lerp(b.vz, tvz, Math.min(1, dt * 8));
     }
+    if(def.flier){
+      // 부유 비행: 타깃 높이 +4 유지, 천천히 둥둥
+      b.noGravity = true;
+      const wantY = (aggro && dToP < 24) ? tgt.y + 5 : b.y + Math.sin(this.walkPhase + this.bobSeed) * 0.4;
+      b.vy = lerp(b.vy, clamp(wantY - b.y, -1.5, 1.5), Math.min(1, dt * 2.5));
+      this.walkPhase += dt;
+    }
     if(def.aquatic){
       b.noGravity = b.inWater;
       if(b.inWater){
@@ -320,6 +364,15 @@ class Mob {
       }
     }
 
+    // 용암 데미지
+    if(b.inLava && !def.fireImmune){
+      this.lavaAcc += dt;
+      if(this.lavaAcc > 0.5){
+        this.lavaAcc = 0;
+        this.hurt(3, 0, 0);
+        Particles.spawn(b.x, b.y + 0.8, b.z, 0xf08020, 5, 1.5, 0.4, 1.5);
+      }
+    }
     // 햇빛에 불타는 몹
     if(def.burns && game.isDay() && world.colTop(b.x, b.z) <= b.y + 1){
       this.burnAcc += dt;
@@ -448,13 +501,26 @@ const MobManager = {
     this.hostileTimer -= dt;
     if(this.hostileTimer <= 0){
       this.hostileTimer = 3;
-      if(game.isNight() && this.count(true) < 12) this.trySpawn(true, world, player);
+      if((game.isNight() || world.dim === 'nether') && this.count(true) < 12) this.trySpawn(true, world, player);
     }
     // 구조물 NPC 유지 (주민/관장/가디언)
     this.npcTimer = (this.npcTimer === undefined ? 1 : this.npcTimer) - dt;
     if(this.npcTimer <= 0){
       this.npcTimer = 5;
       const px = player.body.x, pz = player.body.z;
+      if(world.dim === 'nether'){
+        for(const f of world.fortressesNear(px, pz)){
+          if(Math.hypot(f.x - px, f.z - pz) > 50) continue;
+          if(typeof Ach !== 'undefined' && Math.hypot(f.x - px, f.z - pz) < 16) Ach.unlock('fortress');
+          const have = this.list.filter(x => x.type === 'blaze' && x.fortKey === f.key).length;
+          for(let i = have; i < 2; i++){
+            const mb = new Mob('blaze', f.x + (i ? 3 : -3), f.y + 2, f.z + 2);
+            mb.fortKey = f.key;
+            this.list.push(mb);
+          }
+        }
+        return;
+      }
       for(const v of world.villagesNear(px, pz)){
         if(Math.hypot(v.x - px, v.z - pz) > 80) continue;
         const have = this.list.filter(m => m.homeKey === v.key).length;
@@ -493,6 +559,16 @@ const MobManager = {
       const dist = hostile ? 20 + Math.random() * 20 : 14 + Math.random() * 28;
       const x = player.body.x + Math.sin(ang) * dist;
       const z = player.body.z + Math.cos(ang) * dist;
+      // 네더: 바닥 찾기 + 전용 몹
+      if(world.dim === 'nether'){
+        const ny = world.netherFloorY(Math.floor(x), Math.floor(z));
+        if(ny < 0) continue;
+        const r = Math.random();
+        const t = r < 0.4 ? 'pigman' : r < 0.6 ? 'magma' : r < 0.8 ? 'ghast' : 'blaze';
+        const mb = new Mob(t, Math.floor(x) + 0.5, ny + (t === 'ghast' ? 8 : 0.1), Math.floor(z) + 0.5);
+        this.list.push(mb);
+        return;
+      }
       const y = world.colTop(x, z) + 1;
       if(y <= SEA + 1 || y >= WORLD_H - 2) continue;
       const ground = world.getBlock(x, y - 1, z);
