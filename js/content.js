@@ -8,7 +8,8 @@ const B = {
   DIAMOND_ORE:16, REDSTONE_ORE:17, SNOWGRASS:18, CACTUS:19, FLOWER_R:20, FLOWER_Y:21,
   TALLGRASS:22, CRAFT:23, FURNACE:24, FURNACE_LIT:25, TORCH:26, TNT:27, WOOL:28,
   BRICKS:29, STONEBRICK:30, OBSIDIAN:31, PUMPKIN:32, BED:33,
-  CHEST:34, FARMLAND:35, CROP:36, CROP_RIPE:37
+  CHEST:34, FARMLAND:35, CROP:36, CROP_RIPE:37,
+  BIRCH_LOG:38, BIRCH_LEAVES:39, ACACIA_LOG:40, ENCHANT:41
 };
 // 렌더 타입
 const RT = { SOLID:0, CROSS:1, WATER:2, GLASS:3 };
@@ -26,7 +27,9 @@ const I = {
   POKEBALL:150, GREATBALL:151, ULTRABALL:152, POTION:153,
   SEEDS:160, WHEAT:161, BREAD:162, BONEMEAL:163, STRING:164,
   FISHING_ROD:165, BOW:166, ARROW:167, FLINT:168,
-  FISH_RAW:169, FISH_COOKED:170, RARECANDY:171, GOLDEN_APPLE:172
+  FISH_RAW:169, FISH_COOKED:170, RARECANDY:171, GOLDEN_APPLE:172,
+  EMERALD:174, ENDERPEARL:175,
+  BADGE_ROCK:176, BADGE_WATER:177, BADGE_ELEC:178, BADGE_FIRE:179
 };
 
 // ----- 타일 인덱스 (아틀라스 16x16 그리드) -----
@@ -38,7 +41,8 @@ const T = {
   FURN_SIDE:28, FURN_LIT:29, TORCH:30, TNT_SIDE:31,
   TNT_TOP:32, WOOL:33, BRICKS:34, STONEBRICK:35, OBSIDIAN:36, PUMPKIN_SIDE:37,
   PUMPKIN_FACE:38, PUMPKIN_TOP:39, BED_TOP:40,
-  CHEST_FRONT:41, CHEST_SIDE:42, CHEST_TOP:43, FARMLAND_TOP:44, CROP1:45, CROP2:46
+  CHEST_FRONT:41, CHEST_SIDE:42, CHEST_TOP:43, FARMLAND_TOP:44, CROP1:45, CROP2:46,
+  BIRCH_SIDE:47, BIRCH_LEAVES:48, ACACIA_SIDE:49, ENCH_TOP:50, ENCH_SIDE:51
 };
 
 // ----- 블록 정의 -----
@@ -91,6 +95,11 @@ defBlock(B.BED,        { name:'침대', tiles:{top:T.BED_TOP, bottom:T.PLANKS, s
 defBlock(B.CHEST,      { name:'상자', tiles:{top:T.CHEST_TOP, bottom:T.CHEST_TOP, side:T.CHEST_FRONT}, hard:2.2, tool:'axe' });
 defBlock(B.FARMLAND,   { name:'경작지', tiles:{top:T.FARMLAND_TOP, bottom:T.DIRT, side:T.DIRT}, hard:0.6, tool:'shovel', drop:()=>[[B.DIRT,1]] });
 defBlock(B.CROP,       { name:'밀 (자라는 중)', rt:RT.CROSS, solid:false, tiles:{top:T.CROP1, bottom:T.CROP1, side:T.CROP1}, hard:0.05, drop:()=>[[I.SEEDS,1]] });
+defBlock(B.BIRCH_LOG,   { name:'자작나무 원목', tiles:{top:T.LOG_TOP, bottom:T.LOG_TOP, side:T.BIRCH_SIDE}, hard:2.2, tool:'axe' });
+defBlock(B.BIRCH_LEAVES,{ name:'자작나무 잎', tiles:{top:T.BIRCH_LEAVES, bottom:T.BIRCH_LEAVES, side:T.BIRCH_LEAVES}, hard:0.3,
+                         drop:(rng)=> rng() < 0.08 ? [[I.APPLE,1]] : [] });
+defBlock(B.ACACIA_LOG,  { name:'아카시아 원목', tiles:{top:T.LOG_TOP, bottom:T.LOG_TOP, side:T.ACACIA_SIDE}, hard:2.2, tool:'axe' });
+defBlock(B.ENCHANT,     { name:'인챈트 테이블', tiles:{top:T.ENCH_TOP, bottom:T.OBSIDIAN, side:T.ENCH_SIDE}, hard:6, tool:'pick', tier:1 });
 defBlock(B.CROP_RIPE,  { name:'밀 (다 자람)', rt:RT.CROSS, solid:false, tiles:{top:T.CROP2, bottom:T.CROP2, side:T.CROP2}, hard:0.05,
                          drop:(rng)=>[[I.WHEAT,1], [I.SEEDS, 1 + Math.floor(rng() * 2)]] });
 
@@ -141,6 +150,12 @@ defItem(I.FISH_RAW,  { name:'생선', food:2 });
 defItem(I.FISH_COOKED,{ name:'구운 생선', food:7 });
 defItem(I.RARECANDY, { name:'이상한 사탕', stack:16 });
 defItem(I.GOLDEN_APPLE, { name:'황금 사과', food:20, stack:16 });
+defItem(I.EMERALD,    { name:'에메랄드' });
+defItem(I.ENDERPEARL, { name:'엔더 진주', stack:16 });
+defItem(I.BADGE_ROCK, { name:'바위 배지', stack:1, badge:'rock' });
+defItem(I.BADGE_WATER,{ name:'물결 배지', stack:1, badge:'water' });
+defItem(I.BADGE_ELEC, { name:'전기 배지', stack:1, badge:'electric' });
+defItem(I.BADGE_FIRE, { name:'불꽃 배지', stack:1, badge:'fire' });
 
 function isBlockId(id){ return id > 0 && id < 100; }
 function itemDef(id){ return isBlockId(id) ? BLOCKS[id] : ITEMS[id]; }
@@ -155,14 +170,14 @@ const CREATIVE_ITEMS = [
   B.GRASS,B.DIRT,B.STONE,B.COBBLE,B.SAND,B.GRAVEL,B.LOG,B.LEAVES,B.PLANKS,B.GLASS,
   B.COAL_ORE,B.IRON_ORE,B.GOLD_ORE,B.DIAMOND_ORE,B.REDSTONE_ORE,B.SNOWGRASS,B.CACTUS,
   B.FLOWER_R,B.FLOWER_Y,B.TALLGRASS,B.CRAFT,B.FURNACE,B.TORCH,B.TNT,B.WOOL,B.BRICKS,
-  B.STONEBRICK,B.OBSIDIAN,B.PUMPKIN,B.BED,B.CHEST,B.FARMLAND,
+  B.STONEBRICK,B.OBSIDIAN,B.PUMPKIN,B.BED,B.CHEST,B.FARMLAND,B.BIRCH_LOG,B.BIRCH_LEAVES,B.ACACIA_LOG,B.ENCHANT,
   I.STICK,I.COAL,I.IRON_INGOT,I.GOLD_INGOT,I.DIAMOND,I.REDSTONE,I.APPLE,I.PORK_COOKED,I.BEEF_COOKED,
   I.SEEDS,I.WHEAT,I.BREAD,I.BONEMEAL,I.STRING,I.FISHING_ROD,I.BOW,I.ARROW,I.FLINT,I.FISH_COOKED,
   I.WOOD_PICK,I.WOOD_AXE,I.WOOD_SHOVEL,I.WOOD_SWORD,I.WOOD_HOE,
   I.STONE_PICK,I.STONE_AXE,I.STONE_SHOVEL,I.STONE_SWORD,I.STONE_HOE,
   I.IRON_PICK,I.IRON_AXE,I.IRON_SHOVEL,I.IRON_SWORD,I.IRON_HOE,
   I.DIA_PICK,I.DIA_AXE,I.DIA_SHOVEL,I.DIA_SWORD,I.DIA_HOE,
-  I.POKEBALL,I.GREATBALL,I.ULTRABALL,I.POTION,I.RARECANDY
+  I.POKEBALL,I.GREATBALL,I.ULTRABALL,I.POTION,I.RARECANDY,I.GOLDEN_APPLE,I.EMERALD,I.ENDERPEARL
 ];
 
 // ===== 텍스처 아틀라스 =====
@@ -241,6 +256,11 @@ function buildAtlas(){
   paint(T.CHEST_TOP, p=>{ p.fill('#9a6b35'); p.rect(0,0,16,1,'#5a3d1c'); p.rect(0,15,16,1,'#5a3d1c'); p.rect(0,0,1,16,'#5a3d1c'); p.rect(15,0,1,16,'#5a3d1c'); p.speck('#8a5d2c', 30); });
   paint(T.FARMLAND_TOP, p=>{ p.fill('#5d4228'); for(let x=1;x<16;x+=4) p.rect(x,0,2,16,'#4a3520'); p.speck('#6e5232', 30); p.speck('#3a2a18', 20); });
   paint(T.CROP1, p=>{ for(let i=0;i<6;i++){ const x=2+i*2+(p.rng()*1|0); const h=3+(p.rng()*4|0); p.rect(x,16-h,1,h,'#4fae3a'); } });
+  paint(T.BIRCH_SIDE, p=>{ p.fill('#d8d0c0'); for(let i=0;i<7;i++){ p.rect(p.rng()*13|0, p.rng()*15|0, 3, 1, '#2a2a28'); } p.speck('#c8c0b0', 30); });
+  paint(T.BIRCH_LEAVES, p=>{ p.fill('#6aa84a'); p.speck('#5a9838', 70); p.speck('#7ab85a', 60); p.speck('#4a8828', 30); });
+  paint(T.ACACIA_SIDE, p=>{ p.fill('#6a5a50'); for(let x=0;x<16;x+=3){ p.rect(x,0,1,16,'#584a40'); } p.speck('#7a6a60', 30); });
+  paint(T.ENCH_TOP, p=>{ p.fill('#2a1a3a'); p.rect(1,1,14,14,'#3a2a50'); p.rect(6,6,4,4,'#e84d60'); p.speck('#8a5fa8', 20); p.px(7,7,'#f5d327'); });
+  paint(T.ENCH_SIDE, p=>{ p.fill('#3a3a3a'); p.rect(0,0,16,3,'#2a1a3a'); p.rect(2,5,12,8,'#5a3a28'); p.speck('#8a5fa8', 12); });
   paint(T.CROP2, p=>{ for(let i=0;i<6;i++){ const x=1+i*2+(p.rng()*1|0); p.rect(x,4,1,12,'#b5a23c'); p.rect(x,2,1,3,'#d8c455'); p.px(x-1<0?0:x-1,3,'#d8c455'); p.px(x+1>15?15:x+1,4,'#d8c455'); } });
 
   ATLAS.canvas = cv;
@@ -373,6 +393,12 @@ function drawItemIcon(ctx, id){
     case I.FISH_RAW: P(4,7,'#8fb6c8',7,4); P(3,8,'#8fb6c8',2,2); P(11,6,'#7aa4b8',3,2); P(11,10,'#7aa4b8',3,2); P(6,8,'#222',1,1); break;
     case I.FISH_COOKED: P(4,7,'#b5803c',7,4); P(3,8,'#b5803c',2,2); P(11,6,'#9a6b2c',3,2); P(11,10,'#9a6b2c',3,2); P(6,8,'#222',1,1); break;
     case I.RARECANDY: P(6,6,'#6bb2e2',5,5); P(7,7,'#9ad0f0',2,2); P(4,5,'#e8e8e8',3,2); P(10,4,'#e8e8e8',2,3); P(11,10,'#e8e8e8',2,2); break;
+    case I.EMERALD: P(6,4,'#3ac85a',4,3); P(5,6,'#3ac85a',6,4); P(6,10,'#2aa848',4,2); P(7,5,'#8af0a8',2,2); break;
+    case I.ENDERPEARL: P(5,5,'#1a4a48',6,6); P(4,7,'#1a4a48',2,3); P(11,6,'#1a4a48',2,4); P(6,6,'#3a8a88',3,3); P(7,7,'#7ad0c8',1,1); break;
+    case I.BADGE_ROCK: P(5,5,'#b8a038',6,6); P(7,4,'#b8a038',2,2); P(6,6,'#d8c058',3,3); break;
+    case I.BADGE_WATER: P(5,5,'#5a8fdd',6,6); P(7,4,'#5a8fdd',2,2); P(6,6,'#8ab8f0',3,3); break;
+    case I.BADGE_ELEC: P(5,5,'#e8b820',6,6); P(7,4,'#e8b820',2,2); P(6,6,'#f5d868',3,3); break;
+    case I.BADGE_FIRE: P(5,5,'#e8633a',6,6); P(7,4,'#e8633a',2,2); P(6,6,'#f59868',3,3); break;
     case I.GOLDEN_APPLE: P(5,5,'#fce14c',6,6); P(4,6,'#fce14c',8,4); P(7,3,'#6b4a2a',1,2); P(8,3,'#3c8a28',2,1); P(5,6,'#fff08c',2,2); break;
     default: P(4,4,'#f0f','8',8); break;
   }
@@ -382,6 +408,9 @@ function drawItemIcon(ctx, id){
 // p: 모양 패턴(문자열 배열), k: 문자→아이템, sl: 셰이프리스 [[id,개수],...], out: [id, n]
 const RECIPES = [
   { sl:[[B.LOG,1]], out:[B.PLANKS,4] },
+  { sl:[[B.BIRCH_LOG,1]], out:[B.PLANKS,4] },
+  { sl:[[B.ACACIA_LOG,1]], out:[B.PLANKS,4] },
+  { p:['.G.','DOD','OOO'], k:{G:B.GLASS, D:I.DIAMOND, O:B.OBSIDIAN}, out:[B.ENCHANT,1] },
   { p:['P','P'], k:{P:B.PLANKS}, out:[I.STICK,4] },
   { p:['PP','PP'], k:{P:B.PLANKS}, out:[B.CRAFT,1] },
   { p:['C','S'], k:{C:I.COAL, S:I.STICK}, out:[B.TORCH,4] },
@@ -416,7 +445,7 @@ const RECIPES = [
 
 // 레시피 패턴 → 2차원 id 배열
 function recipeGrid(r){
-  return r.p.map(row => row.split('').map(ch => ch === ' ' ? 0 : r.k[ch]));
+  return r.p.map(row => row.split('').map(ch => (ch === ' ' || ch === '.') ? 0 : r.k[ch]));
 }
 
 // cells: 길이 4 또는 9의 [{id,n}|null], w: 2 또는 3 → {recipe, out:[id,n]} | null

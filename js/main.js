@@ -12,19 +12,20 @@ const game = {
   time: 0.06, // 0 = 일출
   keys: {}, locked: false, inBattle: false, paused: false,
   shake: 0, swing: 0, sprint: false,
-  followerOn: true, chatOpen: false,
+  followerOn: true, chatOpen: false, camMode: 0,
   get uiOpen(){ return typeof UI !== 'undefined' && UI.isOpen(); },
   isNight(){ return Math.sin(this.time * Math.PI * 2) < -0.05; },
   isDay(){ return !this.isNight(); },
 };
 
-function requestLock(){
+function requestLock(showPauseOnFail){
   const cv = document.getElementById('game-canvas');
   if(!cv.requestPointerLock) return;
-  // 크롬은 Esc 해제 직후 ~1.25초간 재잠금을 거부함 — 실패 시 일시정지로 복귀
+  // 크롬은 Esc 해제 직후 ~1.25초간 재잠금을 거부함
   const p = cv.requestPointerLock();
   if(p && p.catch) p.catch(() => {
-    if(game.started && !UI.isOpen() && !game.inBattle && player && !player.dead) UI.openPause();
+    if(showPauseOnFail && game.started && !UI.isOpen() && !game.inBattle && player && !player.dead) UI.openPause();
+    else if(game.started) UI.toast('화면을 클릭하면 계속!');
   });
 }
 
@@ -414,6 +415,27 @@ function setupThree(){
   });
 }
 
+let myModel = null;
+function updateSelfModel(dt){
+  const show = game.camMode === 1;
+  if(show && !myModel){
+    const mm = buildBiped({ body:'#3aa8a0', headC:'#e0b08a', legC:'#3a4f8f', armC:'#3aa8a0', legH:0.75, bh:0.7 });
+    myModel = { group: mm.group, legs: mm.legs, arms: mm.arms, phase: 0 };
+    scene.add(myModel.group);
+  }
+  if(!myModel) return;
+  myModel.group.visible = show;
+  if(!show) return;
+  const b = player.body;
+  myModel.group.position.set(b.x, b.y, b.z);
+  myModel.group.rotation.y = player.yaw + Math.PI;
+  const sp = Math.hypot(b.vx, b.vz);
+  myModel.phase += sp * dt * 4;
+  const sw = Math.sin(myModel.phase) * Math.min(1, sp) * 0.6;
+  myModel.legs.forEach((l, i) => { l.rotation.x = (i % 2 ? -sw : sw); });
+  (myModel.arms || []).forEach((a, i) => { a.rotation.x = (i % 2 ? sw : -sw) * 0.7; });
+}
+
 function updateHeldItem(){
   if(!heldGroup) return;
   while(heldGroup.children.length){
@@ -608,6 +630,16 @@ function tryBattle(){
   Battle.start(best);
 }
 
+// ---------- 체육관 도전 ----------
+function startGymBattle(gym){
+  if(!PokeMan.enabled){ UI.toast('포켓몬 모드가 꺼져 있어요'); return; }
+  if(game.inBattle || UI.isOpen()) return;
+  if(!PokeMan.party.length){ UI.toast('포켓몬이 없으면 도전할 수 없어요!'); return; }
+  if(!PokeMan.partyAlive()){ UI.toast('포켓몬들이 모두 지쳐 있어요...'); return; }
+  if(typeof Net !== 'undefined' && Net.mode === 'guest'){ UI.toast('체육관 도전은 호스트만 가능해요 (다음 업데이트 예정!)'); return; }
+  Battle.startTrainer(gym.type, gym.key);
+}
+
 // ---------- 채팅 ----------
 function openChat(){
   if(Net.mode === 'off') return;
@@ -663,6 +695,7 @@ function bindInput(){
   document.addEventListener('mouseup', e => {
     if(e.button === 0 && player) player.mouseLeft = false;
     if(e.button === 2 && player) player.releaseBow();
+    if(UI._drag) UI._finishDrag();
   });
   document.addEventListener('contextmenu', e => {
     if(game.started) e.preventDefault();
@@ -691,7 +724,27 @@ function bindInput(){
     }
     if(e.code.startsWith('Digit')){
       const n = +e.code.slice(5);
-      if(n >= 1 && n <= 9 && player){ player.selected = n - 1; UI.updateHotbar(); }
+      if(n >= 1 && n <= 9 && player){
+        const hov = UI._hoverSlot;
+        if(UI.isOpen() && hov && !hov.opts.output){
+          // 마크처럼: 슬롯에 마우스 올리고 숫자키 → 핫바와 스왑
+          const tmp = hov.ref.get();
+          hov.ref.set(player.inventory[n - 1]);
+          player.inventory[n - 1] = tmp;
+          UI.refresh();
+        } else if(!UI.isOpen()){
+          player.selected = n - 1;
+          UI.updateHotbar();
+        }
+      }
+    }
+    if(e.code === 'KeyQ' && !UI.isOpen() && game.locked && player && !player.dead){
+      player.dropSelected(e.ctrlKey || e.metaKey);
+    }
+    if(e.code === 'F5'){
+      e.preventDefault();
+      game.camMode = game.camMode === 0 ? 1 : 0;
+      UI.toast(game.camMode === 1 ? '3인칭 시점' : '1인칭 시점');
     }
     if(e.code === 'KeyW'){
       const now = performance.now();
@@ -771,17 +824,15 @@ function updateSky(){
   const sunsetF = clamp(1 - Math.abs(sunH) / 0.22, 0, 1) * 0.65;
   _skyColor.lerp(skySunset, sunsetF);
 
-  // 물 속이면 파랗게
+  // 물 속이면 파랗게 (급격한 깜빡임 방지를 위해 부드럽게 전환)
   const camBlock = world.getBlock(camera.position.x, camera.position.y, camera.position.z);
   const inWater = BLOCKS[camBlock] && BLOCKS[camBlock].rt === RT.WATER;
-  document.getElementById('water-tint').style.opacity = inWater ? 1 : 0;
-  if(inWater){
-    _skyColor.setHex(0x1a3a8c);
-    scene.fog.near = 2; scene.fog.far = 18;
-  } else {
-    scene.fog.near = world.renderDist * CHUNK * 0.55;
-    scene.fog.far = world.renderDist * CHUNK * 1.0;
-  }
+  game._waterT = lerp(game._waterT || 0, inWater ? 1 : 0, Math.min(1, 0.016 * 9));
+  const wt = game._waterT;
+  document.getElementById('water-tint').style.opacity = (wt * 0.95).toFixed(2);
+  _skyColor.lerp(new THREE.Color(0x1a3a8c), wt);
+  scene.fog.near = lerp(world.renderDist * CHUNK * 0.55, 2, wt);
+  scene.fog.far = lerp(world.renderDist * CHUNK * 1.0, 18, wt);
   scene.background = _skyColor;
   scene.fog.color.copy(_skyColor);
 
@@ -865,6 +916,7 @@ function tick(t){
     world.update(player.body.x, player.body.z);
     if(!isGuest){
       world.tickFurnaces(dt);
+      world.tickFluids(dt);
       const centers = [{ x: player.body.x, z: player.body.z }];
       if(Net.mode === 'host') for(const [, p] of Net.players) centers.push({ x: p.x, z: p.z });
       world.randomTicks(dt, centers);
@@ -876,6 +928,7 @@ function tick(t){
     Particles.update(dt);
     Projectiles.update(dt, world, player);
     Follower.update(dt, world, player);
+    updateSelfModel(dt);
     game.time = (game.time + dt / 600) % 1;
     updateSky();
     updateHighlight();

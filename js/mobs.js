@@ -130,6 +130,38 @@ const MOB_DEFS = {
       makeBox(m.head, 0.06, 0.1, 0.02, '#111', -0.08, -0.14, hs/2 + 0.012);
       makeBox(m.head, 0.06, 0.1, 0.02, '#111',  0.08, -0.14, hs/2 + 0.012);
       return m; } },
+  spider: { name:'거미', hp:16, speed:2.2, w:0.6, h:0.7, hostile:true, dmg:2, drops:[[I.STRING,1,2]],
+    model:()=> { const m = buildQuad({ body:'#3a3230', bw:0.85, bh:0.35, bd:0.9, legH:0.28, legW:0.1, hs:0.42, headC:'#46403c' });
+      makeBox(m.head, 0.07, 0.07, 0.02, '#e83a3a', -0.1, 0.1, 0.22); makeBox(m.head, 0.07, 0.07, 0.02, '#e83a3a', 0.1, 0.1, 0.22);
+      makeBox(m.head, 0.05, 0.05, 0.02, '#e83a3a', -0.17, 0.02, 0.22); makeBox(m.head, 0.05, 0.05, 0.02, '#e83a3a', 0.17, 0.02, 0.22);
+      return m; } },
+  slime: { name:'슬라임', hp:8, speed:0.9, w:0.45, h:0.85, hostile:true, dmg:1, bounce:true, drops:[[I.EMERALD,0,1]],
+    model:()=> { const g = new THREE.Group();
+      const outer = makeBox(g, 0.9, 0.85, 0.9, '#5ac84a', 0, 0.43, 0);
+      outer.material.transparent = true; outer.material.opacity = 0.75;
+      makeBox(g, 0.5, 0.45, 0.5, '#3da832', 0, 0.4, 0);
+      makeBox(g, 0.1, 0.1, 0.02, '#1a1a1a', -0.15, 0.55, 0.46); makeBox(g, 0.1, 0.1, 0.02, '#1a1a1a', 0.15, 0.55, 0.46);
+      return { group: g, legs: [], head: outer }; } },
+  enderman: { name:'엔더맨', hp:35, speed:2.4, w:0.3, h:2.5, neutral:true, dmg:5, teleporter:true, drops:[[I.ENDERPEARL,1,2]],
+    model:()=> buildBiped({ body:'#16161a', headC:'#1d1d22', legC:'#16161a', armC:'#16161a',
+      legH:1.15, bh:0.8, bw:0.34, legW:0.1, armW:0.09, armL:1.0, hs:0.42, eyeC:'#c83ae8', pupilC:'#f0a8ff' }) },
+  guardian: { name:'가디언', hp:25, speed:2.0, w:0.5, h:0.7, hostile:true, dmg:4, aquatic:true, drops:[[I.FISH_RAW,1,2],[I.EMERALD,0,1]],
+    model:()=> { const g = new THREE.Group();
+      const body = makeBox(g, 0.8, 0.6, 0.8, '#5a8a78', 0, 0.4, 0);
+      makeBox(body, 0.22, 0.22, 0.05, '#e8c83a', 0, 0, 0.42);
+      makeBox(body, 0.12, 0.12, 0.05, '#1a1a1a', 0, 0, 0.45);
+      [[-0.45,0.35,0],[0.45,0.35,0],[0,0.45,-0.3],[0,0.45,0.3]].forEach(([x,y,z]) => makeBox(body, 0.08, 0.25, 0.08, '#c8b888', x, y, z));
+      makeBox(g, 0.15, 0.3, 0.3, '#4a7a68', 0, 0.4, -0.5);
+      return { group: g, legs: [], head: body }; } },
+  villager: { name:'주민', hp:20, speed:0.8, w:0.3, h:1.8, npc:true, drops:[[I.EMERALD,0,1]],
+    model:()=> { const m = buildBiped({ body:'#8a6a4a', headC:'#d8a888', legC:'#6a5038', armC:'#8a6a4a', legH:0.7, bh:0.75 });
+      makeBox(m.head, 0.12, 0.22, 0.1, '#c89878', 0, -0.05, 0.28);
+      return m; } },
+  leader: { name:'관장', hp:99, speed:0.4, w:0.3, h:1.8, npc:true, leader:true,
+    model:()=> { const m = buildBiped({ body:'#c83a3a', headC:'#e0b08a', legC:'#3a3a4a', armC:'#c83a3a', legH:0.75, bh:0.7 });
+      makeBox(m.head, 0.52, 0.14, 0.52, '#e8e8e8', 0, 0.3, 0);
+      makeBox(m.head, 0.52, 0.08, 0.2, '#c83a3a', 0, 0.22, 0.25);
+      return m; } },
 };
 
 // ---------- 몹 ----------
@@ -152,6 +184,14 @@ class Mob {
     this.attackCd = 0; this.fuse = -1; this.burnAcc = 0;
     this.hurtFlash = 0; this.walkPhase = 0;
     this.dead = false;
+    this.angry = false; this.hopT = 0; this.tpT = 3;
+    if(this.def.npc) this.setTag(this.def.leader ? '체육관 관장' : '주민');
+  }
+  setTag(text){
+    if(this.tag){ this.group.remove(this.tag); disposeObject(this.tag); }
+    this.tag = makeNameTag(text);
+    this.tag.position.y = this.body.h + 0.45;
+    this.group.add(this.tag);
   }
   update(dt, world, player){
     if(this.dead) return;
@@ -166,7 +206,8 @@ class Mob {
     const dToP = dist3(b.x, b.y, b.z, tgt.x, tgt.y, tgt.z);
     let speed = 0;
 
-    if(def.hostile && !tgt.dead && dToP < 16){
+    const aggro = (def.hostile || (def.neutral && this.angry)) && !def.npc;
+    if(aggro && !tgt.dead && dToP < (def.neutral ? 28 : 16)){
       this.dir = Math.atan2(tgt.x - b.x, tgt.z - b.z);
       if(def.creeper){
         if(dToP < 3){
@@ -209,11 +250,38 @@ class Mob {
     }
 
     const tvx = Math.sin(this.dir) * speed, tvz = Math.cos(this.dir) * speed;
-    b.vx = lerp(b.vx, tvx, Math.min(1, dt * 8));
-    b.vz = lerp(b.vz, tvz, Math.min(1, dt * 8));
-    if(b.hitWall && b.onGround && speed > 0) b.vy = 7.5;
-    if(b.inWater) b.vy = Math.max(b.vy, 1.5);
+    if(def.bounce){
+      // 슬라임: 통통 튀며 이동
+      this.hopT -= dt;
+      if(b.onGround){
+        if(this.hopT <= 0 && speed > 0){
+          b.vy = 6.5;
+          b.vx = tvx * 2.2; b.vz = tvz * 2.2;
+          this.hopT = 0.9 + Math.random() * 0.8;
+        } else { b.vx *= 0.6; b.vz *= 0.6; }
+      }
+    } else {
+      b.vx = lerp(b.vx, tvx, Math.min(1, dt * 8));
+      b.vz = lerp(b.vz, tvz, Math.min(1, dt * 8));
+    }
+    if(def.aquatic){
+      b.noGravity = b.inWater;
+      if(b.inWater){
+        const ty = aggro && dToP < 20 ? tgt.y + 1 : b.y + Math.sin(this.walkPhase) * 0.3;
+        b.vy = lerp(b.vy, clamp(ty - b.y, -2.2, 2.2), Math.min(1, dt * 4));
+      }
+    }
+    if(!def.bounce && b.hitWall && b.onGround && speed > 0) b.vy = 7.5;
+    if(b.inWater && !def.aquatic) b.vy = Math.max(b.vy, 1.5);
     b.update(dt, world);
+    // 엔더맨: 주기적/전투 중 순간이동
+    if(def.teleporter){
+      this.tpT -= dt;
+      if(this.tpT <= 0){
+        this.tpT = 2.5 + Math.random() * 4;
+        if(this.angry || Math.random() < 0.35) this._teleport(world);
+      }
+    }
 
     // 햇빛에 불타는 몹
     if(def.burns && game.isDay() && world.colTop(b.x, b.z) <= b.y + 1){
@@ -248,8 +316,29 @@ class Mob {
       if(m.isMesh && m.material && m.material.emissive) m.material.emissive.setHex(c === null ? 0 : c);
     });
   }
+  _teleport(world){
+    const b = this.body;
+    Particles.spawn(b.x, b.y + 1.2, b.z, 0x8a3ae8, 14, 2.5, 0.6, 1);
+    for(let t = 0; t < 8; t++){
+      const nx = b.x + (Math.random() - 0.5) * 18;
+      const nz = b.z + (Math.random() - 0.5) * 18;
+      const ny = world.colTop(nx, nz) + 1;
+      if(ny <= SEA + 1 || ny >= WORLD_H - 4) continue;
+      b.x = nx; b.y = ny + 0.1; b.z = nz;
+      b.vx = b.vy = b.vz = 0;
+      break;
+    }
+    Particles.spawn(b.x, b.y + 1.2, b.z, 0x8a3ae8, 14, 2.5, 0.6, 1);
+    SFX.play('throw');
+  }
   hurt(dmg, kx, kz){
     if(this.dead) return;
+    if(this.def.leader) return; // 관장은 배틀로만 상대
+    if(this.def.neutral) this.angry = true;
+    if(this.def.teleporter && Math.random() < 0.5){
+      this._teleport(world);
+      return; // 순간이동으로 회피
+    }
     this.hp -= dmg;
     this.hurtFlash = 0.25;
     this.setTint(0xaa0000);
@@ -287,8 +376,9 @@ const MobManager = {
   count(hostile){ return this.list.filter(m => !!m.def.hostile === hostile).length; },
   update(dt, world, player){
     for(const m of this.list.slice()) m.update(dt, world, player);
-    // 너무 먼 몹 디스폰
+    // 너무 먼 몹 디스폰 (NPC 제외)
     for(const m of this.list.slice()){
+      if(m.def.npc) continue;
       if(dist3(m.body.x, m.body.y, m.body.z, player.body.x, player.body.y, player.body.z) > 90){
         m.dead = true;
         scene.remove(m.group);
@@ -307,6 +397,42 @@ const MobManager = {
       this.hostileTimer = 3;
       if(game.isNight() && this.count(true) < 12) this.trySpawn(true, world, player);
     }
+    // 구조물 NPC 유지 (주민/관장/가디언)
+    this.npcTimer = (this.npcTimer === undefined ? 1 : this.npcTimer) - dt;
+    if(this.npcTimer <= 0){
+      this.npcTimer = 5;
+      const px = player.body.x, pz = player.body.z;
+      for(const v of world.villagesNear(px, pz)){
+        if(Math.hypot(v.x - px, v.z - pz) > 80) continue;
+        const have = this.list.filter(m => m.homeKey === v.key).length;
+        for(let i = have; i < 3; i++){
+          const ang = Math.random() * Math.PI * 2;
+          const mx = v.x + Math.sin(ang) * 6, mz = v.z + Math.cos(ang) * 6;
+          const mb = new Mob('villager', mx, world.colTop(mx, mz) + 1.1, mz);
+          mb.homeKey = v.key;
+          this.list.push(mb);
+        }
+      }
+      const GYM_NAME = { rock:'바위', water:'물', electric:'전기', fire:'불꽃' };
+      for(const g of world.gymsNear(px, pz)){
+        if(Math.hypot(g.x - px, g.z - pz) > 80) continue;
+        if(!this.list.some(m => m.gym && m.gym.key === g.key)){
+          const mb = new Mob('leader', g.x + 0.5, g.y + 1.1, g.z - 2.5);
+          mb.gym = g;
+          mb.setTag('체육관 관장 · ' + GYM_NAME[g.type] + (world.gymsBeaten.has(g.key) ? ' (클리어!)' : ''));
+          this.list.push(mb);
+        }
+      }
+      for(const mo of world.monumentsNear(px, pz)){
+        if(Math.hypot(mo.x - px, mo.z - pz) > 60) continue;
+        const have = this.list.filter(m => m.type === 'guardian' && m.monKey === mo.key).length;
+        for(let i = have; i < 2; i++){
+          const mb = new Mob('guardian', mo.x + (i ? 8 : -8), mo.y + 8, mo.z + 7);
+          mb.monKey = mo.key;
+          this.list.push(mb);
+        }
+      }
+    }
   },
   trySpawn(hostile, world, player){
     for(let att = 0; att < 8; att++){
@@ -322,7 +448,7 @@ const MobManager = {
       let type;
       if(hostile){
         const r = Math.random();
-        type = r < 0.4 ? 'zombie' : r < 0.72 ? 'skeleton' : 'creeper';
+        type = r < 0.3 ? 'zombie' : r < 0.55 ? 'skeleton' : r < 0.7 ? 'creeper' : r < 0.85 ? 'spider' : r < 0.93 ? 'slime' : 'enderman';
       } else {
         const r = Math.random();
         type = r < 0.3 ? 'pig' : r < 0.55 ? 'cow' : r < 0.8 ? 'sheep' : 'chicken';

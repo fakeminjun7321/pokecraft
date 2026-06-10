@@ -521,6 +521,14 @@ for(let id = 1; id < SPECIES.length; id++){
 }
 const LEGENDARIES = [144, 145, 146, 149, 150, 151];
 
+// 체육관 관장 팀
+const GYM_TEAMS = {
+  rock:     { name:'강석',   badge:I.BADGE_ROCK,  team:[[74,14],[95,17],[76,20]] },
+  water:    { name:'이슬',   badge:I.BADGE_WATER, team:[[60,14],[118,17],[55,20]] },
+  electric: { name:'마티스', badge:I.BADGE_ELEC,  team:[[100,14],[25,17],[26,20]] },
+  fire:     { name:'카츠라', badge:I.BADGE_FIRE,  team:[[37,15],[58,18],[126,21]] },
+};
+
 // ---------- 포켓몬 모델 ----------
 function buildPokeModel(spId){
   const sp = SPECIES[spId], M = sp.model;
@@ -640,14 +648,14 @@ class PokeInst {
   }
 }
 
-function calcDamage(att, def, moveKey){
+function calcDamage(att, def, moveKey, mult){
   const mv = MOVES[moveKey];
   const eff = typeMult(mv.t, def.spec.types);
   if(eff === 0) return { dmg:0, eff:0, crit:false };
   const stab = att.spec.types.includes(mv.t) ? 1.5 : 1;
   const crit = Math.random() < 1 / 16;
   let dmg = ((2 * att.level / 5 + 2) * mv.p * att.atk / Math.max(1, def.def)) / 50 + 2;
-  dmg *= stab * eff * (crit ? 1.5 : 1) * (0.85 + Math.random() * 0.15);
+  dmg *= stab * eff * (crit ? 1.5 : 1) * (0.85 + Math.random() * 0.15) * (mult || 1);
   return { dmg: Math.max(1, Math.floor(dmg)), eff, crit };
 }
 function catchChance(inst, ballMod){
@@ -716,11 +724,13 @@ const PokeMan = {
   enabled: true,
   wilds: [], party: [], box: [],
   seen: new Set(), caught: new Set(),
+  badges: new Set(),
   spawnTimer: 2, regenTimer: 0,
   reset(){
     this.wilds.forEach(w => { scene.remove(w.group); disposeObject(w.group); });
     this.wilds = []; this.party = []; this.box = [];
     this.seen = new Set(); this.caught = new Set();
+    this.badges = new Set();
   },
   update(dt, world, player){
     if(!this.enabled) return;
@@ -852,6 +862,7 @@ const PokeMan = {
       party: this.party.map(p => p.serialize()),
       box: this.box.map(p => p.serialize()),
       seen: [...this.seen], caught: [...this.caught],
+      badges: [...this.badges],
     };
   },
   deserialize(d){
@@ -861,6 +872,7 @@ const PokeMan = {
     this.box = (d.box || []).map(PokeInst.from);
     this.seen = new Set(d.seen || []);
     this.caught = new Set(d.caught || []);
+    this.badges = new Set(d.badges || []);
   }
 };
 
@@ -1004,6 +1016,42 @@ const Battle = {
     cam.position.set(0, s * 0.8 + 0.35, s * 1.5 + 0.85);
     cam.lookAt(0, s * 0.55 + 0.08, 0);
     if(side === 'E') this.mE = built; else this.mA = built;
+  },
+  // 체육관 관장 배틀: 3마리 연속, 포획 불가
+  async startTrainer(gymType, gymKey){
+    if(this.active) return false;
+    const G = GYM_TEAMS[gymType];
+    if(!G) return false;
+    this.initDom();
+    this.active = true; this.busy = true;
+    game.inBattle = true;
+    if(document.exitPointerLock) document.exitPointerLock();
+    this.trainer = { type: gymType, gymKey, ...G };
+    this.enemyTeam = G.team.map(([sp, lv]) => new PokeInst(sp, lv));
+    this.enemyIdx = 0;
+    this.wild = this.enemyTeam[0];
+    this.wildEnt = null;
+    PokeMan.seen.add(this.wild.sp);
+    this.allyIdx = PokeMan.party.findIndex(p => p.hp > 0);
+    this.ally = PokeMan.party[this.allyIdx];
+    const bgs = { rock:'linear-gradient(#a8b8c8 0%, #8a8a80 70%, #6a6a60 100%)',
+                  water:'linear-gradient(#7ec8ff 0%, #5a9fd8 60%, #3a76c0 100%)',
+                  electric:'linear-gradient(#f5e8a8 0%, #e8d868 60%, #c8b848 100%)',
+                  fire:'linear-gradient(#f5b8a8 0%, #e88868 60%, #c85838 100%)' };
+    this.$('battle-stage').style.background = bgs[gymType];
+    this.setModel('E', this.wild.sp);
+    this.setModel('A', this.ally.sp);
+    this.$('b-enemy-canvas').style.visibility = 'visible';
+    this.$('battle-overlay').classList.remove('hidden');
+    this.hideSub();
+    this.updateBars();
+    this.menuEnabled(false);
+    await this.say('체육관 관장 ' + G.name + '이(가) 승부를 걸어왔다!');
+    await this.say(G.name + ': 가랏, ' + this.wild.name + '!');
+    await this.say('가랏! ' + this.ally.name + '!');
+    this.busy = false;
+    this.menuEnabled(true);
+    return true;
   },
   async start(wildEnt){
     if(this.active || wildEnt.catching) return false; // 포획 연출 중인 야생과는 배틀 불가
@@ -1195,7 +1243,8 @@ const Battle = {
       await this.say('하지만 빗나갔다!');
       return;
     }
-    const r = calcDamage(user, target, mk);
+    // 배지 1개당 내 포켓몬 공격 +4%
+    const r = calcDamage(user, target, mk, isAlly ? 1 + 0.04 * PokeMan.badges.size : 1);
     if(r.eff === 0){
       await this.say('효과가 없는 것 같다...');
       return;
@@ -1248,6 +1297,30 @@ const Battle = {
         }
       }
     }
+    // 관장전: 다음 포켓몬 투입
+    if(this.trainer && this.enemyIdx < this.enemyTeam.length - 1){
+      this.enemyIdx++;
+      this.wild = this.enemyTeam[this.enemyIdx];
+      PokeMan.seen.add(this.wild.sp);
+      if(this.mE) this.mE.root.rotation.x = 0;
+      this.setModel('E', this.wild.sp);
+      this.updateBars();
+      await this.say(this.trainer.name + ': 가랏, ' + this.wild.name + '!');
+      return; // 배틀 계속
+    }
+    if(this.trainer){
+      await this.say(this.trainer.name + ': 훌륭한 승부였다...!');
+      if(typeof world !== 'undefined' && !world.gymsBeaten.has(this.trainer.gymKey)){
+        world.gymsBeaten.add(this.trainer.gymKey);
+        PokeMan.badges.add(this.trainer.type);
+        player.addItem(this.trainer.badge, 1);
+        player.addItem(I.EMERALD, 5);
+        await this.say(itemName(this.trainer.badge) + '을(를) 획득했다! (포켓몬 공격력 +4%)');
+        await this.say('에메랄드 5개도 받았다!');
+      } else {
+        await this.say('(이미 클리어한 체육관이라 배지는 없다)');
+      }
+    }
     this.end('win');
   },
   async allyFaintFlow(){
@@ -1272,6 +1345,10 @@ const Battle = {
     await this.say('가랏! ' + this.ally.name + '!');
   },
   async tryCatch(ballId){
+    if(this.trainer){
+      await this.say('다른 트레이너의 포켓몬은 잡을 수 없다!');
+      return false;
+    }
     if(player.countItem(ballId) <= 0){
       await this.say(itemName(ballId) + '이(가) 없다!');
       return false;
@@ -1301,6 +1378,8 @@ const Battle = {
   end(result){
     this.active = false;
     this.busy = false;
+    this.trainer = null;
+    this.enemyTeam = [];
     if(this.mE){ this.mE.root.rotation.x = 0; }
     if(this.mA){ this.mA.root.rotation.x = 0; }
     if(this.wildEnt){

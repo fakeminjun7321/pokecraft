@@ -146,7 +146,9 @@ const Net = {
         break;
       case 'drop':
         if(_validItemId(m.id) && _validNum(m.n, 1, 64) && _validNum(m.x, -1e7, 1e7) && _validNum(m.y, -100, 1000) && _validNum(m.z, -1e7, 1e7)){
-          ItemDrops.spawn(m.x, m.y, m.z, m.id, Math.floor(m.n), m.dur);
+          const ench = (m.ench && typeof m.ench.k === 'string' && _validNum(m.ench.l, 1, 3))
+            ? { k: String(m.ench.k).slice(0, 8), l: Math.floor(m.ench.l) } : undefined;
+          ItemDrops.spawn(m.x, m.y, m.z, m.id, Math.floor(m.n), m.dur, ench);
         }
         break;
       case 'pickup': {
@@ -154,7 +156,7 @@ const Net = {
         if(d){
           ItemDrops.group.remove(d.mesh);
           ItemDrops.list.splice(ItemDrops.list.indexOf(d), 1);
-          this.send(conn, { t: 'give', id: d.id, n: d.n, dur: d.dur });
+          this.send(conn, { t: 'give', id: d.id, n: d.n, dur: d.dur, ench: d.ench });
         }
         break;
       }
@@ -225,7 +227,7 @@ const Net = {
       case 'set': if(_validBlockMsg(m)) world.setBlock(m.x, m.y, m.z, m.id, true); break;
       case 'snap': this._applySnap(m); break;
       case 'give': {
-        const left = player.addItem(m.id, m.n, m.dur);
+        const left = player.addItem(m.id, m.n, m.dur, m.ench);
         SFX.play('pop');
         // 인벤토리가 가득하면 잉여분을 다시 드롭 (소실 방지)
         if(left > 0) this.sendSpawnDrop(player.body.x, player.body.y + 1, player.body.z, m.id, left, m.dur);
@@ -270,7 +272,7 @@ const Net = {
     if(this.mode === 'host') this.broadcast({ t: 'set', x, y, z, id });
     else if(this.mode === 'guest') this.toHost({ t: 'set', x, y, z, id });
   },
-  sendSpawnDrop(x, y, z, id, n, dur){ this.toHost({ t: 'drop', x, y, z, id, n, dur }); },
+  sendSpawnDrop(x, y, z, id, n, dur, ench){ this.toHost({ t: 'drop', x, y, z, id, n, dur, ench }); },
   sendSpawnWild(sp, lv, x, y, z){ this.toHost({ t: 'spawnWild', sp, lv, x, y, z }); },
   sendIgnite(x, y, z){ this.toHost({ t: 'ignite', x, y, z }); },
   containerChanged(kind, key){

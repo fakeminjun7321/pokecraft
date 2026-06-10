@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>포케크래프트 - PokeCraft</title>
-<link rel="stylesheet" href="css/style.css?v=4">
+<link rel="stylesheet" href="css/style.css?v=5">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -156,6 +156,28 @@
   </div>
 </div>
 
+<!-- ===== 인챈트 ===== -->
+<div id="ench-overlay" class="overlay hidden">
+  <div class="window">
+    <h3>✨ 인챈트 테이블 <button class="overlay-close" data-close="ench-overlay">✕</button></h3>
+    <div style="display:flex; gap:16px; align-items:center;">
+      <div id="ench-slot" class="slot-grid" style="grid-template-columns:46px"></div>
+      <div id="ench-btns" style="display:flex; flex-direction:column; gap:6px; flex:1"></div>
+    </div>
+    <div id="ench-msg" class="label"></div>
+    <div id="ench-inv-grid" class="slot-grid"></div>
+    <div id="ench-bar-grid" class="slot-grid"></div>
+  </div>
+</div>
+
+<!-- ===== 주민 거래 ===== -->
+<div id="trade-overlay" class="overlay hidden">
+  <div class="window">
+    <h3>🧑‍🌾 주민과 거래 <button class="overlay-close" data-close="trade-overlay">✕</button></h3>
+    <div id="trade-list"></div>
+  </div>
+</div>
+
 <!-- ===== 배틀 ===== -->
 <div id="battle-overlay" class="hidden">
   <div id="battle-stage">
@@ -236,6 +258,10 @@
       <tr><td>1~9, 휠</td><td>핫바 선택</td></tr>
       <tr><td>E</td><td>인벤토리 (크리에이티브: 아이템 목록)</td></tr>
       <tr><td>B</td><td>📖 조합법 책 (모든 레시피 + 재료 보유 표시)</td></tr>
+      <tr><td>Q / Ctrl+Q</td><td>든 아이템 1개 / 전부 버리기</td></tr>
+      <tr><td>F5</td><td>1인칭 ↔ 3인칭 시점 전환</td></tr>
+      <tr><td>마우스 드래그</td><td>인벤토리에서 우클릭 드래그: 1개씩 뿌리기 / 좌클릭 드래그: 균등 분배</td></tr>
+      <tr><td>숫자키(슬롯 위)</td><td>인벤토리에서 슬롯에 마우스 올리고 1~9: 핫바와 교체</td></tr>
       <tr><td>F1</td><td>이 조작법 화면 열기/닫기</td></tr>
       <tr><td>R</td><td>바라보는 야생 포켓몬과 배틀</td></tr>
       <tr><td>P</td><td>내 포켓몬 (파티)</td></tr>
@@ -268,16 +294,16 @@
 
 <script src="lib/three.min.js"></script>
 <script src="lib/peerjs.min.js"></script>
-<script src="js/util.js?v=4"></script>
-<script src="js/account.js?v=4"></script>
-<script src="js/content.js?v=4"></script>
-<script src="js/world.js?v=4"></script>
-<script src="js/entities.js?v=4"></script>
-<script src="js/mobs.js?v=4"></script>
-<script src="js/pokemon.js?v=4"></script>
-<script src="js/player.js?v=4"></script>
-<script src="js/ui.js?v=4"></script>
-<script src="js/net.js?v=4"></script>
-<script src="js/main.js?v=4"></script>
+<script src="js/util.js?v=5"></script>
+<script src="js/account.js?v=5"></script>
+<script src="js/content.js?v=5"></script>
+<script src="js/world.js?v=5"></script>
+<script src="js/entities.js?v=5"></script>
+<script src="js/mobs.js?v=5"></script>
+<script src="js/pokemon.js?v=5"></script>
+<script src="js/player.js?v=5"></script>
+<script src="js/ui.js?v=5"></script>
+<script src="js/net.js?v=5"></script>
+<script src="js/main.js?v=5"></script>
 </body>
 </html>

@@ -12,8 +12,10 @@ class PhysBody {
   }
   update(dt, world){
     this.hitWall = false;
-    const midId = world.getBlock(this.x, this.y + this.h * 0.4, this.z);
-    this.inWater = BLOCKS[midId].rt === RT.WATER;
+    // 두 지점 샘플로 수면 경계에서의 상태 깜빡임(떨림) 방지
+    const wa = world.getBlock(this.x, this.y + 0.25, this.z);
+    const wb = world.getBlock(this.x, this.y + this.h * 0.55, this.z);
+    this.inWater = BLOCKS[wa].rt === RT.WATER || BLOCKS[wb].rt === RT.WATER;
     if(this.noClip){
       this.x += this.vx * dt; this.y += this.vy * dt; this.z += this.vz * dt;
       this.y = clamp(this.y, 1, WORLD_H + 20);
@@ -22,6 +24,7 @@ class PhysBody {
     if(!this.noGravity){
       if(this.inWater){
         this.vy -= 7 * dt;
+        this.vy *= Math.max(0, 1 - dt * 2.2); // 물의 저항 — 수면에서 출렁임 감쇠
         if(this.vy < -3.2) this.vy = -3.2;
       } else {
         this.vy -= 26 * dt;
@@ -117,10 +120,10 @@ const ItemDrops = {
     return this._geom[id];
   },
   _idc: 0,
-  spawn(x, y, z, id, n, dur){
+  spawn(x, y, z, id, n, dur, ench, vel){
     // 멀티 게스트: 드롭은 호스트 소유 — 호스트로 보내고 로컬 생성 안 함
     if(typeof Net !== 'undefined' && Net.mode === 'guest'){
-      Net.sendSpawnDrop(x, y, z, id, n, dur);
+      Net.sendSpawnDrop(x, y, z, id, n, dur, ench);
       return;
     }
     if(this.list.length > 200) return;
@@ -132,9 +135,11 @@ const ItemDrops = {
       mesh.scale.set(0.45, 0.45, 0.45);
     }
     const e = {
-      x, y, z, id, n, dur, netId: ++this._idc,
-      vx: (Math.random() - 0.5) * 2.5, vy: 2.5 + Math.random() * 1.5, vz: (Math.random() - 0.5) * 2.5,
-      age: 0, mesh
+      x, y, z, id, n, dur, ench, netId: ++this._idc,
+      vx: vel ? vel.x : (Math.random() - 0.5) * 2.5,
+      vy: vel ? vel.y : 2.5 + Math.random() * 1.5,
+      vz: vel ? vel.z : (Math.random() - 0.5) * 2.5,
+      age: vel ? -0.8 : 0, mesh
     };
     mesh.position.set(x, y, z);
     this.group.add(mesh);
@@ -155,7 +160,7 @@ const ItemDrops = {
           e.vz += (player.body.z - e.z) * f;
         }
         if(d < 1.2){
-          const left = player.addItem(e.id, e.n, e.dur);
+          const left = player.addItem(e.id, e.n, e.dur, e.ench);
           if(left <= 0){
             SFX.play('pop');
             this.group.remove(e.mesh); this.list.splice(i, 1);
@@ -270,6 +275,14 @@ const Projectiles = {
     this.list.push({ type:'ball', ballId, x, y, z, vx: dx*14, vy: dy*14 + 2.5, vz: dz*14, age:0, mesh });
     SFX.play('throw');
   },
+  throwPearl(x, y, z, dx, dy, dz){
+    const mesh = new THREE.Sprite(iconSpriteMaterial(I.ENDERPEARL));
+    mesh.scale.set(0.3, 0.3, 0.3);
+    mesh.position.set(x, y, z);
+    this.group.add(mesh);
+    this.list.push({ type:'pearl', x, y, z, vx: dx*18, vy: dy*18 + 2, vz: dz*18, age:0, mesh });
+    SFX.play('throw');
+  },
   shootArrow(x, y, z, dx, dy, dz, opts){
     opts = opts || {};
     const speed = opts.speed || 18;
@@ -320,6 +333,19 @@ const Projectiles = {
         if(world.isSolid(e.x, e.y, e.z) || e.age > 6){
           this._remove(i);
           ItemDrops.spawn(e.x - e.vx*dt*2, e.y - e.vy*dt*2 + 0.3, e.z - e.vz*dt*2, e.ballId, 1);
+          continue;
+        }
+      } else if(e.type === 'pearl'){
+        // 엔더 진주: 착지점으로 순간이동
+        if(world.isSolid(e.x, e.y, e.z) || e.age > 6){
+          const tx = e.x - e.vx * dt * 2, ty = e.y - e.vy * dt * 2, tz = e.z - e.vz * dt * 2;
+          Particles.spawn(player.body.x, player.body.y + 1, player.body.z, 0x8a3ae8, 12, 2, 0.6, 1);
+          player.body.x = tx; player.body.y = Math.max(2, ty); player.body.z = tz;
+          player.body.vx = player.body.vy = player.body.vz = 0;
+          player.hurt(2, 0, 0, true);
+          Particles.spawn(tx, ty + 1, tz, 0x8a3ae8, 16, 2.5, 0.7, 1);
+          SFX.play('throw');
+          this._remove(i);
           continue;
         }
       } else { // arrow

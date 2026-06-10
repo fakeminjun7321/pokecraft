@@ -125,7 +125,7 @@ class Player {
     // 카메라
     const hSpeed = Math.hypot(b.vx, b.vz);
     if(b.onGround && hSpeed > 0.5) this.bobPhase += dt * hSpeed * 1.7;
-    const bob = b.onGround ? Math.sin(this.bobPhase * 2) * 0.045 : 0;
+    const bob = (b.onGround && !b.inWater) ? Math.sin(this.bobPhase * 2) * 0.045 : 0;
     this.camera.rotation.order = 'YXZ';
     this.camera.rotation.set(this.pitch, this.yaw, 0);
     let shX = 0, shY = 0;
@@ -134,7 +134,17 @@ class Player {
       shX = (Math.random() - 0.5) * game.shake * 0.3;
       shY = (Math.random() - 0.5) * game.shake * 0.3;
     }
-    this.camera.position.set(b.x + shX, b.y + 1.62 + bob + shY, b.z);
+    if(game.camMode === 1){
+      // 3인칭: 시선 반대 방향으로 카메라 후퇴 (벽 통과 방지 레이캐스트)
+      const d = this.dir();
+      const e = { x: b.x, y: b.y + 1.62, z: b.z };
+      let dist = 4;
+      const hit = this.world.raycast(e.x, e.y, e.z, -d.x, -d.y, -d.z, 4.2);
+      if(hit) dist = Math.max(0.5, hit.dist - 0.3);
+      this.camera.position.set(e.x - d.x * dist + shX, e.y - d.y * dist + bob + shY, e.z - d.z * dist);
+    } else {
+      this.camera.position.set(b.x + shX, b.y + 1.62 + bob + shY, b.z);
+    }
   }
 
   raycastBlock(){
@@ -165,7 +175,8 @@ class Player {
     }
     const item = this.currentItem();
     const tool = item ? toolInfo(item.id) : null;
-    const mul = tool && def.tool && tool.kind === def.tool ? tool.speed : 1;
+    let mul = tool && def.tool && tool.kind === def.tool ? tool.speed : 1;
+    if(item && item.ench && item.ench.k === 'eff' && tool && def.tool === tool.kind) mul *= 1 + 0.5 * item.ench.l;
     this.breaking.total = Math.max(0.05, def.hard * 1.5 / mul);
     this.breaking.progress += dt;
     this.digSfxAcc += dt;
@@ -203,7 +214,9 @@ class Player {
     }
     if(canDrop){
       const drops = def.drop ? def.drop(Math.random) : [[hit.id, 1]];
+      const fortune = item && item.ench && item.ench.k === 'fort' ? item.ench.l : 0;
       drops.forEach(([id, n]) => {
+        if(fortune && !isBlockId(id) && Math.random() < 0.35 * fortune) n += 1 + Math.floor(Math.random() * fortune);
         if(n > 0) ItemDrops.spawn(hit.bx + 0.5, hit.by + 0.4, hit.bz + 0.5, id, n);
       });
     }
@@ -213,6 +226,7 @@ class Player {
   damageTool(item){
     const t = toolInfo(item.id);
     if(!t) return;
+    if(item.ench && item.ench.k === 'unb' && Math.random() < 0.25 * item.ench.l) return; // 내구 인챈트
     if(item.dur === undefined) item.dur = t.dur;
     item.dur--;
     if(item.dur <= 0){
@@ -242,7 +256,8 @@ class Player {
     const mob = MobManager.rayHit(e.x, e.y, e.z, d.x, d.y, d.z, 3.5);
     if(mob && this.attackCd <= 0){
       this.attackCd = 0.35;
-      mob.hurt(dmg, d.x * 0.6, d.z * 0.6);
+      const sharp = item && item.ench && item.ench.k === 'sharp' ? item.ench.l : 0;
+      mob.hurt(dmg + sharp, d.x * 0.6, d.z * 0.6);
       if(tool && tool.kind === 'sword') this.damageTool(item);
     }
   }
@@ -252,11 +267,22 @@ class Player {
     if(this.dead || game.uiOpen || game.inBattle || !game.locked) return;
     const hit = this.raycastBlock();
     game.swing = 0.25;
+    // NPC 상호작용 (주민 거래 / 관장 도전)
+    {
+      const e0 = this.eye(), d0 = this.dir();
+      const npc = MobManager.rayHit(e0.x, e0.y, e0.z, d0.x, d0.y, d0.z, 3.5);
+      if(npc && npc.def.npc && (!hit || hit.dist > 3.5)){
+        if(npc.def.leader && npc.gym) startGymBattle(npc.gym);
+        else if(npc.type === 'villager') UI.openTrade();
+        return;
+      }
+    }
     // 상호작용 블록
     if(hit){
       if(hit.id === B.CRAFT){ UI.openInventory(true); return; }
       if(hit.id === B.FURNACE || hit.id === B.FURNACE_LIT){ UI.openFurnace(hit.bx + ',' + hit.by + ',' + hit.bz); return; }
       if(hit.id === B.CHEST){ UI.openChest(hit.bx + ',' + hit.by + ',' + hit.bz); return; }
+      if(hit.id === B.ENCHANT){ UI.openEnchant(); return; }
       if(hit.id === B.BED){ this.trySleep(hit); return; }
       if(hit.id === B.TNT){
         this.world.setBlock(hit.bx, hit.by, hit.bz, B.AIR);
@@ -318,6 +344,13 @@ class Player {
       return;
     }
     if(item.id === I.POTION){ UI.toast('상처약은 파티 화면(P)이나 배틀 중에 사용할 수 있어요'); return; }
+    // 엔더 진주: 던져서 순간이동
+    if(item.id === I.ENDERPEARL){
+      const e = this.eye(), d = this.dir();
+      Projectiles.throwPearl(e.x + d.x * 0.4, e.y + d.y * 0.4, e.z + d.z * 0.4, d.x, d.y, d.z);
+      this.consumeSelected();
+      return;
+    }
     // 블록 설치
     if(isBlockId(item.id) && hit){
       let cx = hit.bx, cy = hit.by, cz = hit.bz;
@@ -435,8 +468,9 @@ class Player {
     if(this.countItem(I.ARROW) <= 0) return;
     this.removeItem(I.ARROW, 1);
     const e = this.eye(), d = this.dir();
+    const power = item.ench && item.ench.k === 'power' ? item.ench.l * 1.5 : 0;
     Projectiles.shootArrow(e.x + d.x * 0.4, e.y + d.y * 0.4 - 0.1, e.z + d.z * 0.4, d.x, d.y, d.z,
-      { fromPlayer: true, speed: 12 + 20 * ch, dmg: Math.round(2 + 5 * ch) });
+      { fromPlayer: true, speed: 12 + 20 * ch, dmg: Math.round(2 + 5 * ch + power) });
     SFX.play('throw');
     this.damageTool(item);
     game.swing = 0.25;
@@ -454,6 +488,18 @@ class Player {
       UI.toast('밤에만 잘 수 있어요 (스폰 지점은 설정됨)');
       this.world.spawnPoint = { x: hit.bx + 0.5, y: hit.by + 1.2, z: hit.bz + 0.5 };
     }
+  }
+  // 든 아이템 버리기 (Q / Ctrl+Q)
+  dropSelected(all){
+    const s = this.inventory[this.selected];
+    if(!s || this.dead) return;
+    const n = all ? s.n : 1;
+    const e = this.eye(), d = this.dir();
+    ItemDrops.spawn(e.x + d.x * 0.6, e.y - 0.2, e.z + d.z * 0.6, s.id, n, s.dur, s.ench,
+      { x: d.x * 6, y: 1.5, z: d.z * 6 });
+    s.n -= n;
+    if(s.n <= 0) this.inventory[this.selected] = null;
+    UI.updateHotbar();
   }
   consumeSelected(){
     const s = this.inventory[this.selected];
@@ -510,12 +556,12 @@ class Player {
   }
 
   // ----- 인벤토리 -----
-  addItem(id, n, dur){
+  addItem(id, n, dur, ench){
     const max = maxStack(id);
-    if(max > 1){
+    if(max > 1 && !ench){
       for(let i = 0; i < 36; i++){
         const s = this.inventory[i];
-        if(s && s.id === id && s.n < max){
+        if(s && s.id === id && s.n < max && !s.ench){
           const take = Math.min(n, max - s.n);
           s.n += take; n -= take;
           if(n <= 0){ UI.updateHotbar(); return 0; }
@@ -527,6 +573,7 @@ class Player {
         const put = Math.min(n, max);
         this.inventory[i] = { id, n: put };
         if(dur !== undefined) this.inventory[i].dur = dur;
+        if(ench) this.inventory[i].ench = ench;
         n -= put;
         if(n <= 0) break;
       }

@@ -5,6 +5,7 @@ function $id(s){ return document.getElementById(s); }
 
 function renderStackEl(el, stack){
   el.style.backgroundImage = stack ? `url("${getIconURL(stack.id)}")` : 'none';
+  el.classList.toggle('ench', !!(stack && stack.ench));
   let cnt = el.querySelector('.slot-cnt');
   if(!cnt){ cnt = document.createElement('span'); cnt.className = 'slot-cnt'; el.appendChild(cnt); }
   cnt.textContent = stack && stack.n > 1 ? stack.n : '';
@@ -62,7 +63,7 @@ const UI = {
       b.addEventListener('click', () => this.close());
     });
     // 일시정지 메뉴
-    $id('resume-btn').onclick = () => { this.close(); requestLock(); };
+    $id('resume-btn').onclick = () => { this.close(); requestLock(true); };
     $id('save-btn').onclick = () => { saveGame(); this.toast('저장 완료!'); };
     $id('help-btn').onclick = () => { this._helpFromPause = true; this.showOverlay('help-overlay'); this.open = 'help'; };
     const orb = $id('open-recipes-btn');
@@ -84,7 +85,7 @@ const UI = {
 
   isOpen(){ return !!this.open; },
   showOverlay(id){
-    ['inv-overlay','furnace-overlay','chest-overlay','party-overlay','dex-overlay','pause-overlay','help-overlay','recipe-overlay'].forEach(o => $id(o).classList.add('hidden'));
+    ['inv-overlay','furnace-overlay','chest-overlay','party-overlay','dex-overlay','pause-overlay','help-overlay','recipe-overlay','ench-overlay','trade-overlay'].forEach(o => $id(o).classList.add('hidden'));
     if(id) $id(id).classList.remove('hidden');
   },
 
@@ -200,9 +201,71 @@ const UI = {
       if(e.button === 0) this._slotClick(slot, e, false);
       else if(e.button === 2) this._slotClick(slot, e, true);
     });
+    // 드래그 분배 + 숫자키 스왑용 호버 추적
+    el.addEventListener('mouseenter', () => {
+      this._hoverSlot = slot;
+      this._dragEnter(slot);
+    });
+    el.addEventListener('mouseleave', () => { if(this._hoverSlot === slot) this._hoverSlot = null; });
     el.addEventListener('contextmenu', e => e.preventDefault());
     this._slots.push(slot);
     return slot;
+  },
+  // 우클릭 드래그: 지나가는 슬롯마다 1개씩 놓기 / 좌클릭 드래그: 마우스 뗄 때 균등 분배
+  _dragEnter(slot){
+    const d = this._drag;
+    if(!d || !this.cursor || slot.opts.output) return;
+    const s = slot.ref.get();
+    if(slot.opts.filter && !slot.opts.filter(this.cursor)) return;
+    if(d.btn === 2){
+      if(!s){ slot.ref.set({ ...this.cursor, n: 1 }); this.cursor.n--; }
+      else if(s.id === this.cursor.id && !s.ench && !this.cursor.ench && s.n < maxStack(s.id)){ s.n++; this.cursor.n--; }
+      else return;
+      if(this.cursor.n <= 0){ this.cursor = null; this._drag = null; }
+      SFX.play('click');
+      this.refresh();
+    } else if(d.btn === 0){
+      if((!s || (s.id === d.id && !s.ench)) && !d.slots.includes(slot)){
+        d.slots.push(slot);
+        slot.el.classList.add('drag-mark');
+      }
+    }
+  },
+  _finishDrag(){
+    const d = this._drag;
+    this._drag = null;
+    document.querySelectorAll('.drag-mark').forEach(el => el.classList.remove('drag-mark'));
+    if(!d || d.btn !== 0 || !this.cursor) return;
+    const slots = d.slots.filter(sl => { const s = sl.ref.get(); return !s || (s.id === this.cursor.id && s.n < maxStack(s.id)); });
+    if(slots.length <= 1){
+      // 한 칸 = 일반 클릭과 동일 (전부 놓기/합치기)
+      if(slots.length === 1){
+        const sl = slots[0], s = sl.ref.get();
+        if(!s){ sl.ref.set(this.cursor); this.cursor = null; }
+        else {
+          const take = Math.min(this.cursor.n, maxStack(s.id) - s.n);
+          s.n += take; this.cursor.n -= take;
+          if(this.cursor.n <= 0) this.cursor = null;
+        }
+      }
+    } else {
+      // 균등 분배
+      const each = Math.floor(this.cursor.n / slots.length);
+      if(each >= 1){
+        for(const sl of slots){
+          if(!this.cursor || this.cursor.n <= 0) break;
+          const s = sl.ref.get();
+          const put = Math.min(each, maxStack(this.cursor.id) - (s ? s.n : 0), this.cursor.n);
+          if(put <= 0) continue;
+          if(!s) sl.ref.set({ ...this.cursor, n: put });
+          else s.n += put;
+          this.cursor.n -= put;
+        }
+        if(this.cursor && this.cursor.n <= 0) this.cursor = null;
+      }
+    }
+    SFX.play('click');
+    this.refresh();
   },
   _slotClick(slot, e, right){
     const { ref, opts } = slot;
@@ -260,6 +323,7 @@ const UI = {
           cur.n--;
           if(cur.n <= 0) this.cursor = null;
         }
+        if(this.cursor) this._drag = { btn: 2 }; // 우클릭 드래그 계속 뿌리기
       }
     } else {
       if(!cur && s){
@@ -267,8 +331,10 @@ const UI = {
         this.cursor = s;
       } else if(cur && !s){
         if(opts.filter && !opts.filter(cur)) return;
-        ref.set(cur);
-        this.cursor = null;
+        // 드래그 분배 시작 (마우스 뗄 때 확정)
+        this._drag = { btn: 0, id: cur.id, slots: [slot] };
+        slot.el.classList.add('drag-mark');
+        return;
       } else if(cur && s){
         if(opts.filter && !opts.filter(cur)) return;
         if(cur.id === s.id && maxStack(s.id) > 1){
@@ -470,6 +536,112 @@ const UI = {
     if(document.exitPointerLock) document.exitPointerLock();
   },
 
+  // ---------- 인챈트 ----------
+  enchSlot: null,
+  openEnchant(){
+    this.closeOnly();
+    this._slots = [];
+    const c = $id('ench-slot');
+    c.innerHTML = '';
+    this._makeSlot(c, { get: () => this.enchSlot, set: v => { this.enchSlot = v; } },
+      { quick: s => player.addItem(s.id, s.n, s.dur, s.ench) });
+    const ENCH_DEFS = {
+      eff:   { n:'효율',     kinds:['pick','axe','shovel','hoe'] },
+      sharp: { n:'날카로움', kinds:['sword'] },
+      unb:   { n:'내구',     kinds:['pick','axe','shovel','sword','bow','rod','hoe'] },
+      fort:  { n:'행운',     kinds:['pick'] },
+      power: { n:'파워',     kinds:['bow'] },
+    };
+    const roman = ['', 'I', 'II', 'III'];
+    const msg = $id('ench-msg');
+    msg.textContent = '도구를 올리고 다이아몬드로 인챈트하세요';
+    const btns = $id('ench-btns');
+    btns.innerHTML = '';
+    [1, 2, 3].forEach(cost => {
+      const b = document.createElement('button');
+      b.className = 'big-btn';
+      b.textContent = '✨ 인챈트 ' + roman[cost] + ' (다이아 ' + cost + '개)';
+      b.onclick = () => {
+        const it = this.enchSlot;
+        if(!it){ msg.textContent = '도구를 먼저 올려주세요!'; return; }
+        const tool = toolInfo(it.id);
+        if(!tool){ msg.textContent = '도구만 인챈트할 수 있어요'; return; }
+        if(player.countItem(I.DIAMOND) < cost){ msg.textContent = '다이아몬드가 부족해요 (' + cost + '개 필요)'; return; }
+        const pool = Object.keys(ENCH_DEFS).filter(k => ENCH_DEFS[k].kinds.includes(tool.kind));
+        if(!pool.length){ msg.textContent = '이 도구에 맞는 인챈트가 없어요'; return; }
+        player.removeItem(I.DIAMOND, cost);
+        const k = pool[Math.floor(Math.random() * pool.length)];
+        it.ench = { k, l: cost };
+        SFX.play('evolve');
+        Particles && Particles.spawn(player.body.x, player.body.y + 1.5, player.body.z, 0xb06ae8, 16, 2, 0.7, 1);
+        msg.textContent = '✨ ' + itemName(it.id) + '에 [' + ENCH_DEFS[k].n + ' ' + roman[cost] + '] 인챈트 성공!';
+        this.refresh();
+      };
+      btns.appendChild(b);
+    });
+    this._buildInvGrids('ench-inv-grid', 'ench-bar-grid');
+    this.showOverlay('ench-overlay');
+    this.open = 'ench';
+    this.refresh();
+    if(document.exitPointerLock) document.exitPointerLock();
+  },
+
+  // ---------- 주민 거래 ----------
+  openTrade(){
+    this.closeOnly();
+    const TRADES = [
+      { give: [[I.WHEAT, 6]],    get: [I.EMERALD, 1] },
+      { give: [[I.FISH_RAW, 4]], get: [I.EMERALD, 1] },
+      { give: [[I.EMERALD, 2]],  get: [I.POKEBALL, 3] },
+      { give: [[I.EMERALD, 3]],  get: [I.ARROW, 8] },
+      { give: [[I.EMERALD, 4]],  get: [I.GREATBALL, 2] },
+      { give: [[I.EMERALD, 8]],  get: [I.RARECANDY, 1] },
+    ];
+    const list = $id('trade-list');
+    list.innerHTML = '';
+    TRADES.forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'trade-row';
+      const left = document.createElement('div');
+      left.className = 'trade-items';
+      t.give.forEach(([id, n]) => {
+        const c = document.createElement('div');
+        c.className = 'recipe-cell';
+        c.style.backgroundImage = `url("${getIconURL(id)}")`;
+        c.title = itemName(id) + ' ×' + n;
+        const cnt = document.createElement('span'); cnt.className = 'slot-cnt'; cnt.textContent = n;
+        c.appendChild(cnt);
+        left.appendChild(c);
+      });
+      const arrow = document.createElement('span');
+      arrow.className = 'craft-arrow'; arrow.textContent = '→';
+      const right = document.createElement('div');
+      right.className = 'recipe-cell';
+      right.style.backgroundImage = `url("${getIconURL(t.get[0])}")`;
+      const rc = document.createElement('span'); rc.className = 'slot-cnt'; rc.textContent = t.get[1];
+      right.appendChild(rc);
+      const name = document.createElement('span');
+      name.style.flex = '1';
+      name.textContent = itemName(t.get[0]) + ' ×' + t.get[1];
+      const can = t.give.every(([id, n]) => player.countItem(id) >= n);
+      const btn = document.createElement('button');
+      btn.textContent = '교환';
+      btn.disabled = !can;
+      btn.onclick = () => {
+        if(!t.give.every(([id, n]) => player.countItem(id) >= n)) return;
+        t.give.forEach(([id, n]) => player.removeItem(id, n));
+        player.addItem(t.get[0], t.get[1]);
+        SFX.play('pop');
+        this.openTrade(); // 갱신
+      };
+      row.appendChild(left); row.appendChild(arrow); row.appendChild(right); row.appendChild(name); row.appendChild(btn);
+      list.appendChild(row);
+    });
+    this.showOverlay('trade-overlay');
+    this.open = 'trade';
+    if(document.exitPointerLock) document.exitPointerLock();
+  },
+
   // ---------- 파티 ----------
   openParty(){
     if(!PokeMan.enabled){ this.toast('포켓몬 모드가 꺼져 있습니다'); return; }
@@ -612,12 +784,20 @@ const UI = {
       });
       this.craftCells = [];
     }
+    if(this.enchSlot){
+      const es = this.enchSlot;
+      if(player.addItem(es.id, es.n, es.dur, es.ench) > 0)
+        ItemDrops.spawn(player.body.x, player.body.y + 1, player.body.z, es.id, es.n, es.dur, es.ench);
+      this.enchSlot = null;
+    }
     if(this.cursor){
       const cu = this.cursor;
-      const left = player.addItem(cu.id, cu.n, cu.dur);
-      if(left > 0) ItemDrops.spawn(player.body.x, player.body.y + 1, player.body.z, cu.id, left, cu.dur);
+      const left = player.addItem(cu.id, cu.n, cu.dur, cu.ench);
+      if(left > 0) ItemDrops.spawn(player.body.x, player.body.y + 1, player.body.z, cu.id, left, cu.dur, cu.ench);
       this.cursor = null;
     }
+    this._drag = null;
+    document.querySelectorAll('.drag-mark').forEach(el => el.classList.remove('drag-mark'));
     this._slots = [];
     this.open = null;
     this.showOverlay(null);

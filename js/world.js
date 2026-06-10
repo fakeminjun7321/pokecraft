@@ -64,6 +64,9 @@ class World {
     this.spawnPoint = null;
     this.group = new THREE.Group();
     this._tickAcc = 0;
+    this.fluidQ = new Set();     // 물 흐름 대기열 "x,y,z"
+    this._fluidAcc = 0;
+    this.gymsBeaten = new Set(); // 클리어한 체육관 키
 
     this.nCont  = new Noise2(seed);
     this.nDet   = new Noise2(seed + 101);
@@ -108,26 +111,33 @@ class World {
     const moist = this.nMoist.fbm(wx * 0.0025, wz * 0.0025, 3);
     if(h < SEA - 1) return 'ocean';
     if(temp < 0.34) return 'snow';
-    if(temp > 0.62 && moist < 0.42) return 'desert';
+    if(temp > 0.66 && moist < 0.38) return 'desert';
+    if(temp > 0.60 && moist < 0.52) return 'savanna';
     if(h > 42) return 'mountain';
+    if(moist > 0.68 && h <= SEA + 2) return 'swamp';
+    if(moist > 0.62 && temp < 0.45) return 'birch';
     if(moist > 0.55) return 'forest';
+    if(moist > 0.50 && temp > 0.52) return 'flower';
     return 'plains';
   }
   surfaceBlockFor(biome, h){
     if(biome === 'desert') return B.SAND;
     if(biome === 'snow') return B.SNOWGRASS;
     if(biome === 'mountain' && h > 48) return B.STONE;
+    if(biome === 'swamp') return B.GRASS; // 늪은 물가에도 잔디
     if(h <= SEA + 1) return B.SAND; // 해변/물밑
     return B.GRASS;
   }
   treeAt(wx, wz){
     const b = this.biomeAt(wx, wz);
-    const dens = b === 'forest' ? 0.035 : b === 'plains' ? 0.004 : b === 'snow' ? 0.012 : b === 'mountain' ? 0.007 : 0;
+    const dens = { forest:0.035, birch:0.035, plains:0.004, flower:0.007, snow:0.012, mountain:0.007, swamp:0.022, savanna:0.006 }[b] || 0;
     if(!dens) return null;
     const h = this.terrainH(wx, wz);
-    if(h <= SEA + 1 || (b === 'mountain' && h > 46)) return null;
+    const minH = b === 'swamp' ? SEA : SEA + 1;
+    if(h <= minH || (b === 'mountain' && h > 46)) return null;
     if(rand2(wx, wz, this.seed ^ 0x5151) >= dens) return null;
-    return { h, th: 4 + Math.floor(rand2(wx, wz, this.seed ^ 0x5252) * 3) };
+    const type = b === 'birch' ? 'birch' : b === 'savanna' ? 'acacia' : 'oak';
+    return { h, th: 4 + Math.floor(rand2(wx, wz, this.seed ^ 0x5252) * 3), type };
   }
 
   // ---------- 청크 생성 ----------
@@ -189,22 +199,26 @@ class World {
         const tr = this.treeAt(wx, wz);
         if(!tr) continue;
         const topY = tr.h + tr.th;
-        // 잎
-        for(let ly = topY - 2; ly <= topY + 1; ly++){
+        const logId = tr.type === 'birch' ? B.BIRCH_LOG : tr.type === 'acacia' ? B.ACACIA_LOG : B.LOG;
+        const leafId = tr.type === 'birch' ? B.BIRCH_LEAVES : B.LEAVES;
+        // 잎 (아카시아는 납작한 우산형)
+        const ly0 = tr.type === 'acacia' ? topY : topY - 2;
+        const ly1 = tr.type === 'acacia' ? topY + 1 : topY + 1;
+        for(let ly = ly0; ly <= ly1; ly++){
           if(ly < 0 || ly >= WORLD_H) continue;
-          const r = ly <= topY - 1 ? 2 : 1;
+          const r = tr.type === 'acacia' ? (ly === topY ? 3 : 1) : (ly <= topY - 1 ? 2 : 1);
           for(let dx = -r; dx <= r; dx++){
             for(let dz = -r; dz <= r; dz++){
               if(Math.abs(dx) === r && Math.abs(dz) === r && rand3(wx+dx, ly, wz+dz, seed ^ 33) < 0.6) continue;
               const ax = lx + dx, az = lz + dz;
               if(ax < 0 || ax >= CHUNK || az < 0 || az >= CHUNK) continue;
-              if(get(ax, ly, az) === B.AIR) put(ax, ly, az, B.LEAVES);
+              if(get(ax, ly, az) === B.AIR) put(ax, ly, az, leafId);
             }
           }
         }
         // 기둥
         if(lx >= 0 && lx < CHUNK && lz >= 0 && lz < CHUNK){
-          for(let y = tr.h + 1; y <= topY; y++) put(lx, y, lz, B.LOG);
+          for(let y = tr.h + 1; y <= topY; y++) put(lx, y, lz, logId);
         }
       }
     }
@@ -225,12 +239,22 @@ class World {
             for(let i = 1; i <= ch && h + i < WORLD_H; i++) put(lx, h + i, lz, B.CACTUS);
           }
         } else if(ground === B.GRASS){
+          // 늪: 얕은 물웅덩이
+          if(biome === 'swamp' && h <= SEA + 1 && r < 0.22){
+            put(lx, h, lz, B.WATER);
+            continue;
+          }
+          const flowerP = { flower:0.13, plains:0.012, forest:0.012, birch:0.012, swamp:0.008, savanna:0.004 }[biome] || 0.01;
+          const grassP = { plains:0.06, savanna:0.14, swamp:0.10, flower:0.05, forest:0.035, birch:0.035 }[biome] || 0.03;
           if(r < 0.0015) put(lx, h + 1, lz, B.PUMPKIN);
-          else if(r < 0.012) put(lx, h + 1, lz, rand2(wx, wz, seed ^ 0xDEC2) < 0.5 ? B.FLOWER_R : B.FLOWER_Y);
-          else if(r < 0.012 + (biome === 'plains' ? 0.06 : 0.035)) put(lx, h + 1, lz, B.TALLGRASS);
+          else if(r < 0.0015 + flowerP) put(lx, h + 1, lz, rand2(wx, wz, seed ^ 0xDEC2) < 0.5 ? B.FLOWER_R : B.FLOWER_Y);
+          else if(r < 0.0015 + flowerP + grassP) put(lx, h + 1, lz, B.TALLGRASS);
         }
       }
     }
+
+    // 구조물 (마을/체육관/해저신전)
+    this._stampStructures(c, cx, cz);
 
     // 저장된 수정사항 적용
     const ed = this.edits[ck(cx, cz)];
@@ -298,6 +322,16 @@ class World {
     c.data[idx] = id;
     (this.edits[ck(cx, cz)] || (this.edits[ck(cx, cz)] = {}))[idx] = id;
     c.heights[lz*CHUNK + lx] = this._calcColTop(c, lx, lz);
+
+    // 물 흐름: 공기가 생기거나 물이 놓이면 주변 갱신 예약
+    if(id === B.AIR || id === B.WATER){
+      this.fluidQ.add(wx + ',' + wy + ',' + wz);
+      this.fluidQ.add((wx+1) + ',' + wy + ',' + wz);
+      this.fluidQ.add((wx-1) + ',' + wy + ',' + wz);
+      this.fluidQ.add(wx + ',' + wy + ',' + (wz+1));
+      this.fluidQ.add(wx + ',' + wy + ',' + (wz-1));
+      this.fluidQ.add(wx + ',' + (wy-1) + ',' + wz);
+    }
 
     const pk = wx + ',' + wy + ',' + wz;
     if(old === B.TORCH) c.torches.delete(pk);
@@ -634,7 +668,7 @@ class World {
     const furn = {}, chst = {};
     for(const [k, f] of this.furnaces) furn[k] = f;
     for(const [k, c] of this.chests) chst[k] = c;
-    return { seed: this.seed, edits: this.edits, furnaces: furn, chests: chst, spawn: this.spawnPoint };
+    return { seed: this.seed, edits: this.edits, furnaces: furn, chests: chst, spawn: this.spawnPoint, gyms: [...this.gymsBeaten] };
   }
   deserialize(d){
     this.edits = d.edits || {};
@@ -643,6 +677,206 @@ class World {
     if(d.furnaces) for(const k in d.furnaces) this.furnaces.set(k, d.furnaces[k]);
     this.chests.clear();
     if(d.chests) for(const k in d.chests) this.chests.set(k, d.chests[k]);
+    this.gymsBeaten = new Set(d.gyms || []);
+  }
+
+  // ---------- 물 흐름 (간이 무한수원 규칙) ----------
+  // 공기 칸이 (위가 물) 또는 (수평 이웃 2칸 이상이 물)이면 물이 됨
+  tickFluids(dt){
+    this._fluidAcc += dt;
+    if(this._fluidAcc < 0.15) return;
+    this._fluidAcc = 0;
+    if(!this.fluidQ.size) return;
+    const batch = [...this.fluidQ].slice(0, 30);
+    batch.forEach(k => this.fluidQ.delete(k));
+    for(const k of batch){
+      const [x, y, z] = k.split(',').map(Number);
+      if(y < 1 || y >= WORLD_H - 1) continue;
+      if(this.getBlock(x, y, z) !== B.AIR) continue;
+      const above = this.getBlock(x, y + 1, z) === B.WATER;
+      let horiz = 0;
+      if(this.getBlock(x + 1, y, z) === B.WATER) horiz++;
+      if(this.getBlock(x - 1, y, z) === B.WATER) horiz++;
+      if(this.getBlock(x, y, z + 1) === B.WATER) horiz++;
+      if(this.getBlock(x, y, z - 1) === B.WATER) horiz++;
+      if(above || horiz >= 2){
+        this.setBlock(x, y, z, B.WATER); // setBlock이 이웃을 다시 큐에 넣음
+      }
+    }
+  }
+
+  // ---------- 구조물 (마을 / 체육관 / 해저신전) — 모두 시드 결정론 ----------
+  villageAt(rx, rz){
+    if(rand2(rx, rz, this.seed ^ 0x7711) >= 0.22) return null;
+    const cx = rx * 128 + 24 + Math.floor(rand2(rx, rz, this.seed ^ 0x7712) * 80);
+    const cz = rz * 128 + 24 + Math.floor(rand2(rx, rz, this.seed ^ 0x7713) * 80);
+    const b = this.biomeAt(cx, cz);
+    if(b !== 'plains' && b !== 'savanna' && b !== 'flower') return null;
+    const h = this.terrainH(cx, cz);
+    if(h <= SEA + 1 || h > 40) return null;
+    return { x: cx, z: cz, y: h, key: 'v' + rx + ',' + rz };
+  }
+  villageHouses(v){
+    const houses = [];
+    for(let i = 0; i < 5; i++){
+      const ang = i / 5 * Math.PI * 2 + rand2(v.x, v.z + i, this.seed ^ 0x7714) * 0.8;
+      const d = 9 + rand2(v.x + i, v.z, this.seed ^ 0x7715) * 9;
+      const hx = Math.round(v.x + Math.sin(ang) * d), hz = Math.round(v.z + Math.cos(ang) * d);
+      houses.push({ x: hx, z: hz, y: this.terrainH(hx, hz), chest: i === 0, farm: i === 1 });
+    }
+    return houses;
+  }
+  gymAt(rx, rz){
+    if(rand2(rx, rz, this.seed ^ 0x8811) >= 0.3) return null;
+    const cx = rx * 160 + 30 + Math.floor(rand2(rx, rz, this.seed ^ 0x8812) * 100);
+    const cz = rz * 160 + 30 + Math.floor(rand2(rx, rz, this.seed ^ 0x8813) * 100);
+    const b = this.biomeAt(cx, cz);
+    const h = this.terrainH(cx, cz);
+    if(h <= SEA + 1) return null;
+    const type = b === 'mountain' ? 'rock'
+      : (b === 'desert' || b === 'savanna') ? 'fire'
+      : (b === 'forest' || b === 'birch' || b === 'swamp') ? 'water'
+      : (b === 'plains' || b === 'flower') ? 'electric' : null;
+    if(!type) return null;
+    return { x: cx, z: cz, y: h, type, key: 'g' + rx + ',' + rz };
+  }
+  monumentAt(rx, rz){
+    if(rand2(rx, rz, this.seed ^ 0x9911) >= 0.35) return null;
+    const cx = rx * 192 + 40 + Math.floor(rand2(rx, rz, this.seed ^ 0x9912) * 110);
+    const cz = rz * 192 + 40 + Math.floor(rand2(rx, rz, this.seed ^ 0x9913) * 110);
+    const h = this.terrainH(cx, cz);
+    if(h > SEA - 9) return null; // 깊은 바다 바닥에만
+    return { x: cx, z: cz, y: h + 1, key: 'm' + rx + ',' + rz };
+  }
+  _regionsNear(wx, wz, size, fn){
+    const out = [];
+    const r0x = Math.floor((wx - size) / size), r1x = Math.floor((wx + size) / size);
+    const r0z = Math.floor((wz - size) / size), r1z = Math.floor((wz + size) / size);
+    for(let rx = r0x; rx <= r1x; rx++){
+      for(let rz = r0z; rz <= r1z; rz++){
+        const st = fn(rx, rz);
+        if(st) out.push(st);
+      }
+    }
+    return out;
+  }
+  villagesNear(wx, wz){ return this._regionsNear(wx, wz, 128, (a, b) => this.villageAt(a, b)); }
+  gymsNear(wx, wz){ return this._regionsNear(wx, wz, 160, (a, b) => this.gymAt(a, b)); }
+  monumentsNear(wx, wz){ return this._regionsNear(wx, wz, 192, (a, b) => this.monumentAt(a, b)); }
+
+  _stampStructures(c, ccx, ccz){
+    const x0 = ccx * CHUNK, z0 = ccz * CHUNK;
+    const d = c.data;
+    // 이 청크 안에 들어오는 블록만 기록
+    const wput = (wx, wy, wz, id) => {
+      const lx = wx - x0, lz = wz - z0;
+      if(lx < 0 || lx >= CHUNK || lz < 0 || lz >= CHUNK || wy < 1 || wy >= WORLD_H) return false;
+      d[lx + lz*CHUNK + wy*CHUNK*CHUNK] = id;
+      if(id === B.TORCH) c.torches.add(wx + ',' + wy + ',' + wz);
+      return true;
+    };
+    const loot = [];
+    for(const v of this.villagesNear(x0 + 8, z0 + 8)){
+      for(const hs of this.villageHouses(v)) this._stampHouse(wput, hs, loot);
+    }
+    for(const g of this.gymsNear(x0 + 8, z0 + 8)) this._stampGym(wput, g);
+    for(const m of this.monumentsNear(x0 + 8, z0 + 8)) this._stampMonument(wput, m, loot);
+    // 전리품 상자: 최초 생성 시에만 채움 (저장된 상자는 유지)
+    for(const [key, slots] of loot){
+      if(!this.chests.has(key)) this.chests.set(key, { slots });
+    }
+  }
+  _lootSlots(items){
+    const slots = new Array(27).fill(null);
+    items.forEach((it, i) => { if(it) slots[2 + i * 3] = it; });
+    return slots;
+  }
+  _stampHouse(wput, hs, loot){
+    const y0 = hs.y;
+    const X0 = hs.x - 2, X1 = hs.x + 2, Z0 = hs.z - 3, Z1 = hs.z + 2;
+    for(let wx = X0; wx <= X1; wx++){
+      for(let wz = Z0; wz <= Z1; wz++){
+        for(let dy = 1; dy <= 3; dy++) wput(wx, y0 - dy, wz, B.DIRT); // 기초
+        wput(wx, y0, wz, B.COBBLE); // 바닥
+        const corner = (wx === X0 || wx === X1) && (wz === Z0 || wz === Z1);
+        const edge = wx === X0 || wx === X1 || wz === Z0 || wz === Z1;
+        for(let wy = y0 + 1; wy <= y0 + 3; wy++) wput(wx, wy, wz, edge ? (corner ? B.LOG : B.PLANKS) : B.AIR);
+        wput(wx, y0 + 4, wz, B.PLANKS); // 지붕
+      }
+    }
+    // 문(남쪽) / 창문 / 횃불
+    wput(hs.x, y0 + 1, Z1, B.AIR); wput(hs.x, y0 + 2, Z1, B.AIR);
+    wput(X0, y0 + 2, hs.z, B.GLASS); wput(X1, y0 + 2, hs.z, B.GLASS);
+    wput(hs.x, y0 + 3, hs.z - 1, B.TORCH);
+    if(hs.chest){
+      if(wput(hs.x, y0 + 1, hs.z - 2, B.CHEST)){
+        const r = (n) => 1 + Math.floor(rand2(hs.x, hs.z + n, this.seed ^ 0xA11) * 3);
+        loot.push([(hs.x) + ',' + (y0 + 1) + ',' + (hs.z - 2), this._lootSlots([
+          { id: I.BREAD, n: r(1) + 1 }, { id: I.EMERALD, n: r(2) },
+          { id: I.SEEDS, n: r(3) + 2 }, { id: I.IRON_INGOT, n: r(4) }, { id: I.POKEBALL, n: 2 }
+        ])]);
+      }
+    }
+    if(hs.farm){
+      const fy = this.terrainH(hs.x + 5, hs.z);
+      for(let dx = 0; dx < 3; dx++){
+        for(let dz = 0; dz < 3; dz++){
+          const fx = hs.x + 4 + dx, fz = hs.z - 1 + dz;
+          wput(fx, fy, fz, (dx === 1 && dz === 1) ? B.WATER : B.FARMLAND);
+          if(!(dx === 1 && dz === 1)) wput(fx, fy + 1, fz, B.CROP_RIPE);
+        }
+      }
+    }
+  }
+  _stampGym(wput, g){
+    const y0 = g.y;
+    const accent = { rock: B.COBBLE, water: B.GLASS, electric: B.GOLD_ORE, fire: B.REDSTONE_ORE }[g.type];
+    for(let wx = g.x - 4; wx <= g.x + 4; wx++){
+      for(let wz = g.z - 4; wz <= g.z + 4; wz++){
+        for(let dy = 1; dy <= 3; dy++) wput(wx, y0 - dy, wz, B.STONE);
+        wput(wx, y0, wz, B.STONEBRICK); // 바닥
+        const corner = (Math.abs(wx - g.x) === 4) && (Math.abs(wz - g.z) === 4);
+        const edge = Math.abs(wx - g.x) === 4 || Math.abs(wz - g.z) === 4;
+        for(let wy = y0 + 1; wy <= y0 + 4; wy++){
+          wput(wx, wy, wz, corner ? B.STONEBRICK : (edge && wy === y0 + 4 ? B.STONEBRICK : B.AIR));
+        }
+        wput(wx, y0 + 5, wz, edge ? B.STONEBRICK : B.GLASS); // 천장(중앙 유리)
+      }
+    }
+    // 입구(남쪽 넓게) + 포인트 블록 + 횃불
+    for(let dx = -1; dx <= 1; dx++){ wput(g.x + dx, y0 + 1, g.z + 4, B.AIR); wput(g.x + dx, y0 + 2, g.z + 4, B.AIR); }
+    wput(g.x - 4, y0 + 5, g.z - 4, accent); wput(g.x + 4, y0 + 5, g.z - 4, accent);
+    wput(g.x - 4, y0 + 5, g.z + 4, accent); wput(g.x + 4, y0 + 5, g.z + 4, accent);
+    wput(g.x - 3, y0 + 2, g.z - 3, B.TORCH); wput(g.x + 3, y0 + 2, g.z - 3, B.TORCH);
+  }
+  _stampMonument(wput, m, loot){
+    const y0 = m.y;
+    for(let wx = m.x - 5; wx <= m.x + 5; wx++){
+      for(let wz = m.z - 5; wz <= m.z + 5; wz++){
+        wput(wx, y0, wz, B.STONEBRICK);
+        const edge = Math.abs(wx - m.x) === 5 || Math.abs(wz - m.z) === 5;
+        for(let wy = y0 + 1; wy <= y0 + 4; wy++) wput(wx, wy, wz, edge ? B.STONEBRICK : B.AIR);
+        const skylight = Math.abs(wx - m.x) <= 1 && Math.abs(wz - m.z) <= 1;
+        wput(wx, y0 + 5, wz, skylight ? B.GLASS : B.STONEBRICK);
+      }
+    }
+    // 기둥 + 입구(북쪽 2x2) + 횃불 + 상자 2개
+    [[-3,-3],[3,-3],[-3,3],[3,3]].forEach(([dx,dz]) => {
+      for(let wy = y0 + 1; wy <= y0 + 4; wy++) wput(m.x + dx, wy, m.z + dz, B.OBSIDIAN);
+    });
+    wput(m.x, y0 + 1, m.z - 5, B.AIR); wput(m.x + 1, y0 + 1, m.z - 5, B.AIR);
+    wput(m.x, y0 + 2, m.z - 5, B.AIR); wput(m.x + 1, y0 + 2, m.z - 5, B.AIR);
+    wput(m.x - 2, y0 + 2, m.z, B.TORCH); wput(m.x + 2, y0 + 2, m.z, B.TORCH);
+    const mkLoot = (n) => {
+      const r = (k) => 1 + Math.floor(rand2(m.x + k, m.z + n, this.seed ^ 0xB22) * 3);
+      return this._lootSlots([
+        { id: I.DIAMOND, n: r(1) + 1 }, { id: I.GOLDEN_APPLE, n: 1 },
+        { id: I.ULTRABALL, n: r(2) }, { id: I.RARECANDY, n: r(3) },
+        { id: I.EMERALD, n: r(4) + 2 }, { id: I.ENDERPEARL, n: r(5) }
+      ]);
+    };
+    if(wput(m.x - 4, y0 + 1, m.z + 4, B.CHEST)) loot.push([(m.x - 4) + ',' + (y0 + 1) + ',' + (m.z + 4), mkLoot(1)]);
+    if(wput(m.x + 4, y0 + 1, m.z + 4, B.CHEST)) loot.push([(m.x + 4) + ',' + (y0 + 1) + ',' + (m.z + 4), mkLoot(2)]);
   }
 
   // ---------- 랜덤 틱 (작물 성장) ----------
