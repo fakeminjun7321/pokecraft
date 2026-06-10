@@ -1,0 +1,308 @@
+/* ===== PokeCraft UI ===== */
+* { margin: 0; padding: 0; box-sizing: border-box; user-select: none; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; color: #fff; }
+img, canvas, .slot { image-rendering: pixelated; }
+.hidden { display: none !important; }
+
+#game-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* ===== 화면(시작/로딩) ===== */
+.screen {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: linear-gradient(#3a7bd5 0%, #79a7e8 45%, #5a8f3c 45.2%, #3e6b2a 100%);
+}
+.game-title {
+  font-size: 64px; letter-spacing: 4px; color: #fff;
+  text-shadow: 4px 4px 0 #3a3a3a, -2px -2px 0 #222;
+}
+.game-subtitle { font-size: 20px; color: #ffe97a; text-shadow: 2px 2px 0 #333; margin-bottom: 10px; }
+.panel {
+  background: rgba(0,0,0,.55); border: 3px solid #555; border-radius: 8px;
+  padding: 22px 28px; display: flex; flex-direction: column; gap: 12px; min-width: 340px;
+}
+.form-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 15px; }
+.form-row input[type=text], .form-row select {
+  background: #222; color: #fff; border: 2px solid #777; padding: 6px 8px; font-size: 14px; width: 180px;
+}
+.checkbox-row { justify-content: flex-start; }
+.checkbox-row input { width: 18px; height: 18px; }
+.big-btn {
+  background: #6f6f6f; border: 2px solid; border-color: #a8a8a8 #4a4a4a #4a4a4a #a8a8a8;
+  color: #fff; font-size: 17px; padding: 10px; cursor: pointer; text-shadow: 1px 1px 0 #333;
+  font-family: inherit;
+}
+.big-btn:hover:not(:disabled) { background: #8a8aa0; }
+.big-btn:disabled { opacity: .4; cursor: default; }
+.hint { font-size: 12px; color: #ccc; text-align: center; }
+
+#starter-screen h2 { text-shadow: 2px 2px 0 #333; font-size: 30px; }
+#starter-row { display: flex; gap: 24px; margin-top: 18px; }
+.starter-card {
+  background: rgba(0,0,0,.55); border: 3px solid #888; border-radius: 10px; padding: 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; cursor: pointer; width: 180px;
+}
+.starter-card:hover { border-color: #ffe97a; transform: scale(1.05); }
+.starter-card img { width: 120px; height: 120px; }
+.starter-card .s-name { font-size: 20px; font-weight: bold; }
+.starter-card .s-type { font-size: 13px; color: #ffd; }
+
+.loading-bar { width: 360px; height: 22px; background: #222; border: 2px solid #888; }
+#loading-bar-fill { width: 0%; height: 100%; background: #6abe30; transition: width .15s; }
+
+/* ===== HUD ===== */
+#hud { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+#crosshair {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  font-size: 24px; color: rgba(255,255,255,.85); text-shadow: 0 0 2px #000;
+}
+#hotbar {
+  position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 2px; background: rgba(0,0,0,.35); padding: 3px; border-radius: 4px;
+}
+.hslot {
+  width: 52px; height: 52px; border: 3px solid #5a5a5a; background: rgba(30,30,30,.75);
+  position: relative; background-size: 80% 80%; background-repeat: no-repeat; background-position: center;
+}
+.hslot.sel { border-color: #fff; }
+.slot-cnt {
+  position: absolute; right: 3px; bottom: 1px; font-size: 14px; font-weight: bold;
+  color: #fff; text-shadow: 1px 1px 0 #000;
+}
+.dur-bar { position: absolute; left: 4px; bottom: 4px; height: 3px; background: #3f3; }
+#hearts { position: absolute; bottom: 70px; left: 50%; transform: translateX(-50%) translateX(-120px); display: flex; gap: 1px; }
+#hearts span { font-size: 18px; text-shadow: 1px 1px 0 #000; }
+#bubbles { position: absolute; bottom: 92px; left: 50%; transform: translateX(-50%) translateX(-120px); display: flex; gap: 1px; }
+#bubbles span { font-size: 14px; }
+#held-name {
+  position: absolute; bottom: 116px; left: 50%; transform: translateX(-50%);
+  font-size: 15px; color: #fff; text-shadow: 1px 1px 2px #000; opacity: 0; transition: opacity .4s;
+}
+#toasts { position: absolute; top: 14%; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.toast {
+  background: rgba(0,0,0,.65); border: 2px solid #888; padding: 8px 18px; border-radius: 6px;
+  font-size: 15px; animation: toastIn .2s; text-align: center;
+}
+@keyframes toastIn { from { transform: translateY(-8px); opacity: 0; } }
+#debug {
+  position: absolute; top: 8px; left: 8px; font-size: 12px; font-family: monospace;
+  background: rgba(0,0,0,.5); padding: 6px; white-space: pre; line-height: 1.5;
+}
+
+/* ===== 오버레이 공통 ===== */
+.overlay {
+  position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.5);
+  display: flex; align-items: center; justify-content: center;
+}
+.window {
+  background: #c6c6c6; color: #2a2a2a; border: 4px solid; border-color: #fff #555 #555 #fff;
+  border-radius: 4px; padding: 18px 22px; display: flex; flex-direction: column; gap: 12px;
+  max-height: 88vh; overflow-y: auto; min-width: 380px;
+}
+.window.narrow { min-width: 280px; }
+.window.wide { min-width: 620px; }
+.window h3 { font-size: 18px; display: flex; align-items: center; gap: 10px; }
+.window .big-btn { color: #fff; }
+.window.death { background: #8b2222; color: #fff; }
+.overlay-close {
+  margin-left: auto; background: #999; border: 2px solid #555; cursor: pointer;
+  font-size: 14px; width: 26px; height: 26px;
+}
+.label { font-size: 13px; color: #444; }
+
+/* ===== 슬롯 그리드 ===== */
+.slot-grid { display: grid; grid-template-columns: repeat(9, 46px); gap: 2px; }
+#craft-grid.size2 { grid-template-columns: repeat(2, 46px); }
+#craft-grid.size3 { grid-template-columns: repeat(3, 46px); }
+#craft-out, #fur-in, #fur-fuel, #fur-out { grid-template-columns: 46px; }
+.slot {
+  width: 46px; height: 46px; background: #8b8b8b; border: 2px solid; border-color: #373737 #fff #fff #373737;
+  position: relative; background-size: 80% 80%; background-repeat: no-repeat; background-position: center;
+  cursor: pointer;
+}
+.slot:hover { outline: 2px solid rgba(255,255,255,.7); outline-offset: -2px; }
+.slot .slot-cnt { color: #fff; }
+#craft-wrap { display: flex; align-items: center; gap: 12px; }
+.craft-arrow { font-size: 26px; color: #555; }
+#creative-grid {
+  display: grid; grid-template-columns: repeat(9, 46px); gap: 2px; max-height: 240px; overflow-y: auto;
+}
+#cursor-stack {
+  position: fixed; z-index: 100; width: 40px; height: 40px; pointer-events: none;
+  background-size: contain; background-repeat: no-repeat;
+}
+#cursor-stack .slot-cnt { position: absolute; right: 0; bottom: 0; font-size: 13px; font-weight: bold; color: #fff; text-shadow: 1px 1px 0 #000; }
+
+/* ===== 화로 UI ===== */
+#furnace-ui { display: flex; align-items: center; gap: 18px; }
+.fur-col { display: flex; flex-direction: column; gap: 6px; align-items: center; }
+.fur-flame { width: 22px; height: 22px; background: #555; position: relative; }
+#fur-flame-fill { position: absolute; bottom: 0; width: 100%; background: #ff8c1a; }
+.fur-arrow-wrap { display: flex; align-items: center; }
+.fur-arrow-bg { width: 70px; height: 16px; background: #777; position: relative; }
+#fur-arrow-fill { height: 100%; width: 0; background: #fff; }
+
+/* ===== 배틀 ===== */
+#battle-overlay { position: fixed; inset: 0; z-index: 45; display: flex; flex-direction: column; }
+#battle-stage {
+  flex: 1; position: relative;
+  background: linear-gradient(#7ec8ff 0%, #b9e48f 70%, #6da34d 100%);
+}
+.b-side { position: absolute; display: flex; flex-direction: column; gap: 6px; }
+.b-enemy { right: 7%; top: 6%; align-items: flex-end; }
+.b-ally { left: 7%; bottom: 4%; align-items: flex-start; }
+.b-info {
+  background: rgba(255,255,255,.92); color: #222; border: 3px solid #444; border-radius: 8px;
+  padding: 8px 14px; font-size: 16px; font-weight: bold; min-width: 220px;
+}
+.b-hpbar { height: 10px; background: #ccc; border: 1px solid #555; border-radius: 4px; margin-top: 6px; overflow: hidden; }
+.b-hpbar > div { height: 100%; width: 100%; background: #44c944; transition: width .5s; }
+.b-expbar { height: 5px; background: #ccc; border-radius: 3px; margin-top: 4px; overflow: hidden; }
+#b-ally-expfill { height: 100%; width: 0%; background: #3fa9f5; transition: width .5s; }
+#b-ally-hptext { font-size: 13px; text-align: right; margin-top: 2px; font-weight: normal; }
+#battle-bottom {
+  height: 150px; background: #20303f; border-top: 4px solid #4a657f; display: flex; gap: 10px; padding: 12px;
+}
+#b-msg {
+  flex: 1.4; background: #11202d; border: 3px solid #5a7691; border-radius: 8px;
+  padding: 12px; font-size: 17px; line-height: 1.5; color: #fff;
+}
+#b-menu { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#b-menu button, #b-sub button {
+  background: #ddd; color: #223; border: 3px solid; border-color: #fff #667 #667 #fff;
+  font-size: 16px; font-weight: bold; cursor: pointer; border-radius: 6px; font-family: inherit;
+}
+#b-menu button:hover, #b-sub button:hover { background: #ffe97a; }
+#b-menu button:disabled { opacity: .45; cursor: default; }
+#b-sub { flex: 1.6; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; overflow-y: auto; }
+#b-sub button { padding: 6px; font-size: 14px; }
+#b-sub button .sub-detail { display: block; font-size: 11px; font-weight: normal; color: #555; }
+.type-tag { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 11px; color: #fff; margin-left: 4px; }
+
+/* ===== 파티/도감 ===== */
+.party-row {
+  display: flex; align-items: center; gap: 12px; background: #b0b0b0; border: 2px solid #777;
+  border-radius: 6px; padding: 8px;
+}
+.party-row.fainted { opacity: .55; }
+.party-row img { width: 64px; height: 64px; background: #9e9e9e; border-radius: 6px; }
+.party-mid { flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+.party-mid .p-hpbar { height: 8px; background: #888; border-radius: 4px; overflow: hidden; max-width: 220px; }
+.party-mid .p-hpbar > div { height: 100%; background: #44c944; }
+.party-mid .p-moves { font-size: 12px; color: #444; }
+.party-btns { display: flex; flex-direction: column; gap: 4px; }
+.party-btns button { font-size: 12px; padding: 3px 8px; cursor: pointer; font-family: inherit; }
+#dex-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; max-height: 62vh; overflow-y: auto; }
+.dex-cell {
+  background: #b0b0b0; border: 2px solid #777; border-radius: 6px; padding: 6px;
+  display: flex; flex-direction: column; align-items: center; font-size: 12px;
+}
+.dex-cell img { width: 64px; height: 64px; }
+.dex-cell.unseen { color: #666; }
+
+.help-table { font-size: 14px; border-collapse: collapse; }
+.help-table td { border: 1px solid #999; padding: 6px 10px; }
+.help-table td:first-child { font-weight: bold; white-space: nowrap; background: #bbb; }
+
+/* ===== 효과 ===== */
+#fade { position: fixed; inset: 0; z-index: 60; background: #000; opacity: 0; pointer-events: none; transition: opacity 1s; }
+#flash { position: fixed; inset: 0; z-index: 30; background: #f00; opacity: 0; pointer-events: none; }
+#water-tint { position: fixed; inset: 0; z-index: 9; background: rgba(20,60,160,.35); opacity: 0; pointer-events: none; }
+#version { position: fixed; right: 8px; bottom: 6px; z-index: 11; font-size: 11px; color: rgba(255,255,255,.55); pointer-events: none; }
+
+/* ===== 멀티플레이 ===== */
+#mp-code-display {
+  background: #1a2a1a; border: 2px solid #6abe30; border-radius: 6px; padding: 10px;
+  text-align: center; font-size: 15px; line-height: 1.6;
+}
+#mp-code-display .code { font-size: 30px; font-weight: bold; letter-spacing: 6px; color: #ffe97a; }
+#mp-info {
+  position: absolute; top: 8px; right: 10px; font-size: 13px; color: #fff;
+  text-shadow: 1px 1px 2px #000; text-align: right; line-height: 1.6;
+  white-space: pre-line; background: rgba(0,0,0,.3); padding: 4px 10px; border-radius: 4px;
+}
+#chat-box {
+  position: absolute; left: 10px; bottom: 90px; max-width: 420px;
+  display: flex; flex-direction: column; gap: 2px; font-size: 14px;
+}
+#chat-box div {
+  background: rgba(0,0,0,.45); padding: 3px 8px; border-radius: 4px;
+  text-shadow: 1px 1px 0 #000; word-break: break-all;
+}
+#chat-input {
+  position: absolute; left: 10px; bottom: 60px; width: 420px; pointer-events: auto;
+  background: rgba(0,0,0,.7); color: #fff; border: 2px solid #888; padding: 8px 10px; font-size: 14px;
+  font-family: inherit;
+}
+#chest-grid { margin-bottom: 8px; }
+#pause-mpinfo { font-size: 13px; color: #2a5a2a; text-align: center; }
+#pause-mpinfo b { font-size: 18px; letter-spacing: 3px; }
+
+/* ===== 계정 ===== */
+#account-bar {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center;
+  background: rgba(0,0,0,.45); border: 2px solid #666; border-radius: 8px; padding: 8px 14px;
+}
+#acct-status { font-size: 15px; font-weight: bold; color: #ffe97a; text-shadow: 1px 1px 0 #333; }
+.mini-btn {
+  background: #5a5a6a; border: 2px solid; border-color: #9a9aaa #3a3a4a #3a3a4a #9a9aaa;
+  color: #fff; font-size: 13px; padding: 4px 10px; cursor: pointer; font-family: inherit;
+}
+.mini-btn:hover { background: #7a7a90; }
+.front-overlay {
+  position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.55);
+  display: flex; align-items: center; justify-content: center;
+}
+#acct-error { color: #b00020; font-size: 13px; min-height: 16px; text-align: center; }
+#acct-name, #acct-pin {
+  background: #222; color: #fff; border: 2px solid #777; padding: 6px 8px; font-size: 14px; width: 180px;
+}
+#worlds-list { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto; min-width: 460px; }
+
+/* ===== 좌표 HUD ===== */
+#coords {
+  position: absolute; top: 8px; left: 10px;
+  font-family: monospace; font-size: 14px; color: #fff;
+  text-shadow: 1px 1px 2px #000; background: rgba(0,0,0,.3);
+  padding: 4px 10px; border-radius: 4px;
+}
+
+/* ===== 조합법 책 ===== */
+#recipe-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+#recipe-tabs button {
+  background: #999; border: 2px solid #666; padding: 5px 14px; cursor: pointer;
+  font-family: inherit; font-size: 14px;
+}
+#recipe-tabs button.active { background: #6f8f5a; color: #fff; border-color: #4a6a3a; }
+#recipe-list {
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+  max-height: 56vh; overflow-y: auto; min-width: 640px;
+}
+.recipe-card {
+  display: flex; align-items: center; gap: 10px;
+  background: #b0b0b0; border: 2px solid #888; border-radius: 6px; padding: 8px;
+}
+.recipe-card.craftable { border-color: #3a8a3a; background: #b4c4ac; }
+.recipe-grid { display: grid; gap: 1px; }
+.recipe-cell {
+  width: 30px; height: 30px; background: #8b8b8b; border: 1px solid #6a6a6a;
+  background-size: 84% 84%; background-repeat: no-repeat; background-position: center;
+}
+.recipe-out {
+  width: 42px; height: 42px; background-size: contain; background-repeat: no-repeat; background-position: center;
+  position: relative;
+}
+.recipe-out .slot-cnt { position: absolute; right: -2px; bottom: -2px; font-size: 13px; font-weight: bold; color: #222; }
+.recipe-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.recipe-info .r-name { font-weight: bold; font-size: 14px; }
+.recipe-info .r-tag { font-size: 11px; color: #555; }
+.recipe-sl { display: flex; gap: 2px; flex-wrap: wrap; max-width: 100px; }
+.world-row {
+  display: flex; align-items: center; gap: 12px; background: #b0b0b0; border: 2px solid #777;
+  border-radius: 6px; padding: 10px 12px;
+}
+.world-mid { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.world-mid .w-name { font-weight: bold; font-size: 15px; }
+.world-mid .w-meta { font-size: 12px; color: #444; }
+.world-row button { font-size: 13px; padding: 5px 12px; cursor: pointer; font-family: inherit; }

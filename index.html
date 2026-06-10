@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>포케크래프트 - PokeCraft</title>
+<link rel="stylesheet" href="css/style.css?v=4">
+</head>
+<body>
+<canvas id="game-canvas"></canvas>
+
+<!-- ===== 시작 화면 ===== -->
+<div id="start-screen" class="screen">
+  <h1 class="game-title">포케크래프트</h1>
+  <p class="game-subtitle">마인크래프트 × 포켓몬</p>
+  <div id="account-bar">
+    <span id="acct-status">👤 로그인 안 됨</span>
+    <button id="acct-login-btn" class="mini-btn">로그인 / 가입</button>
+    <button id="acct-worlds-btn" class="mini-btn hidden">내 세계</button>
+    <button id="acct-export-btn" class="mini-btn hidden">백업 저장</button>
+    <label id="acct-import-label" class="mini-btn">백업 불러오기<input id="acct-import-input" type="file" accept=".json,application/json" hidden></label>
+    <button id="acct-logout-btn" class="mini-btn hidden">로그아웃</button>
+  </div>
+  <p id="acct-hint" class="hint">로그인하면 세이브가 계정에 안전하게 보관되고, 백업 파일로 다른 컴퓨터에도 옮길 수 있어요</p>
+  <div class="panel">
+    <label class="form-row">월드 시드 <input id="seed-input" type="text" placeholder="비워두면 랜덤"></label>
+    <label class="form-row">게임 모드
+      <select id="mode-select">
+        <option value="survival">서바이벌</option>
+        <option value="creative">크리에이티브</option>
+      </select>
+    </label>
+    <label class="form-row checkbox-row"><input id="poke-toggle" type="checkbox" checked> 포켓몬 모드 (야생 포켓몬 스폰)</label>
+    <button id="start-btn" class="big-btn">새 게임 시작</button>
+    <button id="continue-btn" class="big-btn" disabled>이어하기</button>
+    <button id="mp-btn" class="big-btn">🌐 멀티플레이</button>
+    <p class="hint">PC 크롬 브라우저 권장 · 마우스/키보드 필요</p>
+  </div>
+  <div id="mp-panel" class="panel hidden">
+    <label class="form-row">내 이름 <input id="player-name-input" type="text" maxlength="12" placeholder="닉네임"></label>
+    <button id="mp-host-btn" class="big-btn">방 만들기 (내가 호스트)</button>
+    <div id="mp-code-display" class="hidden"></div>
+    <hr style="border-color:#666; width:100%">
+    <label class="form-row">초대 코드 <input id="mp-join-code" type="text" maxlength="6" placeholder="예: AB3CD7" style="text-transform:uppercase"></label>
+    <button id="mp-join-btn" class="big-btn">참가하기</button>
+    <button id="mp-back-btn" class="big-btn">← 뒤로</button>
+    <p class="hint">호스트가 방을 켜 둔 동안만 플레이할 수 있어요.<br>같은 와이파이가 아니어도 인터넷만 되면 OK!</p>
+  </div>
+</div>
+
+<!-- ===== 계정 모달 ===== -->
+<div id="account-modal" class="front-overlay hidden">
+  <div class="window narrow">
+    <h3>로그인 / 계정 만들기</h3>
+    <label class="form-row">이름 <input id="acct-name" type="text" maxlength="12" placeholder="닉네임"></label>
+    <label class="form-row">PIN <input id="acct-pin" type="password" inputmode="numeric" maxlength="8" placeholder="숫자 4~8자리"></label>
+    <div id="acct-error"></div>
+    <button id="acct-login-do" class="big-btn">로그인</button>
+    <button id="acct-register-do" class="big-btn">새 계정 만들기</button>
+    <button class="big-btn" data-mclose="account-modal">닫기</button>
+    <p class="hint">PIN은 같은 컴퓨터를 쓰는 다른 사람이<br>내 세계를 건드리지 않게 하는 간단한 잠금이에요</p>
+  </div>
+</div>
+
+<!-- ===== 내 세계 모달 ===== -->
+<div id="worlds-modal" class="front-overlay hidden">
+  <div class="window">
+    <h3>내 세계</h3>
+    <div id="worlds-list"></div>
+    <button class="big-btn" data-mclose="worlds-modal">닫기</button>
+  </div>
+</div>
+
+<!-- ===== 스타터 선택 ===== -->
+<div id="starter-screen" class="screen hidden">
+  <h2>파트너 포켓몬을 선택하세요!</h2>
+  <div id="starter-row"></div>
+</div>
+
+<!-- ===== 로딩 ===== -->
+<div id="loading-screen" class="screen hidden">
+  <h2>세계를 생성하는 중...</h2>
+  <div class="loading-bar"><div id="loading-bar-fill"></div></div>
+  <p id="loading-text">지형 생성 중</p>
+</div>
+
+<!-- ===== HUD ===== -->
+<div id="hud" class="hidden">
+  <div id="crosshair">+</div>
+  <div id="coords"></div>
+  <div id="hearts"></div>
+  <div id="bubbles"></div>
+  <div id="hotbar"></div>
+  <div id="held-name"></div>
+  <div id="toasts"></div>
+  <div id="debug" class="hidden"></div>
+  <div id="mp-info"></div>
+  <div id="chat-box"></div>
+  <input id="chat-input" class="hidden" type="text" maxlength="80" placeholder="채팅 입력... (Enter 전송, Esc 취소)">
+</div>
+
+<!-- ===== 인벤토리 / 제작 ===== -->
+<div id="inv-overlay" class="overlay hidden">
+  <div class="window">
+    <h3 id="inv-title">인벤토리</h3>
+    <div id="craft-wrap">
+      <span class="label">제작</span>
+      <div id="craft-grid" class="slot-grid"></div>
+      <span class="craft-arrow">→</span>
+      <div id="craft-out" class="slot-grid"></div>
+      <button id="open-recipes-btn" class="mini-btn">📖 조합법</button>
+    </div>
+    <div id="creative-wrap" class="hidden">
+      <span class="label">아이템 (클릭해서 가져가기)</span>
+      <div id="creative-grid"></div>
+    </div>
+    <div id="inv-grid" class="slot-grid"></div>
+    <div id="invbar-grid" class="slot-grid"></div>
+  </div>
+</div>
+
+<!-- ===== 화로 ===== -->
+<div id="furnace-overlay" class="overlay hidden">
+  <div class="window">
+    <h3>화로</h3>
+    <div id="furnace-ui">
+      <div class="fur-col">
+        <div id="fur-in" class="slot-grid"></div>
+        <div class="fur-flame"><div id="fur-flame-fill"></div></div>
+        <div id="fur-fuel" class="slot-grid"></div>
+      </div>
+      <div class="fur-arrow-wrap"><div class="fur-arrow-bg"><div id="fur-arrow-fill"></div></div></div>
+      <div class="fur-col out"><div id="fur-out" class="slot-grid"></div></div>
+    </div>
+    <div id="fur-inv-grid" class="slot-grid"></div>
+    <div id="fur-bar-grid" class="slot-grid"></div>
+  </div>
+</div>
+
+<!-- ===== 조합법 책 ===== -->
+<div id="recipe-overlay" class="overlay hidden">
+  <div class="window wide">
+    <h3>📖 조합법 <span class="label">(B키로 열고 닫기)</span> <button class="overlay-close" data-close="recipe-overlay">✕</button></h3>
+    <div id="recipe-tabs"></div>
+    <div id="recipe-list"></div>
+  </div>
+</div>
+
+<!-- ===== 상자 ===== -->
+<div id="chest-overlay" class="overlay hidden">
+  <div class="window">
+    <h3>상자</h3>
+    <div id="chest-grid" class="slot-grid"></div>
+    <div id="chest-inv-grid" class="slot-grid"></div>
+    <div id="chest-bar-grid" class="slot-grid"></div>
+  </div>
+</div>
+
+<!-- ===== 배틀 ===== -->
+<div id="battle-overlay" class="hidden">
+  <div id="battle-stage">
+    <div class="b-side b-enemy">
+      <div class="b-info">
+        <span id="b-enemy-name">?</span> <span id="b-enemy-lv">Lv.5</span>
+        <div class="b-hpbar"><div id="b-enemy-hpfill"></div></div>
+      </div>
+      <canvas id="b-enemy-canvas" width="260" height="200"></canvas>
+    </div>
+    <div class="b-side b-ally">
+      <canvas id="b-ally-canvas" width="260" height="200"></canvas>
+      <div class="b-info">
+        <span id="b-ally-name">?</span> <span id="b-ally-lv">Lv.5</span>
+        <div class="b-hpbar"><div id="b-ally-hpfill"></div></div>
+        <div id="b-ally-hptext">20/20</div>
+        <div class="b-expbar"><div id="b-ally-expfill"></div></div>
+      </div>
+    </div>
+  </div>
+  <div id="battle-bottom">
+    <div id="b-msg">야생 포켓몬이 나타났다!</div>
+    <div id="b-menu">
+      <button data-act="fight">싸운다</button>
+      <button data-act="bag">가방</button>
+      <button data-act="poke">포켓몬</button>
+      <button data-act="run">도망친다</button>
+    </div>
+    <div id="b-sub" class="hidden"></div>
+  </div>
+</div>
+
+<!-- ===== 파티 ===== -->
+<div id="party-overlay" class="overlay hidden">
+  <div class="window">
+    <h3>내 포켓몬 <button class="overlay-close" data-close="party-overlay">✕</button></h3>
+    <div id="party-list"></div>
+  </div>
+</div>
+
+<!-- ===== 도감 ===== -->
+<div id="dex-overlay" class="overlay hidden">
+  <div class="window wide">
+    <h3>포켓몬 도감 <span id="dex-stats"></span> <button class="overlay-close" data-close="dex-overlay">✕</button></h3>
+    <div id="dex-grid"></div>
+  </div>
+</div>
+
+<!-- ===== 일시정지 ===== -->
+<div id="pause-overlay" class="overlay hidden">
+  <div class="window narrow">
+    <h3>일시정지</h3>
+    <div id="pause-mpinfo"></div>
+    <label class="form-row">렌더 거리
+      <select id="render-dist">
+        <option value="3">3 (빠름)</option>
+        <option value="4" selected>4 (기본)</option>
+        <option value="5">5</option>
+        <option value="6">6 (고사양)</option>
+      </select>
+    </label>
+    <button id="resume-btn" class="big-btn">계속하기</button>
+    <button id="save-btn" class="big-btn">저장하기</button>
+    <button id="help-btn" class="big-btn">조작법</button>
+    <button id="quit-btn" class="big-btn">저장 후 타이틀로</button>
+  </div>
+</div>
+
+<!-- ===== 조작법 ===== -->
+<div id="help-overlay" class="overlay hidden">
+  <div class="window">
+    <h3>조작법 <button class="overlay-close" data-close="help-overlay">✕</button></h3>
+    <table class="help-table">
+      <tr><td>마우스</td><td>시점 / 좌클릭: 캐기·공격 / 우클릭: 설치·사용·먹기</td></tr>
+      <tr><td>W A S D</td><td>이동 (Ctrl 또는 W 두 번: 달리기)</td></tr>
+      <tr><td>Space</td><td>점프 / 수영 / (비행 중) 상승</td></tr>
+      <tr><td>Shift</td><td>(비행 중) 하강</td></tr>
+      <tr><td>1~9, 휠</td><td>핫바 선택</td></tr>
+      <tr><td>E</td><td>인벤토리 (크리에이티브: 아이템 목록)</td></tr>
+      <tr><td>B</td><td>📖 조합법 책 (모든 레시피 + 재료 보유 표시)</td></tr>
+      <tr><td>F1</td><td>이 조작법 화면 열기/닫기</td></tr>
+      <tr><td>R</td><td>바라보는 야생 포켓몬과 배틀</td></tr>
+      <tr><td>P</td><td>내 포켓몬 (파티)</td></tr>
+      <tr><td>K</td><td>포켓몬 도감</td></tr>
+      <tr><td>F</td><td>비행 토글 (크리에이티브)</td></tr>
+      <tr><td>F3</td><td>디버그 정보</td></tr>
+      <tr><td>T</td><td>채팅 (멀티플레이)</td></tr>
+      <tr><td>Esc</td><td>일시정지</td></tr>
+      <tr><td colspan="2">포켓볼을 들고 우클릭하면 야생 포켓몬에게 던질 수 있어요. 배틀에서 약하게 만들수록 잘 잡힙니다!</td></tr>
+      <tr><td colspan="2">제작대(2×2 판자)에서 도구·포켓볼·침대·TNT를 만들고, 화로에서 광물을 제련하세요.</td></tr>
+      <tr><td colspan="2">호미로 잔디를 갈아 밀 농사를(씨앗은 풀에서), 낚싯대로 물고기와 잉어킹을! 활은 우클릭을 길게 눌렀다 놓으면 발사됩니다.</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ===== 죽음 ===== -->
+<div id="death-overlay" class="overlay hidden">
+  <div class="window narrow death">
+    <h3>죽었습니다!</h3>
+    <button id="respawn-btn" class="big-btn">리스폰</button>
+  </div>
+</div>
+
+<!-- 효과 레이어 -->
+<div id="fade"></div>
+<div id="flash"></div>
+<div id="water-tint"></div>
+<div id="cursor-stack" class="hidden"></div>
+<div id="version">PokeCraft v1.0</div>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/peerjs.min.js"></script>
+<script src="js/util.js?v=4"></script>
+<script src="js/account.js?v=4"></script>
+<script src="js/content.js?v=4"></script>
+<script src="js/world.js?v=4"></script>
+<script src="js/entities.js?v=4"></script>
+<script src="js/mobs.js?v=4"></script>
+<script src="js/pokemon.js?v=4"></script>
+<script src="js/player.js?v=4"></script>
+<script src="js/ui.js?v=4"></script>
+<script src="js/net.js?v=4"></script>
+<script src="js/main.js?v=4"></script>
+</body>
+</html>
