@@ -1690,10 +1690,22 @@ const Follower = {
       const dW = dist3(fbT.body.x, fbT.body.y, fbT.body.z, b.x, b.y, b.z);
       if(dW < 1.9 && this._atkCd <= 0){
         this._atkCd = 1.3;
-        const dmg = fieldDmg(par, fbT.inst);
+        let dmg, fxColor = 0xffe97a;
+        if(FieldBattle.cmd){
+          // 👉 플레이어 지시 기술!
+          const mk = FieldBattle.cmd;
+          FieldBattle.cmd = null;
+          dmg = fieldDmgMove(par, fbT.inst, mk);
+          const eff = typeMult(MOVES[mk].t, fbT.inst.spec.types);
+          fxColor = parseInt(TYPES[MOVES[mk].t].c.slice(1), 16);
+          UI.toast(par.name + '의 ' + MOVES[mk].n + '!' + (eff >= 2 ? ' 효과가 굉장했다!!' : eff < 1 ? ' 효과가 별로...' : ''));
+          Particles.spawn(fbT.body.x, fbT.body.y + 0.7, fbT.body.z, fxColor, 16, 2.4, 0.8, 1.8);
+        } else {
+          dmg = fieldDmg(par, fbT.inst);
+          Particles.spawn(fbT.body.x, fbT.body.y + 0.7, fbT.body.z, fxColor, 8, 1.6, 0.5, 1.3);
+        }
         fbT.inst.hp = Math.max(0, fbT.inst.hp - dmg);
         fbT.updateHpTag();
-        Particles.spawn(fbT.body.x, fbT.body.y + 0.7, fbT.body.z, 0xffe97a, 8, 1.6, 0.5, 1.3);
         SFX.play('hit');
         if(fbT.inst.hp <= 0) FieldBattle.wildDefeated(fbT);
       }
@@ -2684,8 +2696,38 @@ function fieldDmg(att, def){
   const raw = (att.atk * 2.1 - def.def * 0.9) * (0.85 + Math.random() * 0.3) / 5.5;
   return Math.max(1, Math.round(raw));
 }
+function fieldDmgMove(att, def, mk){
+  const mv = MOVES[mk];
+  if(!mv || !mv.p) return fieldDmg(att, def);
+  const eff = typeMult(mv.t, def.spec.types);
+  const stab = att.spec.types.includes(mv.t) ? 1.2 : 1;
+  return Math.max(1, Math.round(fieldDmg(att, def) * (mv.p / 55) * eff * stab));
+}
 const FieldBattle = {
   target: null,
+  cmd: null, // 플레이어가 지시한 기술 (다음 공격에 사용)
+  _showBar(){
+    const bar = document.getElementById('fb-bar');
+    if(!bar) return;
+    const par = PokeMan.party[0];
+    if(!par) return;
+    const keys = ['Z', 'X', 'C', 'V'];
+    bar.innerHTML = '<div class="fb-title">⚔ ' + par.name + ' 배틀 중! (자동 — 키로 기술 지시 가능)</div>' +
+      par.moves.map((k, i) => '<div><span class="fb-key">' + keys[i] + '</span>' + MOVES[k].n + ' <span style="opacity:.6">' + TYPES[MOVES[k].t].n + ' ' + MOVES[k].p + '</span></div>').join('');
+    bar.classList.remove('hidden');
+  },
+  _hideBar(){
+    const bar = document.getElementById('fb-bar');
+    if(bar) bar.classList.add('hidden');
+    this.cmd = null;
+  },
+  command(idx){
+    const par = PokeMan.party[0];
+    if(!this.target || !par || !par.moves[idx]) return;
+    this.cmd = par.moves[idx];
+    SFX.play('click');
+    UI.toast('👉 ' + par.name + ', ' + MOVES[this.cmd].n + '!');
+  },
   start(wild){
     if(this.target) this.stop(this.target, false);
     const par = PokeMan.party[0];
@@ -2696,11 +2738,12 @@ const FieldBattle = {
     wild.fleeTimer = 0;
     wild.updateHpTag();
     SFX.play('throw');
-    UI.toast('⚔ 가랏, ' + par.name + '! (자율 배틀 — 너는 다른 일을 해도 좋아!)', 4500);
+    this._showBar();
+    UI.toast('⚔ 가랏, ' + par.name + '! 알아서 싸우지만 Z/X/C/V로 기술을 지시할 수도 있어!', 4500);
     return true;
   },
   stop(wild, wildWon){
-    if(this.target === wild) this.target = null;
+    if(this.target === wild){ this.target = null; this._hideBar(); }
     if(!wild) return;
     wild.battling = false;
     if(wildWon && !wild.fainted){
@@ -2711,6 +2754,7 @@ const FieldBattle = {
   // 파트너가 야생을 쓰러뜨림 → 기절 포획 찬스 + 경험치
   wildDefeated(wild){
     this.target = null;
+    this._hideBar();
     wild.battling = false;
     wild.fainted = true; wild.faintT = 20; wild.catching = false;
     wild.group.rotation.x = Math.PI / 2;

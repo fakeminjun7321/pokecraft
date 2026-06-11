@@ -1076,6 +1076,11 @@ function bindInput(){
       }
     }
     if(e.code === 'KeyR') tryBattle(e.shiftKey);
+    // ⚔ 자율 배틀 기술 지시 (Z/X/C/V)
+    if(typeof FieldBattle !== 'undefined' && FieldBattle.target && !game.uiOpen && !game.inBattle){
+      const ki = { KeyZ: 0, KeyX: 1, KeyC: 2, KeyV: 3 }[e.code];
+      if(ki !== undefined) FieldBattle.command(ki);
+    }
     if(e.code === 'KeyG') toggleRide();
     if(e.code === 'KeyM'){
       Minimap.visible = !Minimap.visible;
