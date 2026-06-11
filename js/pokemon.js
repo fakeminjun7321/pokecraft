@@ -818,6 +818,215 @@ DETAIL[150] = { form:'biped', s:1.0, o:{ body:'#c8bcd8', headC:'#d2c8e0', legH:0
     makeBox(m.group, 0.12, 0.12, 0.7, '#8a5fa8', 0, 0.6, -0.5); makeBox(m.group, 0.16, 0.16, 0.25, '#8a5fa8', 0, 0.75, -0.85);
     makeBox(m.head, 0.12, 0.25, 0.12, '#c8bcd8', -0.18, 0.32, -0.05); makeBox(m.head, 0.12, 0.25, 0.12, '#c8bcd8', 0.18, 0.32, -0.05); } };
 
+// ===== v44 수제 디테일 모델 대량 추가 (1~3세대 인기 포켓몬) =====
+const GHOSTLY = g => g.traverse(ch => { if(ch.isMesh && ch.material){ ch.material.transparent = true; ch.material.opacity = 0.82; } });
+// --- 1세대 ---
+DETAIL[37] = { form:'quad', s:0.55, o:{ body:'#e8a35a', hs:0.5, bh:0.42, bd:0.65, legH:0.22, ears:'#c9824a' },
+  deco:m=>{ for(let i=0;i<6;i++){ const a=(i-2.5)*0.4; const t=makeBox(m.group,0.12,0.12,0.34,'#f5c98a',Math.sin(a)*0.22,0.55+Math.abs(a)*0.08,-0.5-Math.cos(a)*0.08); t.rotation.y=a*0.4; t.rotation.x=-0.5; }
+    makeBox(m.head,0.1,0.2,0.1,'#f5c98a',0,0.32,0.05); } };
+DETAIL[38] = { form:'quad', s:0.95, o:{ body:'#f0e0b8', hs:0.5, bh:0.5, bd:0.8, legH:0.32, ears:'#d8c098' },
+  deco:m=>{ for(let i=0;i<9;i++){ const a=(i-4)*0.32; const t=makeBox(m.group,0.11,0.11,0.5,'#f8ecd0',Math.sin(a)*0.3,0.7+Math.abs(Math.sin(a))*0.18,-0.62-Math.cos(a)*0.1); t.rotation.y=a*0.5; t.rotation.x=-0.65; }
+    makeBox(m.head,0.12,0.24,0.12,'#f8ecd0',0,0.34,0.02);
+    [-0.13,0.13].forEach(ex=>makeBox(m.head,0.05,0.04,0.05,'#c83a2a',ex,0.07,0.262)); } };
+DETAIL[52] = { form:'biped', s:0.5, o:{ body:'#f5e8c8', headC:'#f5e8c8', legH:0.2, bh:0.45, bw:0.42, armW:0.12 },
+  deco:m=>{ makeBox(m.head,0.16,0.16,0.05,'#e8c84a',0,0.22,0.24);
+    [-1,1].forEach(d=>{ makeBox(m.head,0.12,0.16,0.06,'#3a3a3a',d*0.2,0.3,0); makeBox(m.head,0.2,0.02,0.02,'#d8d8d8',d*0.3,-0.05,0.22); makeBox(m.head,0.2,0.02,0.02,'#d8d8d8',d*0.3,-0.11,0.22); });
+    const t=makeBox(m.group,0.09,0.09,0.4,'#b8935a',0,0.5,-0.35); t.rotation.x=0.6; } };
+DETAIL[58] = { form:'quad', s:0.55, o:{ body:'#f0883a', hs:0.5, bh:0.45, bd:0.7, legH:0.26, ears:'#3a3a3a' },
+  deco:m=>{ makeBox(m.group,0.5,0.18,0.18,'#f5e8c8',0,0.62,-0.42);
+    makeBox(m.head,0.16,0.22,0.06,'#f5e8c8',0,0.3,0.1);
+    [-1,1].forEach(d=>{ makeBox(m.group,0.06,0.3,0.12,'#3a3a3a',d*0.26,0.5,0.1); makeBox(m.group,0.06,0.28,0.1,'#3a3a3a',d*0.26,0.48,-0.25); }); } };
+DETAIL[59] = { form:'quad', s:1.05, o:{ body:'#f0883a', hs:0.55, bh:0.58, bd:0.95, legH:0.42, ears:'#3a3a3a' },
+  deco:m=>{ makeBox(m.group,0.55,0.4,0.3,'#f5e8c8',0,0.95,0.32);
+    makeBox(m.head,0.2,0.3,0.1,'#f5e8c8',0,0.36,0);
+    makeBox(m.group,0.2,0.2,0.55,'#f5e8c8',0,0.85,-0.6);
+    [-1,1].forEach(d=>{ makeBox(m.group,0.07,0.4,0.14,'#3a3a3a',d*0.32,0.7,0.15); makeBox(m.group,0.07,0.36,0.12,'#3a3a3a',d*0.32,0.66,-0.3); });
+    [-1,1].forEach(d=>makeBox(m.group,0.18,0.3,0.18,'#f5e8c8',d*0.28,0.42,0.42)); } };
+DETAIL[92] = { form:'float', s:0.55, o:{ body:'#5a4a7a' },
+  deco:m=>{ for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; makeBox(m.group,0.12,0.1,0.12,'#7a6a9a',Math.cos(a)*0.42,0.9+Math.sin(a)*0.35,(i%2?0.1:-0.12)); }
+    makeBox(m.body,0.3,0.08,0.04,'#e8e8f0',0,-0.16,0.24); GHOSTLY(m.group); } };
+DETAIL[93] = { form:'float', s:0.75, o:{ body:'#6a5a8a' },
+  deco:m=>{ [-1,1].forEach(d=>{ makeBox(m.group,0.22,0.2,0.2,'#6a5a8a',d*0.62,0.85,0.1);
+      for(let f=0;f<3;f++) makeBox(m.group,0.06,0.12,0.06,'#5a4a7a',d*0.62+(f-1)*0.07,0.74,0.18); });
+    makeBox(m.body,0.34,0.1,0.04,'#e8e8f0',0,-0.2,0.33);
+    makeBox(m.body,0.1,0.16,0.08,'#5a4a7a',-0.28,0.32,-0.05); makeBox(m.body,0.1,0.16,0.08,'#5a4a7a',0.28,0.32,-0.05); GHOSTLY(m.group); } };
+DETAIL[94] = { form:'biped', s:0.85, o:{ body:'#6a5acd', headC:'#6a5acd', legH:0.22, bh:0.6, bw:0.6, armW:0.16 },
+  deco:m=>{ [[-0.22,0.34],[0,0.4],[0.22,0.34]].forEach(([x,h])=>makeBox(m.head,0.12,h,0.12,'#5a4ab8',x,0.3,-0.05));
+    makeBox(m.head,0.36,0.07,0.04,'#e8e8f0',0,-0.14,0.262);
+    [-0.1,0.1].forEach(ex=>makeBox(m.head,0.06,0.06,0.03,'#e23b3b',ex,0.06,0.27));
+    [-1,1].forEach(d=>makeBox(m.group,0.1,0.22,0.1,'#5a4ab8',d*0.4,0.55,-0.15)); GHOSTLY(m.group); } };
+DETAIL[142] = { form:'bird', s:1.0, o:{ body:'#9a8fb8', headC:'#9a8fb8', wingC:'#8a7fa8', bh:0.5, bd:0.7, hs:0.42, beak:'#8a7fa8' },
+  deco:m=>{ m.wings.forEach((w,i)=>{ w.scale.set(1,1.3,1.6); w.position.y+=0.15; });
+    makeBox(m.head,0.08,0.18,0.08,'#8a7fa8',-0.14,0.3,-0.05); makeBox(m.head,0.08,0.18,0.08,'#8a7fa8',0.14,0.3,-0.05);
+    makeBox(m.head,0.3,0.08,0.16,'#e8e8f0',0,-0.12,0.22);
+    const t=makeBox(m.group,0.1,0.1,0.5,'#9a8fb8',0,0.55,-0.6); t.rotation.x=0.25;
+    makeBox(m.group,0.14,0.14,0.1,'#8a7fa8',0,0.6,-0.88); } };
+DETAIL[147] = { form:'serpent', s:0.5, o:{ body:'#7a9fe8', headC:'#8aafee', segs:4, segSize:0.36 },
+  deco:m=>{ makeBox(m.head,0.3,0.12,0.06,'#e8eef8',0,-0.12,0.22);
+    makeBox(m.head,0.08,0.18,0.08,'#e8eef8',-0.16,0.28,0); makeBox(m.head,0.08,0.18,0.08,'#e8eef8',0.16,0.28,0); } };
+DETAIL[148] = { form:'serpent', s:0.9, o:{ body:'#6a8fd8', headC:'#7a9fe8', segs:5, segSize:0.42, rise:true },
+  deco:m=>{ makeBox(m.segs[0],0.2,0.2,0.2,'#e8eef8',0,0.1,0.25);
+    makeBox(m.head,0.1,0.26,0.1,'#e8eef8',-0.18,0.32,0); makeBox(m.head,0.1,0.26,0.1,'#e8eef8',0.18,0.32,0);
+    makeBox(m.head,0.06,0.2,0.06,'#d8e8f8',0,0.36,0.1); } };
+DETAIL[149] = { form:'biped', s:1.1, o:{ body:'#f0a35a', headC:'#f0a35a', legH:0.4, bh:0.7, bw:0.6, armW:0.16 },
+  deco:m=>{ makeBox(m.group,0.4,0.55,0.12,'#f8dca8',0,0.78,0.27);
+    [-1,1].forEach(d=>{ const w=makeBox(m.group,0.07,0.45,0.32,'#7ab8a8',d*0.38,1.0,-0.18); w.rotation.z=d*0.5; });
+    makeBox(m.head,0.05,0.2,0.05,'#f0a35a',-0.12,0.36,0.04); makeBox(m.head,0.05,0.2,0.05,'#f0a35a',0.12,0.36,0.04);
+    const t=makeBox(m.group,0.14,0.14,0.6,'#f0a35a',0,0.45,-0.5); t.rotation.x=0.4; } };
+DETAIL[151] = { form:'float', s:0.5, o:{ body:'#f8c8d8' },
+  deco:m=>{ const t1=makeBox(m.group,0.07,0.07,0.4,'#f8c8d8',0,0.75,-0.4); t1.rotation.x=0.5;
+    const t2=makeBox(m.group,0.06,0.06,0.3,'#f8c8d8',0,0.52,-0.62); t2.rotation.x=1.0;
+    makeBox(m.group,0.12,0.12,0.1,'#f8c8d8',0,0.42,-0.75);
+    [-1,1].forEach(d=>makeBox(m.group,0.12,0.26,0.1,'#f8c8d8',d*0.18,0.52,0.05)); } };
+// --- 2세대 ---
+DETAIL[152] = { form:'quad', s:0.5, o:{ body:'#9adc8c', hs:0.52, bh:0.42, bd:0.62, legH:0.2 },
+  deco:m=>{ const lf=makeBox(m.head,0.16,0.04,0.55,'#3e8a2e',0,0.3,0.1); lf.rotation.x=-0.15;
+    for(let i=0;i<5;i++){ const a=i/5*Math.PI*2; makeBox(m.group,0.09,0.09,0.09,'#3e8a2e',Math.cos(a)*0.3,0.52,0.28+Math.sin(a)*0.05); } } };
+DETAIL[154] = { form:'quad', s:1.05, o:{ body:'#7ab86a', hs:0.55, bh:0.6, bd:1.0, legH:0.4 },
+  deco:m=>{ for(let i=0;i<6;i++){ const a=i/6*Math.PI*2; makeBox(m.group,0.16,0.16,0.06,'#f0a8c0',Math.cos(a)*0.34,1.0+Math.sin(a)*0.3,0.42); }
+    makeBox(m.head,0.07,0.22,0.07,'#e8d860',-0.14,0.34,0.05); makeBox(m.head,0.07,0.22,0.07,'#e8d860',0.14,0.34,0.05); } };
+DETAIL[155] = { form:'quad', s:0.5, o:{ body:'#3a6a5a', hs:0.5, bh:0.42, bd:0.65, legH:0.22 },
+  deco:m=>{ makeBox(m.group,0.44,0.2,0.2,'#f5e8c8',0,0.32,0.3);
+    [[0,0.62,-0.1],[0.12,0.58,-0.3],[-0.12,0.58,-0.25]].forEach(([x,y,z])=>{ makeBox(m.group,0.1,0.16,0.1,'#f0883a',x,y,z); makeBox(m.group,0.06,0.12,0.06,'#ffce3d',x,y+0.12,z); }); } };
+DETAIL[157] = { form:'quad', s:0.95, o:{ body:'#3a6a5a', hs:0.55, bh:0.55, bd:0.9, legH:0.38 },
+  deco:m=>{ makeBox(m.group,0.5,0.35,0.25,'#f5e8c8',0,0.6,0.4);
+    for(let i=0;i<4;i++){ makeBox(m.group,0.12,0.2+i%2*0.1,0.12,'#f0883a',(i-1.5)*0.16,0.92,-0.2-i*0.06); makeBox(m.group,0.07,0.16,0.07,'#ffce3d',(i-1.5)*0.16,1.05,-0.2-i*0.06); } } };
+DETAIL[158] = { form:'biped', s:0.5, o:{ body:'#5a9fd8', headC:'#5a9fd8', legH:0.2, bh:0.45, bw:0.45, armW:0.13 },
+  deco:m=>{ makeBox(m.head,0.34,0.14,0.3,'#4a8fc8',0,-0.12,0.2);
+    makeBox(m.head,0.08,0.12,0.08,'#e84d3a',0,0.3,-0.05);
+    makeBox(m.group,0.3,0.2,0.06,'#e8d860',0,0.4,0.24);
+    const t=makeBox(m.group,0.12,0.12,0.3,'#5a9fd8',0,0.35,-0.3); makeBox(t,0.08,0.14,0.1,'#e84d3a',0,0.12,-0.05); } };
+DETAIL[160] = { form:'biped', s:1.05, o:{ body:'#4a8fc8', headC:'#4a8fc8', legH:0.35, bh:0.65, bw:0.6, armW:0.16 },
+  deco:m=>{ makeBox(m.head,0.4,0.18,0.45,'#3a7fb8',0,-0.14,0.25);
+    for(let i=0;i<4;i++) makeBox(m.head,0.05,0.06,0.05,'#e8e8f0',(i-1.5)*0.1,-0.22,0.45);
+    [[0,0.36],[0,0.0]].forEach(([x,dz],i)=>makeBox(m.group,0.1,0.18,0.1,'#e84d3a',x,0.95-i*0.15,-0.25-dz));
+    makeBox(m.group,0.4,0.35,0.08,'#e8d860',0,0.65,0.3);
+    const t=makeBox(m.group,0.16,0.16,0.5,'#4a8fc8',0,0.4,-0.45); makeBox(t,0.1,0.18,0.14,'#e84d3a',0,0.15,-0.1); } };
+DETAIL[196] = { form:'quad', s:0.62, o:{ body:'#c8a8e0', hs:0.5, bh:0.45, bd:0.68, legH:0.26, ears:'#b894d4' },
+  deco:m=>{ const t=makeBox(m.group,0.09,0.09,0.42,'#c8a8e0',0,0.55,-0.5); 
+    makeBox(t,0.12,0.04,0.16,'#b894d4',0,0.04,-0.18); makeBox(t,0.12,0.04,0.16,'#b894d4',0,-0.04,-0.18);
+    makeBox(m.head,0.1,0.1,0.06,'#e84d8a',0,0.12,0.26); } };
+DETAIL[197] = { form:'quad', s:0.62, o:{ body:'#2a2a35', hs:0.5, bh:0.45, bd:0.68, legH:0.28, ears:'#2a2a35' },
+  deco:m=>{ makeBox(m.head,0.12,0.12,0.04,'#e8d860',0,0.2,0.26);
+    [-1,1].forEach(d=>{ makeBox(m.head,0.12,0.05,0.06,'#e8d860',d*0.17,0.34,0); makeBox(m.group,0.05,0.14,0.14,'#e8d860',d*0.24,0.5,0.18); makeBox(m.group,0.05,0.14,0.14,'#e8d860',d*0.24,0.42,-0.3); });
+    const t=makeBox(m.group,0.08,0.08,0.36,'#2a2a35',0,0.55,-0.48); makeBox(t,0.1,0.1,0.08,'#e8d860',0,0,-0.14);
+    [-0.13,0.13].forEach(ex=>makeBox(m.head,0.05,0.04,0.04,'#e23b3b',ex,0.06,0.262)); } };
+DETAIL[212] = { form:'biped', s:0.95, o:{ body:'#c83a2a', headC:'#c83a2a', legH:0.35, bh:0.6, bw:0.5, armW:0.14 },
+  deco:m=>{ m.arms.forEach((a,i)=>{ makeBox(a,0.26,0.3,0.26,'#b82a1a',0,-0.45,0); makeBox(a,0.1,0.14,0.18,'#d8d8e0',0,-0.62,0.08); });
+    [-1,1].forEach(d=>{ const w=makeBox(m.group,0.05,0.4,0.3,'#e8e8f0',d*0.32,0.95,-0.2); w.rotation.z=d*0.4; });
+    makeBox(m.head,0.07,0.2,0.07,'#b82a1a',-0.15,0.34,0); makeBox(m.head,0.07,0.2,0.07,'#b82a1a',0.15,0.34,0); } };
+DETAIL[243] = { form:'quad', s:1.1, o:{ body:'#e8d04a', hs:0.55, bh:0.58, bd:0.95, legH:0.42 },
+  deco:m=>{ makeBox(m.group,0.34,0.3,0.7,'#9a6ad8',0,0.95,-0.15);
+    [-1,1].forEach(d=>{ makeBox(m.group,0.07,0.35,0.14,'#3a3a3a',d*0.32,0.68,0.1); makeBox(m.group,0.07,0.3,0.12,'#3a3a3a',d*0.32,0.64,-0.32); });
+    makeBox(m.head,0.3,0.12,0.08,'#8a9ab8',0,0.32,0.16);
+    makeBox(m.head,0.24,0.1,0.06,'#e8e8f0',0,-0.16,0.27);
+    const t=makeBox(m.group,0.07,0.07,0.55,'#7ab8e8',0,0.6,-0.62); t.rotation.x=0.5; } };
+DETAIL[244] = { form:'quad', s:1.15, o:{ body:'#b05a3a', hs:0.6, bh:0.62, bd:1.0, legH:0.44 },
+  deco:m=>{ makeBox(m.group,0.55,0.32,0.8,'#9a9aa8',0,1.0,-0.2);
+    makeBox(m.head,0.34,0.14,0.1,'#e8c84a',0,0.28,0.2); makeBox(m.head,0.16,0.2,0.08,'#e8c84a',0,0.4,0.1);
+    makeBox(m.head,0.36,0.12,0.1,'#e8e8f0',0,-0.2,0.2);
+    [-1,1].forEach(d=>makeBox(m.group,0.14,0.2,0.14,'#9a9aa8',d*0.3,0.5,-0.55)); } };
+DETAIL[245] = { form:'quad', s:1.1, o:{ body:'#6ab8e8', hs:0.55, bh:0.56, bd:0.95, legH:0.44 },
+  deco:m=>{ makeBox(m.group,0.4,0.25,0.75,'#9a6ad8',0,0.95,-0.2);
+    makeBox(m.head,0.16,0.3,0.1,'#7ad8e8',0,0.42,0.05);
+    [[-0.2,0.55,0.1],[0.2,0.5,-0.2],[-0.15,0.45,-0.35]].forEach(([x,y,z])=>makeBox(m.group,0.1,0.1,0.05,'#e8e8f0',x,y,z));
+    [-1,1].forEach(d=>{ const r=makeBox(m.group,0.06,0.2,0.45,'#e8e8f0',d*0.3,0.62,-0.6); r.rotation.x=0.4; }); } };
+DETAIL[248] = { form:'biped', s:1.15, o:{ body:'#7a9a5a', headC:'#7a9a5a', legH:0.4, bh:0.7, bw:0.65, armW:0.18 },
+  deco:m=>{ makeBox(m.group,0.3,0.3,0.1,'#5a7a8a',0,0.78,0.33);
+    for(let i=0;i<3;i++) [-1,1].forEach(d=>makeBox(m.group,0.09,0.14,0.09,'#5a7a4a',d*0.25,0.6+i*0.18,-0.32));
+    makeBox(m.head,0.08,0.2,0.08,'#5a7a4a',-0.18,0.34,-0.05); makeBox(m.head,0.08,0.2,0.08,'#5a7a4a',0.18,0.34,-0.05);
+    const t=makeBox(m.group,0.16,0.16,0.5,'#7a9a5a',0,0.42,-0.5); makeBox(t,0.1,0.12,0.12,'#5a7a4a',0,0,-0.2); } };
+DETAIL[249] = { form:'bird', s:1.35, o:{ body:'#e8eef5', headC:'#e8eef5', wingC:'#dde5f0', bh:0.5, bd:0.85, hs:0.4, beak:'#8a9ab8' },
+  deco:m=>{ m.wings.forEach((w,i)=>{ w.scale.set(1.2,1.5,2.0); w.position.y+=0.2; });
+    for(let i=0;i<3;i++) makeBox(m.group,0.14,0.12,0.1,'#3a4a8a',(i-1)*0.18,0.72,-0.3-Math.abs(i-1)*0.1);
+    makeBox(m.head,0.34,0.1,0.1,'#3a4a8a',0,0.1,-0.08);
+    const t=makeBox(m.group,0.12,0.1,0.45,'#e8eef5',0,0.5,-0.7); makeBox(t,0.18,0.08,0.12,'#3a4a8a',0,0,-0.2); } };
+DETAIL[250] = { form:'bird', s:1.3, o:{ body:'#e8b830', headC:'#e8b830', wingC:'#d84a3a', bh:0.48, bd:0.75, hs:0.38, beak:'#c8b8a0' },
+  deco:m=>{ m.wings.forEach((w,i)=>{ w.scale.set(1.2,1.4,1.9); w.position.y+=0.18; const d=i?1:-1;
+      makeBox(w,0.05,0.3,0.6,'#4a9a5a',d*0.05,-0.1,0); });
+    makeBox(m.head,0.26,0.14,0.1,'#e8d860',0,0.3,0.05); makeBox(m.head,0.14,0.22,0.08,'#e8d860',0,0.4,-0.02);
+    const t=makeBox(m.group,0.1,0.08,0.4,'#e8d860',0,0.5,-0.62); } };
+// --- 3세대 ---
+DETAIL[252] = { form:'biped', s:0.5, o:{ body:'#8adc6a', headC:'#8adc6a', legH:0.22, bh:0.45, bw:0.4, armW:0.12 },
+  deco:m=>{ const t=makeBox(m.group,0.1,0.3,0.12,'#3e8a2e',0,0.4,-0.28); t.rotation.x=0.4;
+    makeBox(m.group,0.34,0.16,0.05,'#5ab84a',0,0.45,0.21);
+    makeBox(m.head,0.26,0.08,0.26,'#3e8a2e',0,0.28,0); } };
+DETAIL[254] = { form:'biped', s:1.05, o:{ body:'#5ab84a', headC:'#5ab84a', legH:0.45, bh:0.6, bw:0.5, armW:0.14 },
+  deco:m=>{ m.arms.forEach((a,i)=>{ const lf=makeBox(a,0.06,0.45,0.22,'#3e8a2e',0,-0.4,0); lf.rotation.z=(i?1:-1)*0.3; });
+    [[0.5,0.12],[0.62,-0.06]].forEach(([y,z])=>{ makeBox(m.group,0.14,0.14,0.14,'#e8d860',-0.2,y,z-0.3); makeBox(m.group,0.14,0.14,0.14,'#e8d860',0.2,y,z-0.3); });
+    makeBox(m.head,0.3,0.07,0.4,'#3e8a2e',0,0.3,-0.05);
+    makeBox(m.group,0.26,0.3,0.06,'#e84d3a',0,0.72,0.27); } };
+DETAIL[255] = { form:'bird', s:0.45, o:{ body:'#f0a04a', headC:'#f0a04a', wingC:'#f0a04a', bh:0.42, bd:0.45, hs:0.36, beak:'#e8c84a', legC:'#e8c84a' },
+  deco:m=>{ makeBox(m.head,0.12,0.2,0.12,'#e88030',0,0.3,0);
+    makeBox(m.group,0.3,0.2,0.06,'#f8d8a0',0,0.4,0.25); } };
+DETAIL[257] = { form:'biped', s:1.05, o:{ body:'#d84a3a', headC:'#d84a3a', legH:0.55, bh:0.6, bw:0.5, armW:0.14, legC:'#e8c84a' },
+  deco:m=>{ makeBox(m.head,0.4,0.16,0.12,'#f5e8c8',0,0.32,0.05); [-1,1].forEach(d=>{ const h=makeBox(m.head,0.1,0.3,0.1,'#f5e8c8',d*0.2,0.42,-0.05); h.rotation.z=d*0.4; });
+    makeBox(m.group,0.34,0.4,0.08,'#f5e8c8',0,0.85,0.26);
+    makeBox(m.head,0.14,0.08,0.14,'#e8c84a',0,-0.18,0.24);
+    m.arms.forEach(a=>makeBox(a,0.12,0.16,0.12,'#e8e8f0',0,-0.5,0)); } };
+DETAIL[258] = { form:'biped', s:0.45, o:{ body:'#7ab8e8', headC:'#7ab8e8', legH:0.18, bh:0.42, bw:0.42, armW:0.12 },
+  deco:m=>{ makeBox(m.head,0.12,0.26,0.1,'#3a6a98',0,0.34,0);
+    [-1,1].forEach(d=>makeBox(m.head,0.16,0.1,0.06,'#f0a04a',d*0.26,-0.08,0.1));
+    makeBox(m.group,0.32,0.2,0.05,'#c8e0f0',0,0.32,0.23);
+    const t=makeBox(m.group,0.08,0.2,0.22,'#c8e0f0',0,0.3,-0.3); } };
+DETAIL[260] = { form:'biped', s:1.1, o:{ body:'#4a7ab8', headC:'#4a7ab8', legH:0.35, bh:0.7, bw:0.7, armW:0.2 },
+  deco:m=>{ [-1,1].forEach(d=>{ makeBox(m.head,0.2,0.12,0.08,'#f0a04a',d*0.3,-0.1,0.12); makeBox(m.head,0.12,0.26,0.12,'#3a6a98',d*0.16,0.36,-0.05); });
+    makeBox(m.group,0.5,0.45,0.08,'#d8d8c8',0,0.62,0.34);
+    const t=makeBox(m.group,0.12,0.3,0.4,'#3a6a98',0,0.4,-0.5); 
+    m.arms.forEach(a=>makeBox(a,0.16,0.14,0.16,'#3a6a98',0,-0.45,0)); } };
+DETAIL[282] = { form:'biped', s:0.95, o:{ body:'#e8e8f0', headC:'#e8e8f0', legH:0.5, bh:0.55, bw:0.42, armW:0.1, legC:'#e8e8f0' },
+  deco:m=>{ makeBox(m.group,0.6,0.5,0.5,'#e8e8f0',0,0.32,0);
+    makeBox(m.head,0.3,0.2,0.34,'#5ad89a',0,0.3,0); makeBox(m.head,0.12,0.3,0.12,'#5ad89a',-0.2,0.1,-0.08); makeBox(m.head,0.12,0.3,0.12,'#5ad89a',0.2,0.1,-0.08);
+    makeBox(m.group,0.1,0.18,0.08,'#e84d3a',0,0.88,0.24); makeBox(m.group,0.08,0.14,0.06,'#e84d3a',0,0.78,-0.22); } };
+DETAIL[359] = { form:'quad', s:0.85, o:{ body:'#e8e8f0', hs:0.5, bh:0.5, bd:0.8, legH:0.34, headC:'#3a3a4a' },
+  deco:m=>{ const h=makeBox(m.head,0.1,0.3,0.34,'#3a3a4a',-0.25,0.25,-0.05); h.rotation.z=0.5;
+    makeBox(m.head,0.26,0.1,0.1,'#e8e8f0',0,0.3,0.05);
+    const t=makeBox(m.group,0.08,0.2,0.3,'#3a3a4a',0,0.62,-0.5); t.rotation.x=0.4;
+    [-0.13,0.13].forEach(ex=>makeBox(m.head,0.05,0.04,0.04,'#e23b3b',ex,0.06,0.262)); } };
+DETAIL[373] = { form:'quad', s:1.2, o:{ body:'#5a7ad8', hs:0.6, bh:0.65, bd:1.05, legH:0.42 },
+  deco:m=>{ [-1,1].forEach(d=>{ const w=makeBox(m.group,0.06,0.55,0.75,'#d84a3a',d*0.45,1.05,-0.1); w.rotation.z=d*0.55; });
+    makeBox(m.group,0.5,0.3,0.6,'#e8e0d0',0,0.42,0.2);
+    makeBox(m.head,0.1,0.22,0.1,'#e8e0d0',-0.2,0.34,-0.02); makeBox(m.head,0.1,0.22,0.1,'#e8e0d0',0.2,0.34,-0.02);
+    const t=makeBox(m.group,0.14,0.14,0.6,'#5a7ad8',0,0.6,-0.7); makeBox(t,0.1,0.2,0.14,'#d84a3a',0,0,-0.25); } };
+DETAIL[376] = { form:'float', s:1.2, o:{ body:'#7a8fb8' },
+  deco:m=>{ m.body.scale.set(1.6,0.8,1.4);
+    makeBox(m.body,0.5,0.12,0.06,'#c8d0e0',0,0.1,0.45);
+    makeBox(m.body,0.4,0.06,0.5,'#5a6f98',0,0.45,0);
+    [[-0.6,0.5],[0.6,0.5],[-0.6,-0.5],[0.6,-0.5]].forEach(([x,z])=>{ const l=makeBox(m.group,0.18,0.7,0.18,'#8a9fc8',x,0.55,z*0.5); makeBox(l,0.2,0.12,0.2,'#c8d0e0',0,-0.35,0); });
+    [-0.2,0.2].forEach(ex=>makeBox(m.body,0.12,0.05,0.04,'#e23b3b',ex,0.02,0.46)); } };
+DETAIL[380] = { form:'float', s:0.9, o:{ body:'#e86a7a' },
+  deco:m=>{ m.body.scale.set(0.9,0.85,1.4);
+    makeBox(m.body,0.5,0.4,0.4,'#e8e8f0',0,-0.1,-0.05);
+    [-1,1].forEach(d=>{ const w=makeBox(m.group,0.45,0.07,0.22,'#e86a7a',d*0.4,0.95,-0.15); w.rotation.z=d*0.25; });
+    makeBox(m.body,0.14,0.1,0.05,'#3a4a8a',0,0.2,0.42); } };
+DETAIL[381] = { form:'float', s:0.95, o:{ body:'#5a7ad8' },
+  deco:m=>{ m.body.scale.set(0.9,0.85,1.45);
+    makeBox(m.body,0.5,0.4,0.4,'#e8e8f0',0,-0.1,-0.05);
+    [-1,1].forEach(d=>{ const w=makeBox(m.group,0.5,0.07,0.22,'#5a7ad8',d*0.42,0.95,-0.15); w.rotation.z=d*0.22; });
+    makeBox(m.body,0.14,0.1,0.05,'#d84a3a',0,0.2,0.42); } };
+DETAIL[382] = { form:'float', s:1.4, o:{ body:'#3a5ad8' },
+  deco:m=>{ m.body.scale.set(1.5,0.75,1.7); m.body.position.y=0.75;
+    [-1,1].forEach(d=>{ const f=makeBox(m.group,0.6,0.1,0.3,'#3a5ad8',d*0.6,0.75,0.1); f.rotation.z=d*0.2;
+      makeBox(f,0.2,0.06,0.2,'#e8e8f0',d*0.2,0.04,0); });
+    makeBox(m.body,0.4,0.1,0.06,'#e8e8f0',0,0.28,0.55); makeBox(m.body,0.14,0.2,0.05,'#e84d3a',-0.3,0.1,0.56); makeBox(m.body,0.14,0.2,0.05,'#e84d3a',0.3,0.1,0.56);
+    const t=makeBox(m.group,0.3,0.08,0.5,'#3a5ad8',0,0.72,-0.75); makeBox(t,0.08,0.3,0.2,'#2a4ac8',0,0,-0.2); } };
+DETAIL[383] = { form:'quad', s:1.45, o:{ body:'#c83a2a', hs:0.62, bh:0.7, bd:1.1, legH:0.45, legW:0.3 },
+  deco:m=>{ makeBox(m.group,0.7,0.35,0.7,'#a82a1a',0,1.05,-0.1);
+    for(let i=0;i<3;i++) makeBox(m.group,0.12,0.22,0.12,'#e8e8f0',(i-1)*0.3,1.2,-0.15);
+    makeBox(m.group,0.55,0.3,0.5,'#8a8a98',0,0.45,0.25);
+    makeBox(m.head,0.4,0.1,0.1,'#8a8a98',0,0.34,0.1);
+    for(let i=0;i<4;i++) makeBox(m.group,0.05,0.1,0.05,'#3a3a3a',(i-1.5)*0.2,0.78,0.45); } };
+DETAIL[384] = { form:'serpent', s:1.35, o:{ body:'#4a9a5a', headC:'#4a9a5a', segs:6, segSize:0.45, rise:true },
+  deco:m=>{ m.segs.forEach((s,i)=>{ if(i%2) makeBox(s,0.5,0.12,0.12,'#e8d860',0,0,0);
+      [-1,1].forEach(d=>makeBox(s,0.05,0.2,0.12,'#3e8a2e',d*0.24,0.18,0)); });
+    makeBox(m.head,0.6,0.1,0.1,'#e8d860',0,0.0,0.2);
+    makeBox(m.head,0.1,0.24,0.1,'#3e8a2e',-0.22,0.34,-0.05); makeBox(m.head,0.1,0.24,0.1,'#3e8a2e',0.22,0.34,-0.05);
+    makeBox(m.head,0.3,0.06,0.06,'#e84d8a',0,-0.2,0.27); } };
+DETAIL[385] = { form:'float', s:0.55, o:{ body:'#f5e8c8' },
+  deco:m=>{ [[0,0.45,0],[-0.3,-0.25,0.5],[0.3,-0.25,-0.5]].forEach(([x,y,r])=>{ const p=makeBox(m.body,0.16,0.4,0.14,'#f5e8c8',x,y,0); p.rotation.z=r; });
+    makeBox(m.body,0.4,0.08,0.05,'#7ab8e8',0,-0.02,0.43);
+    [[-0.2,0.3],[0.2,0.3]].forEach(([x,y])=>makeBox(m.body,0.1,0.1,0.05,'#7ab8e8',x,y,0.43)); } };
+
 // DEX 테이블 → SPECIES 구성
 const BIOME_MAP = { p:'plains', f:'forest', d:'desert', m:'mountain', s:'snow', w:'water' };
 for(const idStr in DEX){
