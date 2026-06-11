@@ -469,7 +469,8 @@ class Mob {
           }
         } else if(dToP < 1.7 && this.attackCd <= 0){
           this.attackCd = 1;
-          tgt.hurt(def.dmg, (tgt.x - b.x) * 0.5, (tgt.z - b.z) * 0.5);
+          const kb = this.type === 'zombie' ? 0.75 : 0.5;
+          tgt.hurt(def.dmg, (tgt.x - b.x) * kb, (tgt.z - b.z) * kb);
         }
       }
     } else {

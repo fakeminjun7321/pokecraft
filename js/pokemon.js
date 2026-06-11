@@ -1055,7 +1055,7 @@ function makeNameTag(text){
   ctx.fillStyle = '#fff';
   ctx.fillText(text, 128, 32);
   const tex = new THREE.CanvasTexture(cv);
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: true }));
   sp.scale.set(1.7, 0.42, 1);
   return sp;
 }
@@ -1176,6 +1176,16 @@ function calcDamage(att, def, moveKey, mult){
   let dmg = ((2 * att.level / 5 + 2) * mv.p * att.atk / Math.max(1, def.def)) / 50 + 2;
   dmg *= stab * eff * (crit ? 1.5 : 1) * (0.85 + Math.random() * 0.15) * (mult || 1);
   return { dmg: Math.max(1, Math.floor(dmg)), eff, crit };
+}
+function estimateDamage(att, def, moveKey, mult){
+  const mv = MOVES[moveKey];
+  const eff = typeMult(mv.t, def.spec.types);
+  if(eff === 0 || mv.p === 0) return { min:0, max:0, eff };
+  const stab = att.spec.types.includes(mv.t) ? 1.5 : 1;
+  let dmg = ((2 * att.level / 5 + 2) * mv.p * att.atk / Math.max(1, def.def)) / 50 + 2;
+  dmg *= stab * eff * (mult || 1);
+  const max = Math.max(1, Math.floor(dmg));
+  return { min:Math.max(1, Math.floor(dmg * 0.85)), max, eff };
 }
 function catchChance(inst, ballMod){
   const f = (3 * inst.maxHp - 2 * inst.hp) * inst.spec.cr * ballMod / (3 * inst.maxHp);
@@ -1302,6 +1312,7 @@ class WildPoke {
     this.group.position.set(b.x, b.y + hoverY, b.z);
     this.group.rotation.y = this.dir;
     this.tag.rotation.y = -this.dir;
+    this.tag.visible = dist3(b.x, b.y, b.z, player.body.x, player.body.y, player.body.z) < 24;
   }
 }
 
@@ -1625,6 +1636,7 @@ const Follower = {
   },
   clear(){
     if(this.ent){
+      if(game.riding) game.riding = false;
       scene.remove(this.ent.group);
       disposeObject(this.ent.group);
       this.ent = null; this.sp = 0;
@@ -1662,6 +1674,7 @@ const Follower = {
     // 라이딩 중: 플레이어 발 밑에 고정
     if(game.riding){
       const pb = player.body;
+      e.group.visible = game.camMode !== 0;
       e.bob += dt;
       e.dir = player.yaw + Math.PI;
       e.group.position.set(pb.x, pb.y - 0.35, pb.z);
@@ -1671,6 +1684,7 @@ const Follower = {
       b.x = pb.x; b.y = pb.y; b.z = pb.z;
       return;
     }
+    e.group.visible = true;
     const d = dist3(b.x, b.y, b.z, player.body.x, player.body.y, player.body.z);
     if(d > 24){ // 너무 멀면 순간이동
       b.x = player.body.x - 1; b.y = player.body.y + 1; b.z = player.body.z - 1;
@@ -2069,11 +2083,12 @@ const Battle = {
         a: { n: a.name, lv: a.level, hp: a.hp, max: a.maxHp },
         e: { n: w.name, lv: w.level, hp: w.hp, max: w.maxHp } } });
     }
-    this.$('b-enemy-name').textContent = w.name;
+    this.$('b-enemy-name').innerHTML = w.name + ' ' + typeTagsHTML(w.spec.types);
     this.$('b-enemy-lv').textContent = 'Lv.' + w.level;
     this.$('b-enemy-hpfill').style.width = (w.hp / w.maxHp * 100) + '%';
     this.$('b-enemy-hpfill').style.background = w.hp / w.maxHp > 0.5 ? '#44c944' : w.hp / w.maxHp > 0.2 ? '#e8b820' : '#e23b3b';
-    this.$('b-ally-name').textContent = a.name;
+    this.$('b-enemy-hptext').textContent = w.hp + ' / ' + w.maxHp;
+    this.$('b-ally-name').innerHTML = a.name + ' ' + typeTagsHTML(a.spec.types);
     this.$('b-ally-lv').textContent = 'Lv.' + a.level;
     this.$('b-ally-hpfill').style.width = (a.hp / a.maxHp * 100) + '%';
     this.$('b-ally-hpfill').style.background = a.hp / a.maxHp > 0.5 ? '#44c944' : a.hp / a.maxHp > 0.2 ? '#e8b820' : '#e23b3b';
@@ -2103,7 +2118,9 @@ const Battle = {
     this.ally.moves.forEach(k => {
       const mv = MOVES[k];
       const b = document.createElement('button');
-      b.innerHTML = mv.n + typeTagsHTML([mv.t]) + `<span class="sub-detail">위력 ${mv.p} · 명중 ${mv.a}</span>`;
+      const est = estimateDamage(this.ally, this.wild, k, 1 + 0.05 * PokeMan.badges.size);
+      const left = Math.max(0, this.wild.hp - est.max);
+      b.innerHTML = mv.n + typeTagsHTML([mv.t]) + `<span class="sub-detail">PWR ${mv.p} · ACC ${mv.a} · DMG ${est.min}-${est.max} · HP ${left}+</span>`;
       b.onclick = () => { this.turn({ type:'move', move:k }); };
       s.appendChild(b);
     });
@@ -2124,13 +2141,13 @@ const Battle = {
       mb.onclick = () => { this.turn({ type: 'mega' }); };
       s.appendChild(mb);
     }
-    [I.POKEBALL, I.GREATBALL, I.ULTRABALL, I.POTION].forEach(id => {
+    [I.POKEBALL, I.GREATBALL, I.ULTRABALL, I.POTION, I.SUPERPOTION, I.HYPERPOTION].forEach(id => {
       const cnt = player.countItem(id);
       if(cnt <= 0) return;
       const b = document.createElement('button');
       b.innerHTML = itemName(id) + ` <span class="sub-detail">${cnt}개 보유</span>`;
       b.onclick = () => {
-        if(id === I.POTION) this.turn({ type:'potion' });
+        if(itemDef(id).pokeHeal) this.turn({ type:'potion', id });
         else this.turn({ type:'ball', id });
       };
       s.appendChild(b);
@@ -2247,9 +2264,11 @@ const Battle = {
         }
         await this.enemyAttack(enemyMove);
       } else if(action.type === 'potion'){
-        if(player.countItem(I.POTION) > 0){
-          player.removeItem(I.POTION, 1);
-          this.ally.hp = Math.min(this.ally.maxHp, this.ally.hp + 25);
+        const healItem = action.id || I.POTION;
+        const heal = itemDef(healItem).pokeHeal || 25;
+        if(player.countItem(healItem) > 0){
+          player.removeItem(healItem, 1);
+          this.ally.hp = Math.min(this.ally.maxHp, this.ally.hp + heal);
           this.updateBars();
           SFX.play('pop');
           await this.say(this.ally.name + '의 체력이 회복됐다!');
@@ -2685,6 +2704,7 @@ const Battle = {
       this.$('b-enemy-lv').textContent = 'Lv.' + enemy.lv;
       this.$('b-enemy-hpfill').style.width = (enemy.hp / enemy.max * 100) + '%';
       this.$('b-enemy-hpfill').style.background = enemy.hp / enemy.max > 0.5 ? '#44c944' : enemy.hp / enemy.max > 0.2 ? '#e8b820' : '#e23b3b';
+      this.$('b-enemy-hptext').textContent = enemy.hp + ' / ' + enemy.max;
       if(this.mE) this.mE.root.rotation.x = enemy.hp <= 0 ? Math.PI / 2 : 0;
     }
     if(ally){

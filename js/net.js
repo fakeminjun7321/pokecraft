@@ -10,7 +10,7 @@ function _randCode(n){
   return s;
 }
 // 네트워크 입력 검증 (악성/버전 불일치 피어로부터 월드 보호)
-const NET_VER = 27; // 프로토콜/버전 핸드셰이크 (?v= 와 함께 올릴 것)
+const NET_VER = 28; // 프로토콜/버전 핸드셰이크 (?v= 와 함께 올릴 것)
 const MAX_PLAYERS = 20; // 호스트 포함 최대 인원
 const PEER_OPTS = { config: { iceServers: [
   { urls: 'stun:stun.l.google.com:19302' },

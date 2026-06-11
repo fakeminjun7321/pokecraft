@@ -653,6 +653,12 @@ function startSleep(){
   setTimeout(() => {
     game.time = 0.03;
     MobManager.list.slice().forEach(m => { if(m.def.hostile) m.die(false); });
+    if(typeof PokeMan !== 'undefined'){
+      const leadLv = PokeMan.party.length ? Math.max(...PokeMan.party.map(p => p.level)) : 1;
+      const minLv = Math.max(2, leadLv - 8);
+      PokeMan.wilds.slice().forEach(w => { if(w.inst.level < minLv) PokeMan.removeWild(w, true); });
+      PokeMan.spawnTimer = 8;
+    }
     game.paused = false;
     fade.style.opacity = 0;
     UI.toast('푹 잤다! 아침이 되었다 (스폰 지점 설정됨)');
@@ -1160,7 +1166,8 @@ function bindInput(){
       else if(!UI.isOpen() && !player.dead) UI.openInventory(false);
     }
     if(e.code === 'Escape'){
-      if(UI.open === 'help'){ UI.close(); } // close()가 일시정지 메뉴로 복귀시킴 — 재잠금 금지
+      if(typeof Minimap !== 'undefined' && Minimap.fullVisible){ Minimap.toggleFull(false); }
+      else if(UI.open === 'help'){ UI.close(); } // close()가 일시정지 메뉴로 복귀시킴 — 재잠금 금지
       else if(UI.isOpen()){ UI.close(); if(!player.dead) requestLock(); }
     }
     if(e.code === 'KeyF' && game.mode === 'creative' && player){
@@ -1191,8 +1198,10 @@ function bindInput(){
     }
     if(e.code === 'KeyG') toggleRide();
     if(e.code === 'KeyM'){
-      Minimap.visible = !Minimap.visible;
-      document.getElementById('minimap').classList.toggle('hidden', !Minimap.visible);
+      if(e.shiftKey){
+        Minimap.visible = !Minimap.visible;
+        document.getElementById('minimap').classList.toggle('hidden', !Minimap.visible);
+      } else Minimap.toggleFull();
     }
     if(e.code === 'KeyP'){
       if(UI.open === 'party') { UI.close(); requestLock(); }
@@ -1256,7 +1265,7 @@ function updateSky(){
   const ang = game.time * Math.PI * 2;
   const sunH = Math.sin(ang);
   const dayF = clamp((sunH + 0.12) / 0.35, 0, 1);
-  ambLight.intensity = lerp(0.22, 0.66, dayF);
+  ambLight.intensity = lerp(0.50, 0.66, dayF);
   sunLight.intensity = lerp(0.03, 0.5, dayF);
   sunLight.position.set(Math.cos(ang) * 60, Math.max(10, sunH * 100), 25);
 
