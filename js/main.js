@@ -656,7 +656,7 @@ function tryBattle(){
   }
   let best = null, bd = 9;
   for(const w of PokeMan.wilds){
-    if(w.catching) continue; // 포획 연출 중인 야생 제외
+    if(w.catching || w.fainted) continue; // 포획 연출/기절 상태 제외
     const d = dist3(w.body.x, w.body.y, w.body.z, player.body.x, player.body.y, player.body.z);
     if(d < bd){ bd = d; best = w; }
   }
@@ -670,8 +670,12 @@ function loadAccountPoke(worldPoke, migrated){
   let acct = null;
   try { acct = JSON.parse(localStorage.getItem(storeKey('pokemon')) || 'null'); } catch(e){}
   if(acct){
+    const enBefore = PokeMan.enabled;
     PokeMan.deserialize(acct);
-    if(worldPoke && !migrated){
+    // 포켓몬 모드 ON/OFF는 계정이 아니라 '이 세계'의 설정을 따른다
+    PokeMan.enabled = worldPoke ? worldPoke.enabled !== false : enBefore;
+    const mergedKey = storeKey('pokemerged_' + game.seed);
+    if(worldPoke && !migrated && !localStorage.getItem(mergedKey)){
       // 업데이트 전 세계별 포켓몬 1회 병합 (계정 박스로)
       const old = [...(worldPoke.party || []), ...(worldPoke.box || [])];
       old.forEach(dd => PokeMan.box.push(PokeInst.from(dd)));
@@ -679,6 +683,8 @@ function loadAccountPoke(worldPoke, migrated){
       (worldPoke.caught || []).forEach(s => PokeMan.caught.add(s));
       (worldPoke.badges || []).forEach(s => PokeMan.badges.add(s));
       if(old.length) setTimeout(() => UI.toast('🎒 이 세계의 포켓몬 ' + old.length + '마리를 계정 박스로 옮겼어요!', 5000), 1500);
+      try { localStorage.setItem(mergedKey, '1'); } catch(e){}
+      saveAccountPoke(); // 병합 결과 즉시 저장 (저장 전 종료해도 중복 병합 없음)
     }
     return true;
   }

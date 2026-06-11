@@ -118,7 +118,7 @@ const Account = {
     const legacy = [];
     for(let i = 0; i < localStorage.length; i++){
       const k = localStorage.key(i);
-      if(k && /^pokecraft_(save|guest)_/.test(k) && !k.startsWith('pokecraft_u_')) legacy.push(k);
+      if(k && /^pokecraft_(save_|guest_|pokemon$|ach$)/.test(k) && !k.startsWith('pokecraft_u_')) legacy.push(k);
     }
     legacy.forEach(k => {
       const target = pre + k.replace(/^pokecraft_/, '');

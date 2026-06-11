@@ -1266,6 +1266,7 @@ const Battle = {
   // 체육관 관장 배틀: 3마리 연속, 포획 불가
   async startTrainer(gymType, gymKey){
     if(this.active) return false;
+    if(!PokeMan.party.length || !PokeMan.partyAlive()){ UI.toast('내 포켓몬이 모두 지쳐 있다...'); return false; }
     const custom = typeof gymType === 'object';
     const G = custom ? gymType : GYM_TEAMS[gymType];
     if(!G) return false;
@@ -1301,6 +1302,7 @@ const Battle = {
   },
   async start(wildEnt){
     if(this.active || wildEnt.catching || wildEnt.fainted) return false; // 포획 연출/기절 상태와는 배틀 불가
+    if(!PokeMan.party.length || !PokeMan.partyAlive()){ UI.toast('내 포켓몬이 모두 지쳐 있다...'); return false; }
     this.initDom();
     this.active = true; this.busy = true;
     game.inBattle = true;
@@ -1678,8 +1680,8 @@ const Battle = {
         w2.group.rotation.x = Math.PI / 2;
         if(w2.tag){ w2.group.remove(w2.tag); disposeObject(w2.tag); }
         w2.tag = makeNameTag('😵 ' + w2.inst.name + ' — 볼을 던져 잡자!');
-        w2.tag.position.y = w2.body.h + 0.45;
-        w2.tag.rotation.x = -Math.PI / 2; // 누운 모델 기준 보정
+        // 그룹이 x축 90° 누워있으므로 로컬 -z가 월드 +y가 된다
+        w2.tag.position.set(0, 0, -(w2.body.h + 0.5));
         w2.group.add(w2.tag);
         UI.toast('😵 ' + w2.inst.name + '이(가) 기절했다! 20초 안에 볼을 던지면 잡기 쉽다!', 5000);
       } else {
