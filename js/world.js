@@ -969,8 +969,8 @@ class World {
       if(y < 1 || y >= WORLD_H - 1) continue;
       const cur = this.getBlock(x, y, z);
       if(cur === B.LAVA){
-        // 물과 직접 접촉한 용암 → 흑요석
-        const touchW = this.getBlock(x, y + 1, z) === B.WATER
+        // 물과 직접 접촉한 용암 → 흑요석 (위/아래/옆 전부)
+        const touchW = this.getBlock(x, y + 1, z) === B.WATER || this.getBlock(x, y - 1, z) === B.WATER
           || [[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]].some(([dx,dy,dz]) => this.getBlock(x + dx, y + dy, z + dz) === B.WATER);
         if(touchW) this.setBlock(x, y, z, B.OBSIDIAN);
         continue;

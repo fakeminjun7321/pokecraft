@@ -549,6 +549,21 @@ const STONE_EVOS = {
   [I.MOON_STONE]:    { 30:31, 33:34, 35:36, 39:40 },
 };
 const FOSSIL_POKES = { [I.FOSSIL_HELIX]: 138, [I.FOSSIL_DOME]: 140, [I.FOSSIL_AMBER]: 142 };
+// 진화 전 단계로 거슬러 올라가 베이스 폼 찾기 (알 부화용)
+let _PRE_EVO = null;
+function baseFormOf(sp){
+  if(!_PRE_EVO){
+    _PRE_EVO = {};
+    for(let i = 1; i < SPECIES.length; i++){
+      const s = SPECIES[i];
+      if(s && s.evo && s.evo.to) _PRE_EVO[s.evo.to] = i;
+    }
+    for(const sid in STONE_EVOS) for(const from in STONE_EVOS[sid]) _PRE_EVO[STONE_EVOS[sid][from]] = +from;
+  }
+  let cur = sp, guard = 0;
+  while(_PRE_EVO[cur] && guard++ < 6) cur = _PRE_EVO[cur];
+  return cur;
+}
 // 네더: 불꽃 타입 천국 (파이어는 네더에서 더 잘 나옴)
 SPAWN_TABLES.nether = [[4, 10], [37, 10], [58, 10], [77, 8], [126, 7], [136, 5], [146, 0.5]];
 // 엔드: 에스퍼·고스트의 영역 — 케이시/윤겔라/후딘, 고오스 계열, 슬리퍼, 마임맨 + 뮤츠/뮤
@@ -763,6 +778,7 @@ class WildPoke {
     b.vz = lerp(b.vz, Math.cos(this.dir) * speed, Math.min(1, dt * 8));
     if(b.hitWall && b.onGround && speed > 0) b.vy = 7;
     if(b.inWater) b.vy = Math.max(b.vy, 1.5);
+    if(b.inWater) b.vy = Math.max(b.vy, Math.min(2.2, (SEA + 0.75 - b.y) * 2)); // 수면 부유
     b.update(dt, world);
     // 애니메이션
     this.bob += dt;
@@ -781,7 +797,7 @@ class WildPoke {
 // ---------- 포켓몬 매니저 ----------
 const PokeMan = {
   enabled: true,
-  wilds: [], party: [], box: [],
+  wilds: [], party: [], box: [], egg: null,
   seen: new Set(), caught: new Set(),
   badges: new Set(),
   spawnTimer: 2, regenTimer: 0,
@@ -793,6 +809,19 @@ const PokeMan = {
   },
   update(dt, world, player){
     if(!this.enabled) return;
+    // 🥚 알 부화 카운트다운
+    if(this.egg){
+      this.egg.t -= dt;
+      if(this.egg.t <= 0){
+        const inst = new PokeInst(this.egg.sp, 1);
+        inst.shiny = Math.random() < 1 / 64; // 알에서 샤이니 확률 UP!
+        this.egg = null;
+        const where = this.addCaught(inst);
+        SFX.play('evolve');
+        Particles.spawn(player.body.x, player.body.y + 1.5, player.body.z, 0xfff0a8, 24, 2.5, 1, 2);
+        UI.toast('🐣 알에서 ' + (inst.shiny ? '✨' : '') + inst.name + '이(가) 태어났다!!' + (where === 'box' ? ' (PC로 이동)' : ''), 6000);
+      }
+    }
     for(const w of this.wilds) w.update(dt, world, player);
     for(const w of this.wilds.slice()){
       if(w.catching) continue; // 포획 연출/배틀 중에는 디스폰 금지
@@ -818,6 +847,28 @@ const PokeMan = {
     const i = this.wilds.indexOf(w);
     if(i >= 0) this.wilds.splice(i, 1);
   },
+  // 🌿 풀숲 인카운터: 바로 앞에 야생 등장
+  grassEncounter(pl){
+    const pb = pl.body;
+    const biome = world.biomeAt(Math.floor(pb.x), Math.floor(pb.z));
+    const table = SPAWN_TABLES[biome] || SPAWN_TABLES.plains;
+    if(!table || !table.length) return;
+    const total = table.reduce((s, [, w]) => s + w, 0);
+    let r = Math.random() * total, sp = table[0][0];
+    for(const [id, w] of table){ r -= w; if(r <= 0){ sp = id; break; } }
+    const d0 = pl.dir();
+    const fl = Math.hypot(d0.x, d0.z) || 1;
+    const x = pb.x + d0.x / fl * 2.8, z = pb.z + d0.z / fl * 2.8;
+    const spawnP = world.spawnPoint || { x: 0, z: 0 };
+    const lv = clamp(Math.floor(2 + Math.hypot(x - spawnP.x, z - spawnP.z) / 60 + Math.random() * 5 - 2), 2, 42);
+    const w2 = new WildPoke(sp, lv, x, world.colTop(x, z) + 1, z);
+    w2.update(0.05, world, pl);
+    this.wilds.push(w2);
+    this.seen.add(sp);
+    SFX.play('pop');
+    Particles.spawn(x, w2.body.y + 0.6, z, 0x8ae060, 14, 2, 0.7, 1.5);
+    UI.toast('🌿 풀숲에서 야생 ' + SPECIES[sp].name + '이(가) 튀어나왔다! (R키로 배틀)');
+  },
   trySpawn(world, player){
     for(let att = 0; att < 8; att++){
       const ang = Math.random() * Math.PI * 2;
@@ -825,25 +876,34 @@ const PokeMan = {
       const x = Math.floor(player.body.x + Math.sin(ang) * dist) + 0.5;
       const z = Math.floor(player.body.z + Math.cos(ang) * dist) + 0.5;
       let y;
+      let onWater = false;
       if(world.dim === 'nether'){
         y = world.netherFloorY(Math.floor(x), Math.floor(z));
         if(y < 0) continue;
       } else {
         y = world.colTop(x, z) + 1;
-        if(y <= SEA || y >= WORLD_H - 2) continue;
-        const ground = world.getBlock(x, y - 1, z);
-        if(!BLOCKS[ground].solid) continue;
-        if(world.getBlock(x, y, z) !== B.AIR) continue;
+        if(y >= WORLD_H - 2) continue;
+        if(y <= SEA){
+          // 🌊 수면 스폰: 바다 위에 물 타입이 떠다닌다!
+          if(world.dim !== 'over' || world.getBlock(x, SEA, z) !== B.WATER) continue;
+          y = SEA + 1.0;
+          onWater = true;
+        } else {
+          const ground = world.getBlock(x, y - 1, z);
+          if(!BLOCKS[ground].solid) continue;
+          if(world.getBlock(x, y, z) !== B.AIR) continue;
+        }
       }
       // 물가 체크
-      let waterNear = false;
+      let waterNear = onWater;
       for(let dx = -4; dx <= 4 && !waterNear; dx += 2){
         for(let dz = -4; dz <= 4; dz += 2){
           if(world.getBlock(x + dx, SEA, z + dz) === B.WATER){ waterNear = true; break; }
         }
       }
       const biome = world.biomeAt(Math.floor(x), Math.floor(z));
-      const table = waterNear && Math.random() < 0.5 ? SPAWN_TABLES.water : (SPAWN_TABLES[biome] || SPAWN_TABLES.plains);
+      const table = onWater ? SPAWN_TABLES.water
+        : (waterNear && Math.random() < 0.5 ? SPAWN_TABLES.water : (SPAWN_TABLES[biome] || SPAWN_TABLES.plains));
       const total = table.reduce((s, [, w]) => s + w, 0);
       let r = Math.random() * total, sp = table[0][0];
       for(const [id, w] of table){ r -= w; if(r <= 0){ sp = id; break; } }
@@ -970,6 +1030,7 @@ const PokeMan = {
       box: this.box.map(p => p.serialize()),
       seen: [...this.seen], caught: [...this.caught],
       badges: [...this.badges],
+      egg: this.egg || null,
     };
   },
   deserialize(d){
@@ -980,6 +1041,7 @@ const PokeMan = {
     this.seen = new Set(d.seen || []);
     this.caught = new Set(d.caught || []);
     this.badges = new Set(d.badges || []);
+    this.egg = d.egg || null;
   }
 };
 

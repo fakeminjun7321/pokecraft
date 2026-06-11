@@ -503,6 +503,7 @@ function startGame(opts){
     if(opts.guestSave){
       player.deserialize(opts.guestSave.player);
       loadAccountPoke(opts.guestSave.poke, opts.guestSave.pokeMigrated);
+      loadAccountInv();
     } else {
       const sp = world.spawnPoint;
       player.spawnAt({ x: sp.x, y: sp.y + 2, z: sp.z });
@@ -511,13 +512,14 @@ function startGame(opts){
         if(PokeMan.enabled) player.addItem(I.POKEBALL, 15);
       }
       loadAccountPoke(null, true);
+      loadAccountInv();
       if(opts.starterId && !PokeMan.party.length){
         const starter = new PokeInst(opts.starterId, 5);
         PokeMan.party.push(starter);
         PokeMan.seen.add(opts.starterId);
         PokeMan.caught.add(opts.starterId);
       } else if(PokeMan.party.length){
-        setTimeout(() => UI.toast('👤 계정에 보관된 내 포켓몬과 함께 시작!', 4000), 1200);
+        setTimeout(() => UI.toast('👤 계정에 보관된 내 포켓몬·아이템과 함께 시작!', 4000), 1200);
       }
     }
   } else if(opts.loadData){
@@ -527,6 +529,7 @@ function startGame(opts){
     loadAccountPoke(d.poke, d.pokeMigrated);
     game.time = d.time !== undefined ? d.time : 0.06;
     player.deserialize(d.player);
+    loadAccountInv();
   } else {
     PokeMan.enabled = opts.pokeOn;
     game.time = 0.06;
@@ -538,13 +541,14 @@ function startGame(opts){
       if(opts.pokeOn) player.addItem(I.POKEBALL, 15);
     }
     loadAccountPoke(null, true);
+    loadAccountInv();
     if(opts.starterId && !PokeMan.party.length){
       const starter = new PokeInst(opts.starterId, 5);
       PokeMan.party.push(starter);
       PokeMan.seen.add(opts.starterId);
       PokeMan.caught.add(opts.starterId);
     } else if(PokeMan.party.length){
-      setTimeout(() => UI.toast('👤 계정에 보관된 내 포켓몬과 함께 시작!', 4000), 1200);
+      setTimeout(() => UI.toast('👤 계정에 보관된 내 포켓몬·아이템과 함께 시작!', 4000), 1200);
     }
   }
 
@@ -587,6 +591,7 @@ function saveGame(){
     // 커서/제작칸에 들고 있던 아이템도 저장 (소실 방지)
     pdata.extra = [UI.cursor, ...(UI.craftCells || [])].filter(Boolean);
     saveAccountPoke(); // 포켓몬은 계정 귀속
+    saveAccountInv();  // 인벤토리도 계정 귀속 (서바이벌)
     if(Net.mode === 'guest'){
       // 게스트: 자기 캐릭터만 저장 (세계는 호스트 것, 포켓몬은 계정)
       localStorage.setItem(storeKey('guest_' + game.seed),
@@ -693,6 +698,25 @@ function loadAccountPoke(worldPoke, migrated){
 }
 function saveAccountPoke(){
   try { localStorage.setItem(storeKey('pokemon'), JSON.stringify(PokeMan.serialize())); } catch(e){}
+}
+// 인벤토리/갑옷도 계정 귀속 (서바이벌만 — 크리에이티브 아이템 반입 방지)
+function saveAccountInv(){
+  if(game.mode !== 'survival' || !player) return;
+  try {
+    localStorage.setItem(storeKey('inv'), JSON.stringify({
+      inv: player.inventory, armor: player.armor, health: player.health
+    }));
+  } catch(e){}
+}
+function loadAccountInv(){
+  if(game.mode !== 'survival') return false;
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(storeKey('inv')) || 'null'); } catch(e){}
+  if(!d) return false;
+  player.inventory = (d.inv || new Array(36).fill(null)).map(s => s ? { ...s } : null);
+  player.armor = (d.armor || [null, null, null]).map(s => s ? { ...s } : null);
+  if(d.health > 0) player.health = Math.min(player.maxHealth, d.health);
+  return true;
 }
 
 // ---------- 차원 (오버월드 ↔ 네더) ----------

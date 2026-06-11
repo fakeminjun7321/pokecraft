@@ -13,7 +13,8 @@ const B = {
   LEVER_OFF:42, LEVER_ON:43, LAMP_OFF:44, LAMP_ON:45, IRON_DOOR:46, IRON_DOOR_OPEN:47,
   LAVA:48, NETHERRACK:49, SOULSAND:50, GLOWSTONE:51, NETHERBRICK:52, PORTAL:53, QUARTZ_ORE:54,
   ENDSTONE:55, END_FRAME:56, END_FRAME_LIT:57, END_PORTAL:58, DRAGON_EGG:59, END_CRYSTAL:60,
-  HEAL_MACHINE:61, FOSSIL_MACHINE:62, PC_BLOCK:63, FOSSIL_ORE:64, MYSTIC_ORE:65
+  HEAL_MACHINE:61, FOSSIL_MACHINE:62, PC_BLOCK:63, FOSSIL_ORE:64, MYSTIC_ORE:65,
+  DOOR:66, DOOR_OPEN:67
 };
 // 렌더 타입
 const RT = { SOLID:0, CROSS:1, WATER:2, GLASS:3 };
@@ -41,7 +42,8 @@ const I = {
   POTION_SPEED:190, POTION_JUMP:191, POTION_REGEN:192,
   FLINT_STEEL:193, QUARTZ:194, GLOWDUST:195, BLAZE_ROD:196, ENDER_EYE:197,
   FIRE_STONE:198, WATER_STONE:199, THUNDER_STONE:200, LEAF_STONE:201, MOON_STONE:202,
-  FOSSIL_HELIX:203, FOSSIL_DOME:204, FOSSIL_AMBER:205
+  FOSSIL_HELIX:203, FOSSIL_DOME:204, FOSSIL_AMBER:205,
+  BUCKET:206, WATER_BUCKET:207, LAVA_BUCKET:208
 };
 
 // ----- 타일 인덱스 (아틀라스 16x16 그리드) -----
@@ -58,7 +60,7 @@ const T = {
   LEVER:52, LEVER_ON_T:53, LAMP:54, LAMP_ON_T:55, IRON_DOOR_T:56,
   LAVA_T:57, NETHERRACK_T:58, SOULSAND_T:59, GLOWSTONE_T:60, NETHERBRICK_T:61, PORTAL_T:62, QUARTZ_T:63,
   ENDSTONE_T:64, ENDFRAME_T:65, ENDFRAME_LIT_T:66, ENDPORTAL_T:67, DRAGONEGG_T:68, CRYSTAL_T:69,
-  HEALM_T:70, HEALM_TOP_T:71, FOSSILM_T:72, PC_T:73, FOSSILORE_T:74, MYSTICORE_T:75
+  HEALM_T:70, HEALM_TOP_T:71, FOSSILM_T:72, PC_T:73, FOSSILORE_T:74, MYSTICORE_T:75, DOOR_T:76
 };
 
 // ----- 블록 정의 -----
@@ -142,6 +144,8 @@ defBlock(B.FOSSIL_MACHINE,{ name:'부활 머신', tiles:{top:T.HEALM_TOP_T, bott
 defBlock(B.PC_BLOCK,      { name:'포켓몬 PC', tiles:{top:T.PC_T, bottom:T.PC_T, side:T.PC_T}, hard:2, tool:'pick' });
 defBlock(B.FOSSIL_ORE,    { name:'화석 광석', tiles:{top:T.FOSSILORE_T, bottom:T.FOSSILORE_T, side:T.FOSSILORE_T}, hard:3, tool:'pick', tier:1,
                             drop:(rng)=>[[ [I.FOSSIL_HELIX, I.FOSSIL_DOME, I.FOSSIL_AMBER][Math.floor(rng() * 3)], 1 ]] });
+defBlock(B.DOOR,      { name:'나무 문', tiles:{top:T.DOOR_T, bottom:T.DOOR_T, side:T.DOOR_T}, hard:1.5, tool:'axe' });
+defBlock(B.DOOR_OPEN, { name:'나무 문(열림)', rt:RT.CROSS, solid:false, tiles:{top:T.DOOR_T, bottom:T.DOOR_T, side:T.DOOR_T}, hard:1.5, drop:()=>[[B.DOOR,1]] });
 defBlock(B.MYSTIC_ORE,    { name:'신비한 광석', tiles:{top:T.MYSTICORE_T, bottom:T.MYSTICORE_T, side:T.MYSTICORE_T}, hard:3, tool:'pick', tier:1,
                             drop:(rng)=>[[ [I.FIRE_STONE, I.WATER_STONE, I.THUNDER_STONE, I.LEAF_STONE, I.MOON_STONE][Math.floor(rng() * 5)], 1 ]] });
 defBlock(B.CROP_RIPE,  { name:'밀 (다 자람)', rt:RT.CROSS, solid:false, tiles:{top:T.CROP2, bottom:T.CROP2, side:T.CROP2}, hard:0.05,
@@ -223,6 +227,9 @@ defItem(I.MOON_STONE,    { name:'달의 돌', stack:16 });
 defItem(I.FOSSIL_HELIX,  { name:'조개 화석', stack:16 });
 defItem(I.FOSSIL_DOME,   { name:'돔 화석', stack:16 });
 defItem(I.FOSSIL_AMBER,  { name:'오래된 호박', stack:16 });
+defItem(I.BUCKET,       { name:'양동이', stack:1 });
+defItem(I.WATER_BUCKET, { name:'물 양동이', stack:1 });
+defItem(I.LAVA_BUCKET,  { name:'용암 양동이', stack:1 });
 
 function isBlockId(id){ return id > 0 && id < 100; }
 function itemDef(id){ return isBlockId(id) ? BLOCKS[id] : ITEMS[id]; }
@@ -355,6 +362,7 @@ function buildAtlas(){
   paint(T.PC_T, p=>{ p.fill('#c8b89a'); p.rect(2,2,12,9,'#2a3a48'); p.rect(3,3,10,7,'#48c8e8'); p.rect(4,12,8,2,'#8a7a5a'); p.px(12,12,'#c83a3a'); });
   paint(T.FOSSILORE_T, p=>{ p.fill('#7d7d7d'); p.speck('#6a6a6a', 40); p.px(5,5,'#d8cdb8'); p.px(6,5,'#d8cdb8'); p.px(7,6,'#d8cdb8'); p.px(8,7,'#d8cdb8'); p.px(8,8,'#c8bda8'); p.px(7,9,'#d8cdb8'); p.px(6,9,'#d8cdb8'); p.px(10,4,'#c8bda8'); p.px(4,10,'#c8bda8'); p.px(11,10,'#d8cdb8'); p.px(10,11,'#c8bda8'); });
   paint(T.MYSTICORE_T, p=>{ p.fill('#7d7d7d'); p.speck('#6a6a6a', 40); p.rect(4,4,2,2,'#f08020'); p.rect(10,5,2,2,'#48a8e8'); p.rect(5,10,2,2,'#e8d848'); p.rect(10,10,2,2,'#5ac84a'); p.px(8,7,'#c8b8e8'); p.px(7,8,'#c8b8e8'); });
+  paint(T.DOOR_T, p=>{ p.fill('#9a7547'); p.rect(0,0,1,16,'#7a5a35'); p.rect(15,0,1,16,'#7a5a35'); p.rect(2,2,5,5,'#b8945f'); p.rect(9,2,5,5,'#b8945f'); p.rect(2,9,5,5,'#b8945f'); p.rect(9,9,5,5,'#b8945f'); p.px(12,8,'#3a3a42'); });
   paint(T.QUARTZ_T, p=>{ p.fill('#6e3533'); p.speck('#5a2a28', 40); for(let i=0;i<5;i++){ const x=1+(p.rng()*13|0), y=1+(p.rng()*13|0); p.rect(x,y,2,2,'#e8dcd0'); p.px(x,y,'#f8f0e8'); } });
   paint(T.CROP2, p=>{ for(let i=0;i<6;i++){ const x=1+i*2+(p.rng()*1|0); p.rect(x,4,1,12,'#b5a23c'); p.rect(x,2,1,3,'#d8c455'); p.px(x-1<0?0:x-1,3,'#d8c455'); p.px(x+1>15?15:x+1,4,'#d8c455'); } });
 
@@ -521,6 +529,9 @@ function drawItemIcon(ctx, id){
     case I.FOSSIL_HELIX: P(4,4,'#c8bda8',8,8); P(6,6,'#8a7d68',4,4); P(7,7,'#c8bda8',2,2); P(5,5,'#8a7d68',1,1); break;
     case I.FOSSIL_DOME: P(4,6,'#c8bda8',8,6); P(5,4,'#c8bda8',6,3); P(6,6,'#8a7d68',1,5); P(9,6,'#8a7d68',1,5); break;
     case I.FOSSIL_AMBER: P(5,4,'#c87d1a',6,8); P(6,5,'#e8a838',4,6); P(7,7,'#3a6a2a',2,2); break;
+    case I.BUCKET: P(4,6,'#b8b8c0',8,1); P(4,7,'#9a9aa5',1,5); P(11,7,'#9a9aa5',1,5); P(5,11,'#9a9aa5',6,2); P(5,5,'#7a7a85',6,1); break;
+    case I.WATER_BUCKET: P(4,6,'#b8b8c0',8,1); P(4,7,'#9a9aa5',1,5); P(11,7,'#9a9aa5',1,5); P(5,11,'#9a9aa5',6,2); P(5,6,'#3f76e4',6,3); break;
+    case I.LAVA_BUCKET: P(4,6,'#b8b8c0',8,1); P(4,7,'#9a9aa5',1,5); P(11,7,'#9a9aa5',1,5); P(5,11,'#9a9aa5',6,2); P(5,6,'#f08020',6,3); break;
     case I.ENDER_EYE: P(5,5,'#1a3e2a',6,6); P(4,7,'#1a3e2a',2,3); P(11,6,'#1a3e2a',2,4); P(6,6,'#3aa848',3,3); P(7,7,'#a8f0b8',1,1); break;
     case I.FLINT_STEEL: P(4,5,'#3a3a42',5,5); P(9,8,'#c8c8c8',4,2); P(10,6,'#c8c8c8',2,5); break;
     case I.GOLDEN_APPLE: P(5,5,'#fce14c',6,6); P(4,6,'#fce14c',8,4); P(7,3,'#6b4a2a',1,2); P(8,3,'#3c8a28',2,1); P(5,6,'#fff08c',2,2); break;
@@ -585,6 +596,8 @@ const RECIPES = [
   { p:['IDI','IRI','III'], k:{I:I.IRON_INGOT, D:I.DIAMOND, R:I.REDSTONE}, out:[B.HEAL_MACHINE,1] },
   { p:['IGI','IRI','III'], k:{I:I.IRON_INGOT, G:B.GLASS, R:I.REDSTONE}, out:[B.FOSSIL_MACHINE,1] },
   { p:['GGG','IRI','IPI'], k:{G:B.GLASS, I:I.IRON_INGOT, R:I.REDSTONE, P:B.PLANKS}, out:[B.PC_BLOCK,1] },
+  { p:['I I',' I '], k:{I:I.IRON_INGOT}, out:[I.BUCKET,1] },
+  { p:['PP','PP','PP'], k:{P:B.PLANKS}, out:[B.DOOR,1] },
   { sl:[[I.QUARTZ,4]], out:[I.EMERALD,2] },
 ];
 

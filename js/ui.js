@@ -682,6 +682,12 @@ const UI = {
       fb.onclick = () => { game.followerOn = !game.followerOn; this.openParty(); };
       list.appendChild(fb);
     }
+    if(PokeMan.egg){
+      const eggRow = document.createElement('div');
+      eggRow.className = 'party-row';
+      eggRow.innerHTML = '<div class="party-mid" style="padding:8px"><b>🥚 포켓몬 알</b> — 부화까지 ' + Math.ceil(PokeMan.egg.t) + '초! 무엇이 나올까?</div>';
+      list.appendChild(eggRow);
+    }
     PokeMan.party.forEach((p, i) => {
       const row = document.createElement('div');
       row.className = 'party-row' + (p.hp <= 0 ? ' fainted' : '');

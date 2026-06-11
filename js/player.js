@@ -124,6 +124,15 @@ class Player {
         SFX.play('hurt');
       }
     }
+    // 🌿 풀숲 인카운터: 수풀을 헤치며 걸으면 야생이 튀어나온다!
+    if(PokeMan.enabled && !game.inBattle){
+      this._grassCd = (this._grassCd || 0) - dt;
+      if(this._grassCd <= 0 && Math.hypot(b.vx, b.vz) > 1.5 &&
+         this.world.getBlock(b.x, b.y + 0.2, b.z) === B.TALLGRASS && Math.random() < dt * 0.3){
+        this._grassCd = 12;
+        PokeMan.grassEncounter(this);
+      }
+    }
     // 포탈에 서 있으면 차원 이동 (도착 후 한 번 나갔다 와야 재발동 — 무한 왕복 방지)
     const feetB = this.world.getBlock(b.x, b.y + 0.5, b.z);
     if(feetB === B.PORTAL || feetB === B.END_PORTAL){
@@ -382,6 +391,16 @@ class Player {
         }
         return;
       }
+      if(hit.id === B.DOOR || hit.id === B.DOOR_OPEN){
+        const to = hit.id === B.DOOR ? B.DOOR_OPEN : B.DOOR;
+        this.world.setBlock(hit.bx, hit.by, hit.bz, to);
+        for(const dy of [-1, 1]){ // 위/아래 문짝도 같이
+          const nb = this.world.getBlock(hit.bx, hit.by + dy, hit.bz);
+          if(nb === B.DOOR || nb === B.DOOR_OPEN) this.world.setBlock(hit.bx, hit.by + dy, hit.bz, to);
+        }
+        SFX.play('place');
+        return;
+      }
       if(hit.id === B.IRON_DOOR){ UI.toast('철문은 레버로만 열려요'); return; }
       // 부싯돌과 부시: 흑요석 프레임 점화
       {
@@ -415,6 +434,17 @@ class Player {
         SFX.play('level');
         UI.toast('💖 포켓몬들이 모두 회복했다! 삐리리~');
         if(typeof Ach !== 'undefined') Ach.unlock('heal');
+        // 🥚 같은 종 2마리가 파티에 있으면 알 발견!
+        if(!PokeMan.egg){
+          const cnt = {};
+          let pair = 0;
+          PokeMan.party.forEach(q => { cnt[q.sp] = (cnt[q.sp] || 0) + 1; if(cnt[q.sp] === 2 && !pair) pair = q.sp; });
+          if(pair && Math.random() < 0.4){
+            PokeMan.egg = { sp: baseFormOf(pair), t: 240 };
+            SFX.play('caught');
+            UI.toast('🥚 회복 머신 옆에서 알을 발견했다!! 4분 뒤 부화해요 (P에서 확인)', 6000);
+          }
+        }
         return;
       }
       if(hit.id === B.FOSSIL_MACHINE){
@@ -546,6 +576,43 @@ class Player {
       this.inventory[this.selected] = prev ? { ...prev } : null;
       SFX.play('place');
       UI.toast(itemName(item.id) + ' 착용! (방어 ' + this.armorPts() + ')');
+      UI.updateHotbar();
+      return;
+    }
+    // 양동이: 물/용암 뜨기
+    if(item.id === I.BUCKET){
+      const e2 = this.eye(), d2 = this.dir();
+      for(let t = 0.4; t < this.reach; t += 0.15){
+        const sx2 = e2.x + d2.x * t, sy2 = e2.y + d2.y * t, sz2 = e2.z + d2.z * t;
+        const id2 = this.world.getBlock(sx2, sy2, sz2);
+        if(id2 === B.WATER || id2 === B.LAVA){
+          this.world.setBlock(sx2, sy2, sz2, B.AIR);
+          this.inventory[this.selected] = { id: id2 === B.WATER ? I.WATER_BUCKET : I.LAVA_BUCKET, n: 1 };
+          SFX.play('pop');
+          UI.toast(id2 === B.WATER ? '🪣 물을 펐다!' : '🪣 용암을 펐다! 뜨겁다!!');
+          UI.updateHotbar();
+          return;
+        }
+        if(this.world.isSolid(sx2, sy2, sz2)) break;
+      }
+      UI.toast('물이나 용암을 향해 사용하세요');
+      return;
+    }
+    // 물/용암 붓기
+    if(item.id === I.WATER_BUCKET || item.id === I.LAVA_BUCKET){
+      if(!hit){ UI.toast('블록 옆면을 향해 부으세요'); return; }
+      const cx2 = hit.bx + hit.nx, cy2 = hit.by + hit.ny, cz2 = hit.bz + hit.nz;
+      const cur2 = this.world.getBlock(cx2, cy2, cz2);
+      if(cur2 !== B.AIR && cur2 !== B.TALLGRASS){ UI.toast('빈 공간에만 부을 수 있어요'); return; }
+      if(item.id === I.WATER_BUCKET && this.world.dim === 'nether'){
+        UI.toast('치이익... 네더에서는 물이 증발한다!');
+        this.inventory[this.selected] = { id: I.BUCKET, n: 1 };
+        UI.updateHotbar();
+        return;
+      }
+      this.world.setBlock(cx2, cy2, cz2, item.id === I.WATER_BUCKET ? B.WATER : B.LAVA);
+      this.inventory[this.selected] = { id: I.BUCKET, n: 1 };
+      SFX.play('pop');
       UI.updateHotbar();
       return;
     }
