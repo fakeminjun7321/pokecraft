@@ -80,6 +80,9 @@ const UI = {
     // 업적 버튼
     const ab = $id('ach-btn');
     if(ab) ab.onclick = () => this.openAchievements();
+    // 🤖 게임 도우미
+    const gb = $id('guide-btn');
+    if(gb) gb.onclick = () => Guide.open();
     // BGM 토글
     const bb = $id('bgm-toggle');
     if(bb){
@@ -118,7 +121,7 @@ const UI = {
 
   isOpen(){ return !!this.open; },
   showOverlay(id){
-    ['inv-overlay','furnace-overlay','chest-overlay','party-overlay','dex-overlay','pause-overlay','help-overlay','recipe-overlay','ench-overlay','trade-overlay','ach-overlay'].forEach(o => $id(o).classList.add('hidden'));
+    ['inv-overlay','furnace-overlay','chest-overlay','party-overlay','dex-overlay','pause-overlay','help-overlay','recipe-overlay','ench-overlay','trade-overlay','ach-overlay','guide-overlay'].forEach(o => $id(o).classList.add('hidden'));
     if(id) $id(id).classList.remove('hidden');
   },
 

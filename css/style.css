@@ -376,3 +376,13 @@ body.touch #hotbar .hslot { width: 44px; height: 44px; }
 }
 #fb-bar .fb-key { display: inline-block; min-width: 18px; text-align: center; background: #fff; color: #222; border-radius: 4px; font-weight: bold; margin-right: 6px; padding: 0 3px; }
 #fb-bar .fb-title { font-weight: bold; margin-bottom: 2px; }
+
+/* ===== 🤖 게임 도우미 ===== */
+#guide-log {
+  height: 300px; overflow-y: auto; background: #16202c; border: 2px solid #3a4f66;
+  border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px;
+}
+.guide-msg { padding: 7px 10px; border-radius: 8px; font-size: 14px; line-height: 1.5; max-width: 92%; }
+.guide-msg.bot { background: #283a4e; align-self: flex-start; }
+.guide-msg.me { background: #2e6b46; align-self: flex-end; }
+#guide-input { background: #0f1722; border: 2px solid #3a4f66; border-radius: 6px; color: #fff; padding: 8px; font-size: 14px; }

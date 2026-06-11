@@ -337,6 +337,7 @@ window.addEventListener('load', () => {
   bindInput();
   Music.init();
   Minimap.init();
+  Guide.init();
   Touch.init();
   if(game.touch) document.body.classList.add('touch');
   requestAnimationFrame(loop);
@@ -720,11 +721,7 @@ function tryBattle(classic){
     const d = dist3(w.body.x, w.body.y, w.body.z, player.body.x, player.body.y, player.body.z);
     if(d < bd){ bd = d; best = w; }
   }
-  if(best && !classic && Net.mode !== 'guest'){
-    // ⚔ 기본: 실시간 자율 배틀 (Shift+R = 클래식 배틀 화면)
-    FieldBattle.start(best);
-    return;
-  }
+  // (v43) 자율 배틀 롤백 — R은 항상 클래식 턴제 배틀
   if(!best){
     // 야생이 없으면 근처 친구에게 PvP 대전 신청!
     if(Net.mode !== 'off'){
@@ -1051,6 +1048,14 @@ function runCommand(raw){
       say('🟢 서바이벌: /sethome · /home · /locate village|gym|stronghold|fortress|ruin|monument · /seed');
       setTimeout(() => say('🟡 크리에이티브: /give 이름 [개수] · /tp x z|spawn · /time set day|noon|night|midnight · /heal · /summon 포켓몬 [레벨] [shiny]' + (isGuest ? '' : ' · /gamemode')), 120);
       break;
+    case 'ask': case '질문': {
+      const q = parts.slice(1).join(' ');
+      if(!q){ Guide.open(); break; }
+      Guide.open();
+      const gi = document.getElementById('guide-input');
+      if(gi){ gi.value = q; Guide.submit(); }
+      break;
+    }
     case 'seed':
       say('🌱 시드: ' + game.seed);
       break;
