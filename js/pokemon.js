@@ -1250,9 +1250,10 @@ const Battle = {
         else if(this.ally.spd !== this.wild.spd) allyFirst = this.ally.spd > this.wild.spd;
         else allyFirst = Math.random() < 0.5;
         const actingAlly = this.ally; // 기절→강제 교체된 포켓몬이 대신 공격하는 것 방지
+        const actingEnemy = this.wild;
         if(allyFirst){
           await this.allyAttack(action.move);
-          if(this.active && this.wild.hp > 0) await this.enemyAttack(enemyMove);
+          if(this.active && this.wild === actingEnemy && this.wild.hp > 0) await this.enemyAttack(enemyMove);
         } else {
           await this.enemyAttack(enemyMove);
           if(this.active && this.ally === actingAlly && this.ally.hp > 0) await this.allyAttack(action.move);
