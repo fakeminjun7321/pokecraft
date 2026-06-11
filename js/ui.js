@@ -699,6 +699,7 @@ const UI = {
           <div class="p-hpbar"><div style="width:${hpPct}%; background:${hpPct > 50 ? '#44c944' : hpPct > 20 ? '#e8b820' : '#e23b3b'}"></div></div>
           <div>HP ${p.hp}/${p.maxHp} · 공격 ${p.atk} · 방어 ${p.def} · 스피드 ${p.spd} · EXP ${Math.floor(p.expPct() * 100)}%</div>
           <div class="p-moves">기술: ${p.moves.map(k => MOVES[k].n).join(', ')}</div>
+          <div class="p-moves" style="opacity:.8">${evoInfoText(p)}</div>
         </div>
         <div class="party-btns"></div>`;
       const btns = row.querySelector('.party-btns');
@@ -719,6 +720,17 @@ const UI = {
         b.onclick = () => {
           player.removeItem(I.RARECANDY, 1);
           PokeMan.applyCandy(p);
+          this.openParty();
+        };
+        btns.appendChild(b);
+      }
+      // 연결의 끈 (통신교환 진화)
+      if(TRADE_EVOS[p.sp] && player.countItem(I.LINK_CABLE) > 0){
+        const b = document.createElement('button');
+        b.textContent = '🔗 연결의 끈';
+        b.onclick = () => {
+          player.removeItem(I.LINK_CABLE, 1);
+          PokeMan.useCable(p);
           this.openParty();
         };
         btns.appendChild(b);
@@ -962,3 +974,20 @@ const UI = {
     setTimeout(() => { d.remove(); }, dur || 3000);
   }
 };
+
+
+// 파티 화면용: 진화 조건 안내문
+function evoInfoText(p){
+  const parts = [];
+  const e = p.spec.evo;
+  if(e){
+    if(e.special === 'eevee') parts.push('🌍 Lv.25+ 주변 지형에 따라 진화 (물가/사막/평원)');
+    else if(e.lv && e.to) parts.push('⬆ Lv.' + e.lv + ' → ' + SPECIES[e.to].name);
+  }
+  if(typeof TRADE_EVOS !== 'undefined' && TRADE_EVOS[p.sp]) parts.push('🔗 연결의 끈 → ' + SPECIES[TRADE_EVOS[p.sp]].name);
+  for(const sidStr of Object.keys(STONE_EVOS)){
+    const sid = +sidStr;
+    if(STONE_EVOS[sid][p.sp]) parts.push('🪨 ' + itemName(sid) + ' → ' + SPECIES[STONE_EVOS[sid][p.sp]].name);
+  }
+  return parts.length ? '진화: ' + parts.join(' · ') : '⭐ 최종 형태';
+}

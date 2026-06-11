@@ -549,6 +549,29 @@ const STONE_EVOS = {
   [I.MOON_STONE]:    { 30:31, 33:34, 35:36, 39:40 },
 };
 const FOSSIL_POKES = { [I.FOSSIL_HELIX]: 138, [I.FOSSIL_DOME]: 140, [I.FOSSIL_AMBER]: 142 };
+// 통신교환 진화 (연결의 끈으로 레벨 무관 즉시 진화 — 레벨 38 진화도 그대로 가능)
+const TRADE_EVOS = { 64:65, 67:68, 75:76, 93:94 };
+// 진화 세리머니: 빛 + 사운드 + 모델 갱신 + 축하 메시지
+function evolveCeremony(inst, to){
+  const isPartner = PokeMan.party[0] === inst;
+  const fent = (typeof Follower !== 'undefined' && Follower.ent && isPartner) ? Follower.ent : null;
+  const pos = fent ? fent.body : player.body;
+  SFX.play('evolve');
+  for(let i = 0; i < 5; i++){
+    setTimeout(() => Particles.spawn(pos.x, pos.y + 0.9, pos.z, i % 2 ? 0xffffff : 0xffe97a, 20, 2.8, 1, 2), i * 200);
+  }
+  const fromName = inst.name;
+  inst.doEvolve(to);
+  if(fent) Follower.sp = 0; // 새 모습으로 리빌드
+  setTimeout(() => {
+    SFX.play('caught');
+    UI.toast('🎉 축하합니다! ' + fromName + '이(가) ' + SPECIES[to].name + '(으)로 진화했다!!', 6000);
+  }, 700);
+}
+// 진화 확인 (정식 게임처럼 취소 가능!)
+function confirmEvolve(inst, to){
+  return confirm('어라...?! ' + inst.name + '의 모습이...!\n\n' + SPECIES[to].name + '(으)로 진화시킬까요?\n(취소해도 다음 레벨업 때 다시 물어봐요)');
+}
 // 진화 전 단계로 거슬러 올라가 베이스 폼 찾기 (알 부화용)
 let _PRE_EVO = null;
 function baseFormOf(sp){
@@ -990,10 +1013,13 @@ const PokeMan = {
   useStone(inst, stoneId){
     const map = STONE_EVOS[stoneId];
     if(!map || !map[inst.sp]) return false;
-    const to = map[inst.sp];
-    inst.doEvolve(to);
-    SFX.play('evolve');
-    UI.toast('🌟 ' + SPECIES[to].name + '(으)로 진화했다!');
+    evolveCeremony(inst, map[inst.sp]);
+    return true;
+  },
+  useCable(inst){
+    const to = TRADE_EVOS[inst.sp];
+    if(!to) return false;
+    evolveCeremony(inst, to);
     return true;
   },
   reviveFossil(fossilId){
@@ -1028,10 +1054,8 @@ const PokeMan = {
       else if(e.type === 'evolve'){
         let target = e.to;
         while(target){
-          const old = p.name;
-          p.doEvolve(target);
-          SFX.play('evolve');
-          UI.toast(old + '은(는) ' + p.name + '(으)로 진화했다!');
+          if(!confirmEvolve(p, target)){ UI.toast(p.name + '의 진화를 멈췄다'); break; }
+          evolveCeremony(p, target);
           target = p.evolveTarget();
         }
       }
@@ -1154,7 +1178,10 @@ const Follower = {
         for(const ev of evs){
           if(ev.type === 'level'){ UI.toast(par.name + '은(는) 레벨 ' + ev.lv + '이(가) 되었다!'); SFX.play('level'); }
           else if(ev.type === 'move') UI.toast(par.name + '은(는) ' + MOVES[ev.move].n + '을(를) 배웠다!');
-          else if(ev.type === 'evolve'){ par.doEvolve(ev.to); UI.toast('🌟 ' + SPECIES[ev.to].name + '(으)로 진화했다!'); SFX.play('evolve'); this.sp = 0; }
+          else if(ev.type === 'evolve'){
+            if(confirmEvolve(par, ev.to)) evolveCeremony(par, ev.to);
+            else UI.toast(par.name + '의 진화를 멈췄다');
+          }
         }
       }
     }
@@ -1627,16 +1654,21 @@ const Battle = {
       } else if(e.type === 'move'){
         await this.say(this.ally.name + '은(는) ' + MOVES[e.move].n + '을(를) 배웠다!');
       } else if(e.type === 'evolve'){
-        // 연쇄 진화까지 처리 (예: 한 번에 20레벨 오른 경우)
+        // 연쇄 진화까지 처리 — 정식 게임처럼 취소 가능!
         let target = e.to;
         while(target){
           await this.say('어...?! ' + this.ally.name + '의 모습이...!');
+          if(!confirm(this.ally.name + '을(를) ' + SPECIES[target].name + '(으)로 진화시킬까요?\n(취소해도 다음 레벨업 때 다시 물어봐요)')){
+            await this.say(this.ally.name + '의 진화가 멈췄다!');
+            break;
+          }
           SFX.play('evolve');
+          if(this.mA) Particles.spawn(this.mA.root.position.x, this.mA.root.position.y + 0.8, this.mA.root.position.z, 0xffe97a, 22, 2.8, 1, 2);
           const oldName = this.ally.name;
           this.ally.doEvolve(target);
           this.setModel('A', this.ally.sp, this.ally.shiny);
           this.updateBars();
-          await this.say(oldName + '은(는) ' + this.ally.name + '(으)로 진화했다!');
+          await this.say('🎉 ' + oldName + '은(는) ' + this.ally.name + '(으)로 진화했다!');
           target = this.ally.evolveTarget();
         }
       }

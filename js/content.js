@@ -43,7 +43,7 @@ const I = {
   FLINT_STEEL:193, QUARTZ:194, GLOWDUST:195, BLAZE_ROD:196, ENDER_EYE:197,
   FIRE_STONE:198, WATER_STONE:199, THUNDER_STONE:200, LEAF_STONE:201, MOON_STONE:202,
   FOSSIL_HELIX:203, FOSSIL_DOME:204, FOSSIL_AMBER:205,
-  BUCKET:206, WATER_BUCKET:207, LAVA_BUCKET:208
+  BUCKET:206, WATER_BUCKET:207, LAVA_BUCKET:208, LINK_CABLE:209
 };
 
 // ----- 타일 인덱스 (아틀라스 16x16 그리드) -----
@@ -230,6 +230,7 @@ defItem(I.FOSSIL_AMBER,  { name:'오래된 호박', stack:16 });
 defItem(I.BUCKET,       { name:'양동이', stack:1 });
 defItem(I.WATER_BUCKET, { name:'물 양동이', stack:1 });
 defItem(I.LAVA_BUCKET,  { name:'용암 양동이', stack:1 });
+defItem(I.LINK_CABLE,   { name:'연결의 끈', stack:4 });
 
 function isBlockId(id){ return id > 0 && id < 100; }
 function itemDef(id){ return isBlockId(id) ? BLOCKS[id] : ITEMS[id]; }
@@ -529,6 +530,7 @@ function drawItemIcon(ctx, id){
     case I.FOSSIL_HELIX: P(4,4,'#c8bda8',8,8); P(6,6,'#8a7d68',4,4); P(7,7,'#c8bda8',2,2); P(5,5,'#8a7d68',1,1); break;
     case I.FOSSIL_DOME: P(4,6,'#c8bda8',8,6); P(5,4,'#c8bda8',6,3); P(6,6,'#8a7d68',1,5); P(9,6,'#8a7d68',1,5); break;
     case I.FOSSIL_AMBER: P(5,4,'#c87d1a',6,8); P(6,5,'#e8a838',4,6); P(7,7,'#3a6a2a',2,2); break;
+    case I.LINK_CABLE: P(3,7,'#48a8e8',3,3); P(10,7,'#48a8e8',3,3); for(let i=0;i<5;i++) P(5+i,8+((i%2)|0),'#8a8a95',1,1); P(4,8,'#aee0f5',1,1); P(11,8,'#aee0f5',1,1); break;
     case I.BUCKET: P(4,6,'#b8b8c0',8,1); P(4,7,'#9a9aa5',1,5); P(11,7,'#9a9aa5',1,5); P(5,11,'#9a9aa5',6,2); P(5,5,'#7a7a85',6,1); break;
     case I.WATER_BUCKET: P(4,6,'#b8b8c0',8,1); P(4,7,'#9a9aa5',1,5); P(11,7,'#9a9aa5',1,5); P(5,11,'#9a9aa5',6,2); P(5,6,'#3f76e4',6,3); break;
     case I.LAVA_BUCKET: P(4,6,'#b8b8c0',8,1); P(4,7,'#9a9aa5',1,5); P(11,7,'#9a9aa5',1,5); P(5,11,'#9a9aa5',6,2); P(5,6,'#f08020',6,3); break;
@@ -597,6 +599,7 @@ const RECIPES = [
   { p:['IGI','IRI','III'], k:{I:I.IRON_INGOT, G:B.GLASS, R:I.REDSTONE}, out:[B.FOSSIL_MACHINE,1] },
   { p:['GGG','IRI','IPI'], k:{G:B.GLASS, I:I.IRON_INGOT, R:I.REDSTONE, P:B.PLANKS}, out:[B.PC_BLOCK,1] },
   { p:['I I',' I '], k:{I:I.IRON_INGOT}, out:[I.BUCKET,1] },
+  { sl:[[I.IRON_INGOT,2],[I.REDSTONE,2],[I.ENDERPEARL,1]], out:[I.LINK_CABLE,1] },
   { p:['PP','PP','PP'], k:{P:B.PLANKS}, out:[B.DOOR,1] },
   { sl:[[I.QUARTZ,4]], out:[I.EMERALD,2] },
 ];
