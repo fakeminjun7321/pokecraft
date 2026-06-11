@@ -194,6 +194,14 @@ const MOB_DEFS = {
       const wingL = makeBox(g, 3.4, 0.12, 1.8, '#2a2a36', -2.2, 1.7, 0);
       const wingR = makeBox(g, 3.4, 0.12, 1.8, '#2a2a36', 2.2, 1.7, 0);
       return { group: g, legs: [wingL, wingR], head }; } },
+  trademan: { name:'교환 상인', hp:25, speed:0.7, w:0.3, h:1.8, npc:true, trademan:true,
+    model:()=> { const m = buildBiped({ body:'#7a5ab8', headC:'#e0b08a', legC:'#4a3a78', armC:'#7a5ab8', legH:0.7, bh:0.75 });
+      makeBox(m.head, 0.56, 0.16, 0.56, '#5a4398', 0, 0.32, 0);   // 보라 모자
+      makeBox(m.head, 0.2, 0.1, 0.2, '#e8c84a', 0, 0.44, 0);      // 금장식
+      makeBox(m.group, 0.34, 0.3, 0.2, '#a8825a', 0, 0.95, -0.3); // 등짐
+      makeBox(m.group, 0.12, 0.12, 0.12, '#e84d60', -0.12, 1.12, -0.42); // 몬스터볼 짐
+      makeBox(m.group, 0.12, 0.12, 0.12, '#f5f0e0', 0.12, 1.12, -0.42);
+      return m; } },
   rocket: { name:'로켓단', hp:25, speed:1.1, w:0.3, h:1.8, npc:true, rocket:true,
     model:()=> { const m = buildBiped({ body:'#1a1a22', headC:'#e0b08a', legC:'#15151c', armC:'#1a1a22', legH:0.75, bh:0.7 });
       // 가슴의 빨간 R
@@ -241,7 +249,7 @@ class Mob {
     this.dead = false;
     this.angry = false; this.hopT = 0; this.tpT = 3; this.bobSeed = Math.random() * 10; this.lavaAcc = 0;
     this.love = 0; this.tamed = false; this.babyT = 0; // 번식/펫/아기
-    if(this.def.npc) this.setTag(this.def.leader ? '체육관 관장' : this.def.trainer ? '트레이너 · 우클릭 배틀!' : this.def.rocket ? '💀 로켓단' : '주민');
+    if(this.def.npc) this.setTag(this.def.leader ? '체육관 관장' : this.def.trainer ? '트레이너 · 우클릭 배틀!' : this.def.rocket ? '💀 로켓단' : this.def.trademan ? '🎒 교환 상인 · 우클릭!' : '주민');
   }
   makeBaby(){
     this.babyT = 180; // 3분 뒤 성체
@@ -265,6 +273,15 @@ class Mob {
       return;
     }
     const b = this.body, def = this.def;
+    // 교환 상인: 시간이 지나면 떠난다
+    if(def.trademan){
+      this._life = (this._life === undefined ? 180 : this._life) - dt;
+      if(this._life <= 0){
+        UI.toast('🎒 교환 상인이 떠났다...');
+        this._poof = true;
+        return;
+      }
+    }
     // 로켓단: 플레이어를 발견하면 쫓아와 강제 배틀!
     if(def.rocket){
       this._life = (this._life === undefined ? 150 : this._life) - dt;
@@ -687,6 +704,20 @@ const MobManager = {
           this.list.push(rk);
           UI.toast('💀 로켓단이 나타났다!! 이쪽으로 다가온다...', 4500);
           SFX.play('fuse');
+        }
+      }
+      // 🎒 교환 상인: 가끔 찾아온다
+      if(PokeMan.enabled && PokeMan.party.length && !this.list.some(x => x.type === 'trademan') && Math.random() < 0.05){
+        const ma = Math.random() * Math.PI * 2;
+        const mx2 = px + Math.sin(ma) * 20, mz2 = pz + Math.cos(ma) * 20;
+        const my2 = world.colTop(mx2, mz2) + 1.1;
+        if(my2 > SEA + 2){
+          const tm = new Mob('trademan', mx2, my2, mz2);
+          tm._life = 180;
+          if(typeof TradeNPC !== 'undefined') TradeNPC.makeOffer(tm);
+          this.list.push(tm);
+          UI.toast('🎒 교환 상인이 찾아왔다! 좋은 포켓몬을 갖고 있을지도?', 5000);
+          SFX.play('pop');
         }
       }
       // 떠돌이 트레이너: 주변에 1명 유지

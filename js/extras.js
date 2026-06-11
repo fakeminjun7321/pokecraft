@@ -32,6 +32,7 @@ const ACH_DEFS = {
   trainer:       { n:'라이벌',         d:'떠돌이 트레이너에게 승리했다' },
   heal:          { n:'포켓몬센터',     d:'회복 머신을 사용했다' },
   rocket:        { n:'정의의 트레이너', d:'로켓단을 물리쳤다!' },
+  merchant:      { n:'장사꾼의 친구',   d:'교환 상인과 거래했다' },
 };
 const Ach = {
   _key(){ return storeKey('ach'); },

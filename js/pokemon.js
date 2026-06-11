@@ -2596,6 +2596,59 @@ const Battle = {
 };
 
 
+// ---------- 🎒 교환 상인 NPC ----------
+const TradeNPC = {
+  // 상인의 제안 생성: [주는 포켓몬] ↔ [원하는 타입]
+  makeOffer(npc){
+    const maxLv = PokeMan.party.length ? Math.max(...PokeMan.party.map(q => q.level)) : 10;
+    // 희귀도 3~4 위주로 제안 (전설 제외)
+    let sp = 0, tries = 0;
+    while(tries++ < 50){
+      const cand = 1 + Math.floor(Math.random() * (SPECIES.length - 1));
+      if(!SPECIES[cand] || LEGENDARIES.includes(cand)) continue;
+      const rare = SPECIES[cand].spawn.rare || 2;
+      if(rare >= 3 || (rare === 2 && Math.random() < 0.25)){ sp = cand; break; }
+    }
+    if(!sp) sp = 133; // 폴백: 이브이
+    const offer = new PokeInst(sp, clamp(maxLv + Math.floor(Math.random() * 5) - 1, 5, 60));
+    offer.shiny = Math.random() < 1 / 100; // 상인의 물건은 샤이니 확률 UP!
+    const wantTypes = ['fire', 'water', 'grass', 'electric', 'normal', 'bug', 'flying', 'rock'];
+    npc.tradeOffer = { inst: offer, wantType: wantTypes[Math.floor(Math.random() * wantTypes.length)] };
+  },
+  interact(npc){
+    if(!npc.tradeOffer) this.makeOffer(npc);
+    const o = npc.tradeOffer;
+    if(!o) return;
+    const tn = TYPES[o.wantType].n;
+    UI.toast('🎒 상인: ' + (o.inst.shiny ? '✨' : '') + o.inst.name + ' Lv.' + o.inst.level + '을(를) 주겠다! ' + tn + ' 타입 포켓몬과 바꾸자! (파티에서 선택)', 6000);
+    this._activeNpc = npc;
+    UI.openParty();
+  },
+  // 파티 UI에서 호출: 이 포켓몬으로 교환 가능?
+  canTrade(p){
+    const npc = this._activeNpc;
+    if(!npc || npc.dead || !npc.tradeOffer) return false;
+    return p.spec.types.includes(npc.tradeOffer.wantType);
+  },
+  doTrade(p){
+    const npc = this._activeNpc;
+    if(!npc || npc.dead || !npc.tradeOffer) return;
+    const o = npc.tradeOffer;
+    const pi = PokeMan.party.indexOf(p), bi = PokeMan.box.indexOf(p);
+    if(pi >= 0) PokeMan.party.splice(pi, 1); else if(bi >= 0) PokeMan.box.splice(bi, 1);
+    const got = o.inst;
+    PokeMan.addCaught(got);
+    SFX.play('caught');
+    UI.toast('🎒 ' + p.name + ' ↔ ' + (got.shiny ? '✨' : '') + got.name + ' 교환 완료! 상인: 좋은 거래였다!', 5500);
+    if(TRADE_EVOS[got.sp]) setTimeout(() => evolveCeremony(got, TRADE_EVOS[got.sp]), 1200);
+    npc.tradeOffer = null;
+    this._activeNpc = null;
+    npc._poof = true; // 거래 후 떠난다
+    if(typeof Ach !== 'undefined') Ach.unlock('merchant');
+    if(UI.open === 'party') UI.openParty();
+  }
+};
+
 // ---------- 멀티 포켓몬 교환 ----------
 const TradeMan = {
   _offer: null,      // 내가 보낸 제안 { to, inst }

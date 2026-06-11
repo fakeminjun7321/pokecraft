@@ -750,6 +750,13 @@ const UI = {
           btns.appendChild(b);
         }
       }
+      // 🎒 교환 상인과 교환
+      if(typeof TradeNPC !== 'undefined' && TradeNPC._activeNpc && TradeNPC.canTrade(p)){
+        const b = document.createElement('button');
+        b.textContent = '🎒 상인과 교환';
+        b.onclick = () => { TradeNPC.doTrade(p); };
+        btns.appendChild(b);
+      }
       // 멀티: 포켓몬 교환 (제안 받은 상태면 '이걸로 교환')
       if(typeof Net !== 'undefined' && Net.mode !== 'off'){
         if(typeof TradeMan !== 'undefined' && TradeMan._incoming){

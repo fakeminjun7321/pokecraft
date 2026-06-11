@@ -71,11 +71,14 @@ class Player {
     // 라이드 타입 — 종별 성능!
     const rideInfo = game.riding && PokeMan.party.length ? rideStatsFor(PokeMan.party[0].sp) : null;
     const ride = rideInfo ? rideInfo.t : null;
+    // 수면 위인가? (서핑 글라이딩용)
+    const surfWaterY = ride === 'surf' ? this._waterSurfaceY(b.x, b.z) : -1;
+    const onSurfWater = surfWaterY >= 0;
     let speed;
-    if(ride === 'fly') speed = rideInfo.speed;
-    else if(ride === 'surf' && b.inWater) speed = rideInfo.speed;
-    else if(ride === 'run') speed = rideInfo.speed;
-    else if(ride === 'surf' && !b.inWater) speed = rideInfo.land;
+    if(ride === 'fly') speed = rideInfo.speed * (sprint ? 1.3 : 1);          // ✈ 라이딩 부스트
+    else if(ride === 'surf' && onSurfWater) speed = rideInfo.speed * (sprint ? 1.3 : 1);
+    else if(ride === 'run') speed = rideInfo.speed * (sprint ? 1.25 : 1);
+    else if(ride === 'surf') speed = rideInfo.land;
     else if(this.fly) speed = sprint ? 14 : 9;
     else if(b.inWater) speed = 2.6;
     else speed = sprint ? 5.8 : 4.3;
@@ -85,17 +88,33 @@ class Player {
     if(cType === 'electric') speed *= 1.1;
     if(cType === 'water' && b.inWater) speed *= 1.5;
 
-    const accel = b.onGround || this.fly || b.inWater ? 10 : 3;
+    // 라이딩 중엔 가속/제동이 빠릿하게
+    const accel = ride ? 16 : (b.onGround || this.fly || b.inWater ? 10 : 3);
     b.vx = lerp(b.vx, mx * speed, Math.min(1, dt * accel));
     b.vz = lerp(b.vz, mz * speed, Math.min(1, dt * accel));
 
-    if(ride === 'fly' || (ride === 'surf' && b.inWater)){
-      // 포켓몬 라이드: 자유 비행 / 수면 유영
+    if(ride === 'fly'){
+      // ✈ 비행: 시선 방향으로 난다! (위를 보며 W = 상승) + Space/Shift 보조
       b.noGravity = true;
-      const vmax = ride === 'fly' ? rideInfo.vert : 5;
-      b.vy = lerp(b.vy, (jump ? 1 : 0) * vmax + (down ? -1 : 0) * vmax, Math.min(1, dt * 8));
-      if(ride === 'fly' && Math.abs(b.vy) > 1 && typeof Ach !== 'undefined') Ach.unlock('first_fly');
-      if(ride === 'surf' && typeof Ach !== 'undefined') Ach.unlock('first_surf');
+      let vy = 0;
+      if(fw > 0) vy += Math.sin(this.pitch) * speed * fw;   // 시선 기울기 비행
+      if(jump) vy += rideInfo.vert;
+      if(down) vy -= rideInfo.vert;
+      b.vy = lerp(b.vy, clamp(vy, -rideInfo.vert * 1.4, rideInfo.vert * 1.4), Math.min(1, dt * 10));
+      if(Math.abs(b.vy) > 1 && typeof Ach !== 'undefined') Ach.unlock('first_fly');
+    } else if(ride === 'surf' && onSurfWater){
+      // 🌊 서핑: 수면 위를 미끄러진다 (보트처럼!) — Space로 돌고래 점프
+      b.noGravity = true;
+      const targetY = surfWaterY + 0.15;
+      if(jump && Math.abs(b.y - targetY) < 0.5){
+        b.vy = 7.5; // 돌고래 점프!
+        b.noGravity = false;
+      } else if(b.y > targetY + 0.6){
+        b.noGravity = false; // 점프 후 낙하
+      } else {
+        b.vy = lerp(b.vy, clamp((targetY - b.y) * 10, -6, 8), Math.min(1, dt * 12));
+      }
+      if(typeof Ach !== 'undefined') Ach.unlock('first_surf');
     } else if(this.fly){
       b.noGravity = true;
       b.vy = lerp(b.vy, (jump ? 1 : 0) * 9 + (down ? -1 : 0) * 9, Math.min(1, dt * 10));
@@ -105,6 +124,11 @@ class Player {
       if(jump){
         if(b.inWater) b.vy = Math.min(b.vy + 28 * dt, 3.4);
         else if(b.onGround) b.vy = jumpV;
+      }
+      // 🏇 질주 자동 턱넘기: 말처럼 1칸 장애물을 알아서 뛰어넘는다
+      if(ride === 'run' && b.hitWall && b.onGround && (fw || rt)){
+        b.vy = Math.max(b.vy, 9);
+        b.vx = mx * speed; b.vz = mz * speed;
       }
     }
 
@@ -158,7 +182,8 @@ class Player {
     } else { this.portalT = 0; this.portalArmed = true; }
     if(game.portalCd > 0) game.portalCd -= dt;
 
-    // 익사
+    // 익사 (서핑 라이딩 중엔 숨 안 참)
+    if(ride === 'surf'){ this.air = 10; }
     const eyeBlock = this.world.getBlock(b.x, b.y + 1.62, b.z);
     if(BLOCKS[eyeBlock].rt === RT.WATER){
       this.air -= dt;
@@ -215,6 +240,15 @@ class Player {
     }
   }
 
+  // 발밑/주변의 수면 y (물이 아니면 -1)
+  _waterSurfaceY(x, z){
+    for(let y = Math.floor(this.body.y + 1.2); y >= Math.floor(this.body.y - 2.5) && y > 0; y--){
+      if(this.world.getBlock(x, y, z) === B.WATER && this.world.getBlock(x, y + 1, z) !== B.WATER){
+        return y + 1; // 물 블록 윗면
+      }
+    }
+    return -1;
+  }
   raycastBlock(){
     const e = this.eye(), d = this.dir();
     return this.world.raycast(e.x, e.y, e.z, d.x, d.y, d.z, this.reach);
@@ -354,6 +388,7 @@ class Player {
         if(npc.def.npc){
           if(npc.def.leader && npc.gym) startGymBattle(npc.gym);
           else if(npc.def.rocket) startRocketBattle(npc);
+          else if(npc.def.trademan) TradeNPC.interact(npc);
           else if(npc.def.trainer) startNPCBattle(npc);
           else if(npc.type === 'villager'){ UI.openTrade(); if(typeof Ach !== 'undefined') Ach.unlock('trade'); }
           return;
