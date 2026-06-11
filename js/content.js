@@ -42,7 +42,7 @@ const I = {
   POTION_SPEED:190, POTION_JUMP:191, POTION_REGEN:192,
   FLINT_STEEL:193, QUARTZ:194, GLOWDUST:195, BLAZE_ROD:196, ENDER_EYE:197,
   FIRE_STONE:198, WATER_STONE:199, THUNDER_STONE:200, LEAF_STONE:201, MOON_STONE:202,
-  FOSSIL_HELIX:203, FOSSIL_DOME:204, FOSSIL_AMBER:205,
+  FOSSIL_HELIX:203, FOSSIL_DOME:204, FOSSIL_AMBER:205, POKE_BAG:211,
   BUCKET:206, WATER_BUCKET:207, LAVA_BUCKET:208, LINK_CABLE:209, MEGA_STONE:210
 };
 
@@ -234,6 +234,7 @@ defItem(I.WATER_BUCKET, { name:'물 양동이', stack:1 });
 defItem(I.LAVA_BUCKET,  { name:'용암 양동이', stack:1 });
 defItem(I.LINK_CABLE,   { name:'연결의 끈', stack:4 });
 defItem(I.MEGA_STONE,   { name:'메가스톤', stack:1 });
+defItem(I.POKE_BAG,  { name:'포켓몬 가방', stack:1 });
 
 function isBlockId(id){ return id > 0 && id < 100; }
 function itemDef(id){ return isBlockId(id) ? BLOCKS[id] : ITEMS[id]; }
@@ -490,6 +491,7 @@ function drawItemIcon(ctx, id){
       break;
     }
     case I.POTION: P(6,3,'#c8c8d8',4,2); P(5,5,'#d8e8f0',6,3); P(4,8,'#f06b9a',8,5); P(5,7,'#f06b9a',6,2); P(5,9,'#f898bc',2,2); break;
+    case I.POKE_BAG: P(3,4,'#d84a3a',10,8); P(3,8,'#e8e8e8',10,4); P(6,6,'#f5f5f5',4,4); P(7,7,'#3a3a3a',2,2); P(5,3,'#b83a2a',6,2); break;
     case I.SUPERPOTION: P(6,3,'#c8c8d8',4,2); P(5,5,'#d8e8f0',6,3); P(4,8,'#58c8e8',8,5); P(5,7,'#58c8e8',6,2); P(5,9,'#9adcf5',2,2); break;
     case I.HYPERPOTION: P(6,3,'#c8c8d8',4,2); P(5,5,'#d8e8f0',6,3); P(4,8,'#e8b820',8,5); P(5,7,'#e8b820',6,2); P(5,9,'#ffe97a',2,2); break;
     case I.SEEDS: P(5,6,'#4fae3a',2,2); P(9,5,'#4fae3a',2,2); P(7,9,'#4fae3a',2,2); P(10,10,'#3e8f2c',2,2); P(4,11,'#3e8f2c',2,2); break;
@@ -678,3 +680,10 @@ const SMELT = {
 // 연료: 제련 가능 아이템 수
 const FUEL = { [I.COAL]:8, [B.PLANKS]:1.5, [B.LOG]:1.5, [I.STICK]:0.5, [B.CRAFT]:1.5 };
 const SMELT_TIME = 4; // 1개당 초
+
+// 🎒 포켓몬 가방에 자동 수납되는 아이템들
+const POKE_ITEM_SET = new Set([
+  I.POKEBALL, I.GREATBALL, I.ULTRABALL, I.POTION, I.SUPERPOTION, I.HYPERPOTION,
+  I.RARECANDY, I.FIRE_STONE, I.WATER_STONE, I.THUNDER_STONE, I.LEAF_STONE, I.MOON_STONE,
+  I.FOSSIL_HELIX, I.FOSSIL_DOME, I.FOSSIL_AMBER, I.LINK_CABLE, I.MEGA_STONE
+].filter(x => x !== undefined));

@@ -361,6 +361,29 @@ function showStarterScreen(cb){
   scr.classList.remove('hidden');
 }
 
+// ---------- 🎒 포켓몬 가방 지급 + 기존 포켓몬 아이템 이동 ----------
+function ensurePokeBag(){
+  if(!PokeMan.enabled || !player) return;
+  player.migratePokeItems = function(){
+    let moved = 0;
+    for(let i = 0; i < 36; i++){
+      const st = this.inventory[i];
+      if(st && POKE_ITEM_SET.has(st.id)){ PokeMan.bagAdd(st.id, st.n); this.inventory[i] = null; moved += st.n; }
+    }
+    if(moved) UI.updateHotbar();
+    return moved;
+  };
+  const moved = player.migratePokeItems();
+  if(!player.inventory.some(st => st && st.id === I.POKE_BAG)){
+    // 핫바 빈 칸 우선으로 가방 지급
+    let slot = -1;
+    for(let i = 0; i < 9; i++){ if(!player.inventory[i]){ slot = i; break; } }
+    if(slot < 0) for(let i = 9; i < 36; i++){ if(!player.inventory[i]){ slot = i; break; } }
+    if(slot >= 0){ player.inventory[slot] = { id: I.POKE_BAG, n: 1 }; UI.updateHotbar(); }
+  }
+  if(moved) UI.toast('🎒 포켓몬 아이템 ' + moved + '개가 포켓몬 가방으로 들어갔어요! (V키로 열기)', 6000);
+}
+
 // ---------- 저사양 모드 ----------
 function applyPerfMode(on){
   game.perfMode = !!on;
@@ -614,6 +637,8 @@ function startGame(opts){
     loading.classList.add('hidden');
     document.getElementById('hud').classList.remove('hidden');
     game.started = true;
+    ensurePokeBag();
+    if(typeof QuestMan !== 'undefined') QuestMan.init();
     Music.start();
     Minimap.reset();
     // 월드 준비 전에 접속해서 대기 중이던 게스트 처리
@@ -1311,6 +1336,7 @@ function bindInput(){
       if(ki !== undefined) FieldBattle.command(ki);
     }
     if(e.code === 'KeyG') toggleRide();
+    if(e.code === 'KeyV' && !UI.isOpen() && PokeMan.enabled) UI.openBag();
     if(e.code === 'KeyM'){
       if(e.shiftKey){
         Minimap.visible = !Minimap.visible;

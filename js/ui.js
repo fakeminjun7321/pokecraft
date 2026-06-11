@@ -83,6 +83,9 @@ const UI = {
     // 🤖 게임 도우미
     const gb = $id('guide-btn');
     if(gb) gb.onclick = () => Guide.open();
+    // 📜 일일 도전
+    const qb = $id('quest-btn');
+    if(qb) qb.onclick = () => QuestMan.openPanel();
     // BGM 토글
     const bb = $id('bgm-toggle');
     if(bb){
@@ -121,7 +124,7 @@ const UI = {
 
   isOpen(){ return !!this.open; },
   showOverlay(id){
-    ['inv-overlay','furnace-overlay','chest-overlay','party-overlay','dex-overlay','pause-overlay','help-overlay','recipe-overlay','ench-overlay','trade-overlay','ach-overlay','guide-overlay'].forEach(o => $id(o).classList.add('hidden'));
+    ['inv-overlay','furnace-overlay','chest-overlay','party-overlay','dex-overlay','pause-overlay','help-overlay','recipe-overlay','ench-overlay','trade-overlay','ach-overlay','guide-overlay','bag-overlay','quest-overlay'].forEach(o => $id(o).classList.add('hidden'));
     if(id) $id(id).classList.remove('hidden');
   },
 
@@ -306,6 +309,10 @@ const UI = {
   _slotClick(slot, e, right){
     const { ref, opts } = slot;
     const cur = this.cursor;
+    // 🎒 포켓몬 가방은 내 인벤토리 밖으로 옮길 수 없다 (상자/화로/제작칸 금지)
+    if(cur && cur.id === I.POKE_BAG && !ref.inv && !opts.output){ this.toast('포켓몬 가방은 인벤토리에만 둘 수 있어요!'); return; }
+    const _src = ref.get();
+    if(_src && _src.id === I.POKE_BAG && e.shiftKey){ this.toast('포켓몬 가방은 항상 지니고 있어야 해요!'); return; }
     if(opts.output){
       const s = ref.get();
       if(!s) return;
@@ -430,7 +437,7 @@ const UI = {
     return n;
   },
   _invRef(i){
-    return { get: () => player.inventory[i], set: v => { player.inventory[i] = v; } };
+    return { inv: true, get: () => player.inventory[i], set: v => { player.inventory[i] = v; } };
   },
   _buildInvGrids(invGridId, barGridId){
     const ig = $id(invGridId), bg = $id(barGridId);
@@ -713,6 +720,48 @@ const UI = {
   },
 
   // ---------- 파티 ----------
+  _bagTab: '전체',
+  openBag(){
+    if(!PokeMan.enabled){ this.toast('포켓몬 모드가 꺼져 있어요'); return; }
+    player.migratePokeItems && player.migratePokeItems();
+    this.showOverlay('bag-overlay');
+    this.open = 'bag';
+    if(document.exitPointerLock) document.exitPointerLock();
+    const CATS = {
+      '전체': () => true,
+      '몬스터볼': id => !!ballBonus(id),
+      '회복': id => !!(itemDef(id) && itemDef(id).pokeHeal) || id === I.RARECANDY,
+      '진화/도구': id => [I.FIRE_STONE,I.WATER_STONE,I.THUNDER_STONE,I.LEAF_STONE,I.MOON_STONE,I.LINK_CABLE,I.MEGA_STONE].includes(id),
+      '화석': id => [I.FOSSIL_HELIX,I.FOSSIL_DOME,I.FOSSIL_AMBER].includes(id),
+    };
+    const tabs = $id('bag-tabs');
+    tabs.innerHTML = '';
+    Object.keys(CATS).forEach(cn => {
+      const b = document.createElement('button');
+      b.textContent = cn; b.className = 'mini-btn' + (cn === this._bagTab ? ' active' : '');
+      b.onclick = () => { this._bagTab = cn; this.openBag(); };
+      tabs.appendChild(b);
+    });
+    $id('bag-ball-info').textContent = '장착한 볼: ' + itemName(PokeMan.activeBall);
+    const list = $id('bag-list');
+    list.innerHTML = '';
+    const ids = Object.keys(PokeMan.bag).map(Number).filter(id => PokeMan.bag[id] > 0 && CATS[this._bagTab](id))
+      .sort((a, b) => a - b);
+    if(!ids.length){ list.innerHTML = '<p style="padding:10px">이 칸은 비어 있어요. 포켓몬 아이템을 얻으면 자동으로 가방에 들어와요!</p>'; }
+    ids.forEach(id => {
+      const row = document.createElement('div');
+      row.className = 'bag-row' + (ballBonus(id) && id === PokeMan.activeBall ? ' equipped' : '');
+      row.innerHTML = `<img src="${getIconURL(id)}" alt=""><span class="bag-name">${itemName(id)}</span><span class="bag-cnt">×${PokeMan.bag[id]}</span>`;
+      if(ballBonus(id) && id !== PokeMan.activeBall){
+        const b = document.createElement('button');
+        b.className = 'mini-btn'; b.textContent = '장착';
+        b.onclick = () => { PokeMan.activeBall = id; this.toast(itemName(id) + ' 장착! 가방을 들고 우클릭으로 던져요'); this.openBag(); };
+        row.appendChild(b);
+      }
+      list.appendChild(row);
+    });
+  },
+
   openParty(){
     if(!PokeMan.enabled){ this.toast('포켓몬 모드가 꺼져 있습니다'); return; }
     this.closeOnly();
@@ -858,9 +907,26 @@ const UI = {
     // 보관함
     if(PokeMan.box.length){
       const h = document.createElement('h4');
-      h.textContent = '보관함 (' + PokeMan.box.length + '마리)';
+      h.textContent = '보관함 (' + PokeMan.box.length + '마리) ';
+      // 🔍 타입/진화단계/정렬 필터
+      this._boxF = this._boxF || { type:'all', stage:'all', sort:'recent' };
+      const mkSel = (opts, cur, fn) => {
+        const sel = document.createElement('select');
+        opts.forEach(([v, label]) => { const o = document.createElement('option'); o.value = v; o.textContent = label; if(v === cur) o.selected = true; sel.appendChild(o); });
+        sel.onchange = () => { fn(sel.value); this.openParty(); };
+        sel.style.cssText = 'margin-left:6px; font-size:12px;';
+        return sel;
+      };
+      h.appendChild(mkSel([['all','타입: 전체'], ...Object.keys(TYPES).map(t => [t, TYPES[t].n])], this._boxF.type, v => this._boxF.type = v));
+      h.appendChild(mkSel([['all','단계: 전체'],['1','1단계'],['2','2단계'],['3','3단계(최종)']], this._boxF.stage, v => this._boxF.stage = v));
+      h.appendChild(mkSel([['recent','잡은 순'],['level','레벨 높은 순'],['dex','도감 번호 순']], this._boxF.sort, v => this._boxF.sort = v));
       list.appendChild(h);
-      PokeMan.box.forEach((p, i) => {
+      let boxView = PokeMan.box.map((p, i) => ({ p, i }));
+      if(this._boxF.type !== 'all') boxView = boxView.filter(x => x.p.spec.types.includes(this._boxF.type));
+      if(this._boxF.stage !== 'all') boxView = boxView.filter(x => evoStage(x.p.sp) === +this._boxF.stage);
+      if(this._boxF.sort === 'level') boxView.sort((a, b) => b.p.level - a.p.level);
+      else if(this._boxF.sort === 'dex') boxView.sort((a, b) => a.p.sp - b.p.sp);
+      boxView.forEach(({ p, i }) => {
         const row = document.createElement('div');
         row.className = 'party-row';
         row.innerHTML = `<img src="${portraitURL(p.sp)}" alt=""><div class="party-mid"><b>${p.shiny ? '✨' : ''}${p.name}</b> Lv.${p.level}</div><div class="party-btns"></div>`;

@@ -295,6 +295,9 @@ class Player {
     }
   }
   breakBlock(hit, withDrops){
+    if(withDrops && typeof QuestMan !== 'undefined' &&
+       [B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.REDSTONE_ORE, B.DIAMOND_ORE, B.MYSTIC_ORE].includes(hit.id))
+      QuestMan.onMineOre(hit.id);
     if(hit.id === B.END_CRYSTAL){
       this.world.setBlock(hit.bx, hit.by, hit.bz, B.AIR);
       explode(this.world, hit.bx + 0.5, hit.by + 0.5, hit.bz + 0.5, 2, false);
@@ -601,6 +604,18 @@ class Player {
       }
       return;
     }
+    // 🎒 포켓몬 가방: 우클릭 = 장착한 볼 던지기, 웅크리고 우클릭 = 가방 열기
+    if(item.id === I.POKE_BAG){
+      if(!PokeMan.enabled){ UI.toast('포켓몬 모드가 꺼져 있습니다'); return; }
+      if(game.keys['ShiftLeft'] || game.keys['ShiftRight']){ UI.openBag(); return; }
+      const ballId = PokeMan.bestBall();
+      if(!ballId){ UI.toast('가방에 몬스터볼이 없어요! (철+레드스톤으로 제작)'); return; }
+      const e = this.eye(), d = this.dir();
+      Projectiles.throwBall(e.x + d.x * 0.4, e.y + d.y * 0.4 - 0.1, e.z + d.z * 0.4, d.x, d.y, d.z, ballId);
+      PokeMan.bagRemove(ballId, 1);
+      UI.updateHotbar();
+      return;
+    }
     // 포켓볼
     if(ballBonus(item.id)){
       if(!PokeMan.enabled){ UI.toast('포켓몬 모드가 꺼져 있습니다'); return; }
@@ -823,6 +838,7 @@ class Player {
   dropSelected(all){
     const s = this.inventory[this.selected];
     if(!s || this.dead) return;
+    if(s.id === I.POKE_BAG){ UI.toast('포켓몬 가방은 버릴 수 없어요!'); return; }
     const n = all ? s.n : 1;
     const e = this.eye(), d = this.dir();
     ItemDrops.spawn(e.x + d.x * 0.6, e.y - 0.2, e.z + d.z * 0.6, s.id, n, s.dur, s.ench,
@@ -922,6 +938,12 @@ class Player {
 
   // ----- 인벤토리 -----
   addItem(id, n, dur, ench){
+    // 🎒 포켓몬 아이템은 포켓몬 가방으로 자동 수납
+    if(typeof POKE_ITEM_SET !== 'undefined' && POKE_ITEM_SET.has(id) &&
+       typeof PokeMan !== 'undefined' && PokeMan.enabled){
+      PokeMan.bagAdd(id, n);
+      return 0;
+    }
     const max = maxStack(id);
     if(max > 1 && !ench){
       for(let i = 0; i < 36; i++){
@@ -947,7 +969,9 @@ class Player {
     return n;
   }
   countItem(id){
-    return this.inventory.reduce((s, it) => s + (it && it.id === id ? it.n : 0), 0);
+    const inv = this.inventory.reduce((s, it) => s + (it && it.id === id ? it.n : 0), 0);
+    const bag = (typeof PokeMan !== 'undefined' && PokeMan.bag) ? (PokeMan.bag[id] || 0) : 0;
+    return inv + bag;
   }
   removeItem(id, n){
     for(let i = 0; i < 36 && n > 0; i++){
@@ -959,6 +983,7 @@ class Player {
       }
     }
     UI.updateHotbar();
+    if(n > 0 && typeof PokeMan !== 'undefined' && PokeMan.bag) n = PokeMan.bagRemove(id, n);
   }
   serialize(){
     const pets = MobManager.list.filter(m => m.tamed).length;

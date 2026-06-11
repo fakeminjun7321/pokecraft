@@ -1162,6 +1162,7 @@ const MEGA_FORMS = new Set([3, 6, 9, 65, 80, 94, 115, 127, 130, 142, 150, 181, 2
 const TRADE_EVOS = { 64:65, 67:68, 75:76, 93:94, 117:230, 79:199, 95:208, 123:212, 137:233 };
 // 진화 세리머니: 빛 + 사운드 + 모델 갱신 + 축하 메시지
 function evolveCeremony(inst, to){
+  if(typeof QuestMan !== 'undefined') QuestMan.onEvolve();
   const isPartner = PokeMan.party[0] === inst;
   const fent = (typeof Follower !== 'undefined' && Follower.ent && isPartner) ? Follower.ent : null;
   const pos = fent ? fent.body : player.body;
@@ -1531,6 +1532,7 @@ const PokeMan = {
   wilds: [], party: [], box: [], egg: null,
   seen: new Set(), caught: new Set(),
   badges: new Set(),
+  bag: {}, activeBall: 150, // I.POKEBALL
   spawnTimer: 2, regenTimer: 0,
   reset(){
     this.wilds.forEach(w => { scene.remove(w.group); disposeObject(w.group); });
@@ -1604,7 +1606,7 @@ const PokeMan = {
     const spawnP = world.spawnPoint || { x: 0, z: 0 };
     const pmax = this.party.length ? Math.max(...this.party.map(q => q.level)) : 5;
     let lv = Math.floor(4 + Math.hypot(x - spawnP.x, z - spawnP.z) / 45 + Math.random() * 8 - 3);
-    lv = clamp(Math.max(lv, pmax - 5 + Math.floor(Math.random() * 10)), 3, 70);
+    lv = clamp(Math.max(lv, pmax - 3 + Math.floor(Math.random() * 9)), 3, 75);
     const w2 = new WildPoke(sp, lv, x, world.colTop(x, z) + 1, z);
     w2.update(0.05, world, pl);
     this.wilds.push(w2);
@@ -1658,7 +1660,7 @@ const PokeMan = {
       // 야생 레벨 = max(거리 기반, 내 파티 최고레벨 ±5) — 강해질수록 야생도 강해진다!
       const pmax = this.party.length ? Math.max(...this.party.map(q => q.level)) : 5;
       let lv = Math.floor(4 + d / 45 + Math.random() * 8 - 3);
-      lv = Math.max(lv, pmax - 5 + Math.floor(Math.random() * 10));
+      lv = Math.max(lv, pmax - 3 + Math.floor(Math.random() * 9));
       lv = clamp(lv, 3, 70);
       if(world.dim === 'nether') lv = clamp(lv + 10, 12, 75); // 네더는 강한 개체
       if(world.dim === 'end') lv = clamp(lv + 15, 25, 80);    // 엔드는 최상위 개체
@@ -1666,6 +1668,17 @@ const PokeMan = {
       if(game.isNight() && world.dim === 'over' && Math.random() < 0.012) sp = 150;
       if(LEGENDARIES.includes(sp)) lv = Math.max(lv, 50 + Math.floor(Math.random() * 15));
       const wp = new WildPoke(sp, lv, x, y + 0.1, z);
+      // 👑 보스 야생 (1.2% — 파티 Lv20+): 강하지만 보상이 크다!
+      const pmaxB = this.party.length ? Math.max(...this.party.map(q => q.level)) : 0;
+      if(pmaxB >= 20 && Math.random() < 0.012 && !LEGENDARIES.includes(wp.inst.sp)){
+        wp.boss = true;
+        wp.inst.level = Math.min(85, wp.inst.level + 8 + Math.floor(Math.random() * 5));
+        wp.inst.calc(); wp.inst.maxHp = Math.floor(wp.inst.maxHp * 2.2); wp.inst.hp = wp.inst.maxHp;
+        wp.inst.updateMoves();
+        wp.group.scale.multiplyScalar(1.45);
+        wp.setTag('👑 보스 ' + wp.inst.name + ' Lv.' + wp.inst.level);
+        UI.toast('👑 보스 ' + wp.inst.name + '이(가) 나타났다! 쓰러뜨리면 큰 보상이!', 6000);
+      }
       this.wilds.push(wp);
       this.seen.add(sp);
       if(LEGENDARIES.includes(sp)){
@@ -1683,6 +1696,7 @@ const PokeMan = {
     this.seen.add(inst.sp);
     const isNew = !this.caught.has(inst.sp);
     this.caught.add(inst.sp);
+    if(typeof QuestMan !== 'undefined') QuestMan.onCatch(inst);
     // 🎁 포획 보상: 어떤 포켓몬이든 잡으면 파티 선두가 경험치 획득!
     if(this.party.length && this.party[0] !== inst){
       const lead = this.party[0];
@@ -1812,6 +1826,7 @@ const PokeMan = {
       seen: [...this.seen], caught: [...this.caught],
       badges: [...this.badges],
       egg: this.egg || null,
+      bag: this.bag, activeBall: this.activeBall,
     };
   },
   deserialize(d){
@@ -1823,6 +1838,24 @@ const PokeMan = {
     this.caught = new Set(d.caught || []);
     this.badges = new Set(d.badges || []);
     this.egg = d.egg || null;
+    this.bag = d.bag || {};
+    this.activeBall = d.activeBall || I.POKEBALL;
+  },
+  // ---------- 🎒 포켓몬 가방 ----------
+  bagAdd(id, n){ this.bag[id] = (this.bag[id] || 0) + n; if(UI.open === 'bag') UI.openBag(); },
+  bagCount(id){ return this.bag[id] || 0; },
+  bagRemove(id, n){
+    const have = this.bag[id] || 0, take = Math.min(have, n);
+    this.bag[id] = have - take;
+    if(this.bag[id] <= 0) delete this.bag[id];
+    if(UI.open === 'bag') UI.openBag();
+    return n - take;
+  },
+  bestBall(){
+    for(const id of [this.activeBall, I.ULTRABALL, I.GREATBALL, I.POKEBALL]){
+      if(this.bagCount(id) > 0) return id;
+    }
+    return 0;
   }
 };
 
@@ -2598,6 +2631,12 @@ const Battle = {
     SFX.play('faint');
     if(this.mE) this.mE.root.rotation.x = Math.PI / 2;
     await this.say('야생 ' + this.wild.name + '은(는) 쓰러졌다!');
+    if(typeof QuestMan !== 'undefined' && !this.trainer && !this.pvp) QuestMan.onDefeatWild(this.wild);
+    if(this.wildEnt && this.wildEnt.boss){
+      player.addItem(I.RARECANDY, 2); player.addItem(I.ULTRABALL, 2); player.addItem(I.EMERALD, 4);
+      await this.say('👑 보스 보상! 이상한사탕 2개 + 하이퍼볼 2개 + 에메랄드 4개!');
+      if(typeof QuestMan !== 'undefined') QuestMan.onBoss();
+    }
     const exp = Math.floor(this.wild.spec.bx * this.wild.level / 4) + 1;
     await this.say(this.ally.name + '은(는) 경험치 ' + exp + '을(를) 얻었다!');
     const evs = this.ally.gainExp(exp);
@@ -2643,6 +2682,7 @@ const Battle = {
     }
     if(this.trainer){
       await this.say(this.trainer.name + ': 훌륭한 승부였다...!');
+      if(typeof QuestMan !== 'undefined') QuestMan.onTrainerWin();
       if(this.trainer.custom && this.trainer.rocket){
         const em = 3 + Math.floor(Math.random() * 4);
         player.addItem(I.EMERALD, em);

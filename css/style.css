@@ -386,3 +386,20 @@ body.touch #hotbar .hslot { width: 44px; height: 44px; }
 .guide-msg.bot { background: #283a4e; align-self: flex-start; }
 .guide-msg.me { background: #2e6b46; align-self: flex-end; }
 #guide-input { background: #0f1722; border: 2px solid #3a4f66; border-radius: 6px; color: #fff; padding: 8px; font-size: 14px; }
+
+/* ===== 🎒 포켓몬 가방 / 📜 일일 도전 ===== */
+#bag-tabs { display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap; }
+#bag-tabs button.active { background:#3e8a4f; }
+#bag-list { max-height:340px; overflow-y:auto; display:flex; flex-direction:column; gap:5px; }
+.bag-row { display:flex; align-items:center; gap:10px; background:#1d2a38; border-radius:6px; padding:6px 10px; color:#fff; }
+.bag-row img { width:34px; height:34px; image-rendering:pixelated; }
+.bag-row .bag-name { flex:1; font-size:14px; }
+.bag-row .bag-cnt { font-weight:bold; color:#ffd866; min-width:40px; text-align:right; }
+.bag-row.equipped { outline:2px solid #ffd866; }
+.quest-row { background:#1d2a38; border-radius:6px; padding:8px 12px; margin-bottom:6px; color:#fff; }
+.quest-row.done { opacity:.65; }
+.quest-text { font-size:14px; margin-bottom:5px; }
+.quest-bar { height:8px; background:#0f1722; border-radius:4px; overflow:hidden; }
+.quest-bar > div { height:100%; background:#3fa9f5; transition:width .3s; }
+.quest-row.done .quest-bar > div { background:#44c944; }
+.quest-prog { font-size:12px; text-align:right; color:#aaa; margin-top:3px; }
