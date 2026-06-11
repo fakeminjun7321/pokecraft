@@ -539,6 +539,31 @@ function startNPCBattle(npc){
   Battle.startTrainer({ name: names[Math.floor(Math.random() * names.length)], team, mob: npc }, null);
 }
 
+// 💀 로켓단 강제 배틀
+function startRocketBattle(npc){
+  if(game.inBattle || !PokeMan.enabled) return;
+  if(!PokeMan.party.length || !PokeMan.partyAlive()){
+    npc.battledT = 20;
+    UI.toast('로켓단: 흥! 싸울 포켓몬도 없는 녀석은 볼일 없다!');
+    return;
+  }
+  npc.battledT = 99999; // 배틀 중 재발동 방지
+  const boss = !!npc.rocketBoss;
+  const maxLv = Math.max(...PokeMan.party.map(q => q.level));
+  const pool = boss ? [31, 34, 53, 24, 110, 89] : [19, 23, 41, 52, 88, 109, 42, 24];
+  const n = boss ? 3 : (Math.random() < 0.5 ? 2 : 3);
+  const team = [];
+  for(let i = 0; i < n; i++){
+    team.push([pool[(Math.random() * pool.length) | 0], clamp(maxLv - 1 + Math.floor(Math.random() * (boss ? 6 : 4)), 3, 60)]);
+  }
+  SFX.play('fuse');
+  Battle.startTrainer({
+    name: boss ? '로켓단 간부' : '로켓단 조무래기',
+    team, custom: true, rocket: true, mob: npc,
+    introLine: '로켓단: 나약한 트레이너의 포켓몬은 우리가 접수한다!!'
+  }, null);
+}
+
 const LEGENDARIES = [144, 145, 146, 149, 150, 151];
 // 진화의 돌: 돌 아이템 → { 현재 도감번호: 진화 도감번호 }
 const STONE_EVOS = {
@@ -1415,7 +1440,7 @@ const Battle = {
     this.hideSub();
     this.updateBars();
     this.menuEnabled(false);
-    await this.say(custom ? (G.name + '이(가) 승부를 걸어왔다!') : ('체육관 관장 ' + G.name + '이(가) 승부를 걸어왔다!'));
+    await this.say(custom ? (G.introLine || (G.name + '이(가) 승부를 걸어왔다!')) : ('체육관 관장 ' + G.name + '이(가) 승부를 걸어왔다!'));
     await this.say(G.name + ': 가랏, ' + this.wild.name + '!');
     await this.say('가랏! ' + this.ally.name + '!');
     this.busy = false;
@@ -1773,6 +1798,20 @@ const Battle = {
     }
     if(this.trainer){
       await this.say(this.trainer.name + ': 훌륭한 승부였다...!');
+      if(this.trainer.custom && this.trainer.rocket){
+        const em = 3 + Math.floor(Math.random() * 4);
+        player.addItem(I.EMERALD, em);
+        let loot = '에메랄드 ' + em + '개';
+        if(Math.random() < 0.4){ player.addItem(I.RARECANDY, 1); loot += ' + 이상한사탕'; }
+        if(Math.random() < 0.25){ player.addItem(I.ULTRABALL, 2); loot += ' + 하이퍼볼 2개'; }
+        if(this.trainer.mob && this.trainer.mob.rocketBoss && Math.random() < 0.5){ player.addItem(I.LINK_CABLE, 1); loot += ' + 연결의 끈'; }
+        await this.say('로켓단: 기, 기억해 둬라아아!! (연기와 함께 사라졌다)');
+        await this.say('빼앗겼던 ' + loot + '를 되찾았다!');
+        if(typeof Ach !== 'undefined') Ach.unlock('rocket');
+        if(this.trainer.mob) this.trainer.mob._poof = true;
+        this.end('win');
+        return;
+      }
       if(this.trainer.custom){
         const em = 2 + Math.floor(Math.random() * 3);
         player.addItem(I.EMERALD, em);
@@ -1855,6 +1894,23 @@ const Battle = {
     return false;
   },
   end(result){
+    // 로켓단전 뒷처리: 지면 도둑질, 도망치면 다시 쫓아옴
+    if(this.trainer && this.trainer.rocket && this.trainer.mob){
+      const mob = this.trainer.mob;
+      if(result === 'lose'){
+        const stolen = Math.min(player.countItem(I.EMERALD), 3);
+        if(stolen > 0){
+          player.removeItem(I.EMERALD, stolen);
+          UI.toast('💀 로켓단이 에메랄드 ' + stolen + '개를 훔쳐서 사라졌다!!', 5000);
+        } else {
+          UI.toast('💀 로켓단: 훔칠 것도 없잖아! (비웃으며 사라졌다)', 5000);
+        }
+        mob._poof = true;
+      } else if(result === 'run'){
+        mob.battledT = 18; // 곧 다시 쫓아온다...
+        UI.toast('로켓단: 어딜 도망가!!');
+      }
+    }
     if(this.pvp && !this.pvpMirror && this._pvpOpp){
       Net.sendTo(this._pvpOpp, { t: 'pvpEvt', e: { k: 'end', r: result } });
     }

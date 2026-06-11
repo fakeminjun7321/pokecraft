@@ -343,6 +343,7 @@ class Player {
         const held = this.currentItem();
         if(npc.def.npc){
           if(npc.def.leader && npc.gym) startGymBattle(npc.gym);
+          else if(npc.def.rocket) startRocketBattle(npc);
           else if(npc.def.trainer) startNPCBattle(npc);
           else if(npc.type === 'villager'){ UI.openTrade(); if(typeof Ach !== 'undefined') Ach.unlock('trade'); }
           return;

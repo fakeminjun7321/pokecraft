@@ -31,6 +31,7 @@ const ACH_DEFS = {
   fossil:        { n:'고고학자',       d:'화석에서 포켓몬을 부활시켰다' },
   trainer:       { n:'라이벌',         d:'떠돌이 트레이너에게 승리했다' },
   heal:          { n:'포켓몬센터',     d:'회복 머신을 사용했다' },
+  rocket:        { n:'정의의 트레이너', d:'로켓단을 물리쳤다!' },
 };
 const Ach = {
   _key(){ return storeKey('ach'); },
