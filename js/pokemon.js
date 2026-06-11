@@ -690,6 +690,11 @@ const DEX = {
 384:['레쿠쟈','dragon,flying',105,150,90,95,3,0,0,'s',1.4,'#48b858','#ffe97a','m,end',5],
 385:['지라치','steel,psychic',100,100,100,100,3,0,0,'f',.6,'#ffe97a','#e8e8f5','end',5],
 386:['테오키스','psychic',50,150,50,150,3,0,0,'b',1,'#e84d3a','#48a8d8','end',5],
+// ⚡ 신급 포켓몬 — 자연 스폰 없음, '신의 오브'로만 소환
+483:['디아루가','steel,dragon',100,120,120,90,2,0,0,'q',1.5,'#4a6ad8','#8aa0c8','',5],
+484:['펄기아','water,dragon',90,120,100,100,2,0,0,'b',1.45,'#e8d0e0','#d889b8','',5],
+487:['기라티나','ghost,dragon',150,100,120,90,2,0,0,'s',1.5,'#5a5a6a','#c8b830','',5],
+493:['아르세우스','normal',120,120,120,120,2,0,0,'q',1.4,'#e8e8e0','#c8b830','',5],
 };
 
 // 디테일 모델 (대표 포켓몬은 손으로 만든 모델 유지)
@@ -1027,6 +1032,29 @@ DETAIL[385] = { form:'float', s:0.55, o:{ body:'#f5e8c8' },
     makeBox(m.body,0.4,0.08,0.05,'#7ab8e8',0,-0.02,0.43);
     [[-0.2,0.3],[0.2,0.3]].forEach(([x,y])=>makeBox(m.body,0.1,0.1,0.05,'#7ab8e8',x,y,0.43)); } };
 
+// ⚡ 신급 모델
+DETAIL[483] = { form:'quad', s:1.5, o:{ body:'#4a6ad8', hs:0.6, bh:0.68, bd:1.05, legH:0.5, legW:0.24 },
+  deco:m=>{ makeBox(m.group,0.16,0.5,0.16,'#8aa0c8',0,0.85,0.42); makeBox(m.group,0.3,0.3,0.08,'#7ee8f5',0,0.8,0.5);
+    makeBox(m.head,0.5,0.12,0.12,'#8aa0c8',0,0.34,0.05); makeBox(m.head,0.1,0.3,0.1,'#8aa0c8',-0.25,0.3,-0.05); makeBox(m.head,0.1,0.3,0.1,'#8aa0c8',0.25,0.3,-0.05);
+    const f=makeBox(m.group,0.07,0.5,0.7,'#3a5ac8',0,1.05,-0.3); f.rotation.x=0.3;
+    [-1,1].forEach(d=>makeBox(m.group,0.06,0.2,0.55,'#8aa0c8',d*0.4,0.75,-0.1)); } };
+DETAIL[484] = { form:'biped', s:1.45, o:{ body:'#e8d0e0', headC:'#e8d0e0', legH:0.5, bh:0.7, bw:0.55, armW:0.15 },
+  deco:m=>{ [-1,1].forEach(d=>{ makeBox(m.group,0.22,0.22,0.22,'#d889b8',d*0.42,1.15,0); const w=makeBox(m.group,0.07,0.5,0.42,'#e8d0e0',d*0.42,1.0,-0.3); w.rotation.z=d*0.5; });
+    makeBox(m.head,0.12,0.32,0.12,'#d889b8',-0.18,0.34,-0.02); makeBox(m.head,0.12,0.32,0.12,'#d889b8',0.18,0.34,-0.02);
+    makeBox(m.head,0.34,0.1,0.3,'#d8c0d0',0,-0.16,0.18);
+    makeBox(m.group,0.16,0.16,0.5,'#e8d0e0',0,0.5,-0.45); } };
+DETAIL[487] = { form:'serpent', s:1.5, o:{ body:'#5a5a6a', headC:'#6a6a7a', segs:6, segSize:0.46, rise:true },
+  deco:m=>{ m.segs.forEach((sg,i)=>{ if(i%2===0) makeBox(sg,0.52,0.1,0.1,'#c8b830',0,0,0);
+      [-1,1].forEach(d=>{ const w=makeBox(sg,0.05,0.3,0.16,'#1a1a22',d*0.26,0.2,0); w.rotation.z=d*0.6; }); });
+    makeBox(m.head,0.55,0.1,0.1,'#c8b830',0,0.18,0.1); makeBox(m.head,0.1,0.28,0.1,'#c8b830',-0.22,0.36,-0.02); makeBox(m.head,0.1,0.28,0.1,'#c8b830',0.22,0.36,-0.02);
+    [-0.14,0.14].forEach(ex=>makeBox(m.head,0.07,0.05,0.04,'#e23b3b',ex,0.04,0.27));
+    GHOSTLY(m.group); } };
+DETAIL[493] = { form:'quad', s:1.4, o:{ body:'#e8e8e0', hs:0.55, bh:0.6, bd:1.05, legH:0.62, legW:0.16, legC:'#c8b830' },
+  deco:m=>{ const ring=[[0.45,0],[0.32,0.32],[0,0.45],[-0.32,0.32],[-0.45,0],[-0.32,-0.32],[0,-0.45],[0.32,-0.32]];
+    ring.forEach(([dx,dy])=>makeBox(m.group,0.1,0.1,0.07,'#c8b830',dx,0.95+dy*0.7,-0.05));
+    makeBox(m.head,0.4,0.1,0.1,'#a8a89a',0,0.3,0.05); makeBox(m.head,0.1,0.22,0.1,'#4ad88a',-0.2,0.32,-0.05); makeBox(m.head,0.1,0.22,0.1,'#4ad88a',0.2,0.32,-0.05);
+    makeBox(m.group,0.34,0.18,0.2,'#d8d8c8',0,0.4,0.45); } };
+
 // DEX 테이블 → SPECIES 구성
 const BIOME_MAP = { p:'plains', f:'forest', d:'desert', m:'mountain', s:'snow', w:'water' };
 for(const idStr in DEX){
@@ -1104,9 +1132,10 @@ function startRocketBattle(npc){
 
 // 물 밖으로 못 나오는 종 — 수면에서만 스폰
 const WATER_ONLY = new Set([129, 116, 117, 230, 90, 91, 120, 121, 222, 223, 224, 226, 320, 321, 349, 350, 366, 367, 368, 369, 370, 382]);
+const GOD_POKES = [483, 484, 487, 493];
 const LEGENDARIES = [144, 145, 146, 149, 150, 151,
   243, 244, 245, 249, 250, 251,                       // 2세대: 삼견수·루기아·칠색조·세레비
-  377, 378, 379, 380, 381, 382, 383, 384, 385, 386]; // 3세대: 레지 삼총사·라티·날씨 트리오·지라치·테오키스
+  377, 378, 379, 380, 381, 382, 383, 384, 385, 386, 483, 484, 487, 493]; // 3세대: 레지 삼총사·라티·날씨 트리오·지라치·테오키스
 // 진화의 돌: 돌 아이템 → { 현재 도감번호: 진화 도감번호 }
 const STONE_EVOS = {
   [I.FIRE_STONE]:    { 37:38, 58:59, 133:136 },
@@ -1398,7 +1427,10 @@ function estimateDamage(att, def, moveKey, mult){
   return { min:Math.max(1, Math.floor(dmg * 0.85)), max, eff };
 }
 function catchChance(inst, ballMod){
+  if(ballMod >= 6) return 1; // 🟣 마스터볼: 무조건 잡힌다!
   const f = (3 * inst.maxHp - 2 * inst.hp) * inst.spec.cr * ballMod / (3 * inst.maxHp);
+  if(GOD_POKES.includes(inst.sp)) return clamp(f / 700, 0.006, 0.25);     // ⚡ 신급: 마스터볼 추천
+  if(LEGENDARIES.includes(inst.sp)) return clamp(f / 350, 0.02, 0.45);    // 👑 전설: 훨씬 어렵게
   return clamp(f / 200, 0.08, 1);
 }
 
@@ -1851,6 +1883,27 @@ const PokeMan = {
     if(UI.open === 'bag') UI.openBag();
     return n - take;
   },
+  // ⚡ 신의 오브로 신급 포켓몬 소환
+  summonGod(){
+    if(this.bagCount(I.GOD_ORB) <= 0){ UI.toast('신의 오브가 없어요'); return; }
+    const uncaught = GOD_POKES.filter(g => !this.caught.has(g));
+    const pool = uncaught.length ? uncaught : GOD_POKES;
+    const sp = pool[Math.floor(Math.random() * pool.length)];
+    this.bagRemove(I.GOD_ORB, 1);
+    const b = player.body, ang = Math.random() * Math.PI * 2;
+    const x = b.x + Math.sin(ang) * 8, z = b.z + Math.cos(ang) * 8;
+    const lv = 85 + Math.floor(Math.random() * 11);
+    const w = new WildPoke(sp, lv, x, world.colTop(Math.floor(x), Math.floor(z)) + 1.5, z);
+    w.boss = true;
+    w.inst.maxHp = Math.floor(w.inst.maxHp * 1.8); w.inst.hp = w.inst.maxHp;
+    w.group.scale.multiplyScalar(1.35);
+    w.setTag('⚡ ' + w.inst.name + ' Lv.' + lv);
+    this.wilds.push(w);
+    Particles.spawn(x, w.body.y + 2, z, 0xffe97a, 60, 5, 2, 3);
+    SFX.play('level');
+    UI.toast('⚡⚡ 신급 포켓몬 ' + w.inst.name + '이(가) 강림했다!! (Lv.' + lv + ') — 마스터볼 없이는 거의 못 잡는다!', 9000);
+    if(UI.open === 'bag') UI.close();
+  },
   bestBall(){
     for(const id of [this.activeBall, I.ULTRABALL, I.GREATBALL, I.POKEBALL]){
       if(this.bagCount(id) > 0) return id;
@@ -1858,6 +1911,65 @@ const PokeMan = {
     return 0;
   }
 };
+
+// ---------- ⚡ 파트너 필드 기술 (X키): "리자몽, 화염방사!" ----------
+let _pfmCd = 0;
+function partnerFieldMove(){
+  if(!PokeMan.enabled || game.inBattle) return;
+  const par = PokeMan.party[0];
+  if(!par){ UI.toast('포켓몬이 없어요!'); return; }
+  if(!Follower.ent){ UI.toast('파트너를 먼저 내보내세요 (빈 곳에 몬스터볼 던지기)'); return; }
+  if(par.hp <= 0){ UI.toast(par.name + '은(는) 지쳐 있어요...'); return; }
+  const now = performance.now();
+  if(now - _pfmCd < 2500) return;
+  _pfmCd = now;
+  const mvKey = par.moves[par.moves.length - 1]; // 가장 강한 기술
+  const mv = MOVES[mvKey];
+  const col = parseInt((TYPES[mv.t] || { c: '#ffffff' }).c.slice(1), 16);
+  // 파트너 위치에서 플레이어 시선 방향으로 발사
+  const fb = Follower.ent.body;
+  const d = player.dir();
+  UI.toast('가랏 ' + par.name + '! ' + mv.n + '!', 2500);
+  SFX.play('hurt');
+  for(let i = 1; i <= 8; i++){
+    const px = fb.x + d.x * i, py = fb.y + 0.7 + d.y * i, pz = fb.z + d.z * i;
+    setTimeout(() => Particles.spawn(px, py, pz, col, 8, 1.4 + i * 0.15, 0.5, 0.6), i * 45);
+  }
+  // 콘 범위 피해: 야생 포켓몬 + 몹
+  const dmg = Math.floor(mv.p * 0.45 + par.level * 0.7);
+  const inCone = (x, y, z) => {
+    const dx = x - fb.x, dy = y - fb.y, dz = z - fb.z;
+    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+    if(dist > 8.5 || dist < 0.3) return false;
+    const dot = (dx*d.x + dy*d.y + dz*d.z) / dist;
+    return dot > 0.78;
+  };
+  for(const w of PokeMan.wilds.slice()){
+    if(w.catching || w.fainted) continue;
+    if(!inCone(w.body.x, w.body.y + 0.5, w.body.z)) continue;
+    const eff = typeMult(mv.t, w.inst.spec.types);
+    const final = Math.max(1, Math.floor(dmg * eff * (par.spec.types.includes(mv.t) ? 1.2 : 1)));
+    w.inst.hp -= final;
+    Particles.spawn(w.body.x, w.body.y + 0.7, w.body.z, 0xff5544, 14, 2, 0.6, 1.2);
+    if(w.updateHpTag) w.updateHpTag();
+    if(w.inst.hp <= 0){
+      w.inst.hp = 0;
+      w.fainted = true; w.faintT = 20; w.catching = false;
+      w.group.rotation.x = Math.PI / 2;
+      w.setTag('😵 ' + w.inst.name + ' — 볼을 던져 잡자!');
+      UI.toast(w.inst.name + '을(를) 쓰러뜨렸다! 20초 안에 볼을 던지면 잡을 수 있다!');
+      const evs = par.gainExp(Math.floor(w.inst.spec.bx * w.inst.level / 6) + 1);
+      for(const ev of evs){ if(ev.type === 'level'){ UI.toast(par.name + ' 레벨 ' + ev.lv + '!'); SFX.play('level'); } }
+      if(typeof QuestMan !== 'undefined') QuestMan.onDefeatWild(w.inst);
+      if(w.boss){ player.addItem(I.RARECANDY, 2); player.addItem(I.ULTRABALL, 2); UI.toast('👑 보스 보상! 이상한사탕 2 + 하이퍼볼 2'); }
+    }
+  }
+  for(const m of MobManager.list.slice()){
+    if(m.tamed || (m.def && m.def.npc)) continue;
+    if(!inCone(m.body.x, m.body.y + 0.5, m.body.z)) continue;
+    m.hurt(Math.max(1, Math.floor(dmg * 0.55)), d.x * 4, d.z * 4);
+  }
+}
 
 // ---------- 파트너 포켓몬 (파티 1번이 따라다님) ----------
 const Follower = {
@@ -2093,7 +2205,17 @@ function _renderPortrait(sp){
   _prScene.remove(built.root);
   disposeObject(built.root);
 }
-function portraitURL(sp){ if(!_portraits[sp]) _renderPortrait(sp); return _portraits[sp]; }
+// 🎨 AI 애니풍 아트 (img/poke/<id>.png) — 있으면 우선 사용
+let ART_SET = new Set();
+fetch('img/poke/manifest.json').then(r => r.ok ? r.json() : []).then(ids => { ART_SET = new Set(ids); })
+  .catch(() => {});
+function artURL(sp){ return ART_SET.has(sp) ? 'img/poke/' + sp + '.png' : null; }
+function portraitURL(sp){
+  const a = artURL(sp);
+  if(a) return a;
+  if(!_portraits[sp]) _renderPortrait(sp);
+  return _portraits[sp];
+}
 function silhouetteURL(sp){ if(!_silhouettes[sp]) _renderPortrait(sp); return _silhouettes[sp]; }
 function typeTagsHTML(types){
   return types.map(t => `<span class="type-tag" style="background:${TYPES[t].c}">${TYPES[t].n}</span>`).join('');
@@ -2325,11 +2447,15 @@ const Battle = {
         a: { n: a.name, lv: a.level, hp: a.hp, max: a.maxHp },
         e: { n: w.name, lv: w.level, hp: w.hp, max: w.maxHp } } });
     }
+    const eArt = this.$('b-enemy-art'), eSrc = artURL(w.sp);
+    if(eArt){ eArt.classList.toggle('hidden', !eSrc); if(eSrc) eArt.src = eSrc; eArt.classList.toggle('shiny', !!w.shiny); }
     this.$('b-enemy-name').innerHTML = w.name + ' ' + typeTagsHTML(w.spec.types);
     this.$('b-enemy-lv').textContent = 'Lv.' + w.level;
     this.$('b-enemy-hpfill').style.width = (w.hp / w.maxHp * 100) + '%';
     this.$('b-enemy-hpfill').style.background = w.hp / w.maxHp > 0.5 ? '#44c944' : w.hp / w.maxHp > 0.2 ? '#e8b820' : '#e23b3b';
     this.$('b-enemy-hptext').textContent = w.hp + ' / ' + w.maxHp;
+    const aArt = this.$('b-ally-art'), aSrc = artURL(a.sp);
+    if(aArt){ aArt.classList.toggle('hidden', !aSrc); if(aSrc) aArt.src = aSrc; aArt.classList.toggle('shiny', !!a.shiny); }
     this.$('b-ally-name').innerHTML = a.name + ' ' + typeTagsHTML(a.spec.types);
     this.$('b-ally-lv').textContent = 'Lv.' + a.level;
     this.$('b-ally-hpfill').style.width = (a.hp / a.maxHp * 100) + '%';
@@ -2383,7 +2509,7 @@ const Battle = {
       mb.onclick = () => { this.turn({ type: 'mega' }); };
       s.appendChild(mb);
     }
-    [I.POKEBALL, I.GREATBALL, I.ULTRABALL, I.POTION, I.SUPERPOTION, I.HYPERPOTION].forEach(id => {
+    [I.POKEBALL, I.GREATBALL, I.ULTRABALL, I.MASTERBALL, I.POTION, I.SUPERPOTION, I.HYPERPOTION].forEach(id => {
       const cnt = player.countItem(id);
       if(cnt <= 0) return;
       const b = document.createElement('button');

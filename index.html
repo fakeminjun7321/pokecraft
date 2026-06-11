@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>포케크래프트 - PokeCraft</title>
-<link rel="stylesheet" href="css/style.css?v=45">
+<link rel="stylesheet" href="css/style.css?v=46">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -247,6 +247,7 @@
   <div id="battle-stage">
     <div class="b-side b-enemy">
       <div class="b-info">
+        <img id="b-enemy-art" class="b-art hidden" alt="">
         <span id="b-enemy-name">?</span> <span id="b-enemy-lv">Lv.5</span>
         <div class="b-hpbar"><div id="b-enemy-hpfill"></div></div>
         <div id="b-enemy-hptext">20/20</div>
@@ -256,6 +257,7 @@
     <div class="b-side b-ally">
       <canvas id="b-ally-canvas" width="260" height="200"></canvas>
       <div class="b-info">
+        <img id="b-ally-art" class="b-art hidden" alt="">
         <span id="b-ally-name">?</span> <span id="b-ally-lv">Lv.5</span>
         <div class="b-hpbar"><div id="b-ally-hpfill"></div></div>
         <div id="b-ally-hptext">20/20</div>
@@ -344,6 +346,7 @@
       <tr><td>F1</td><td>이 조작법 화면 열기/닫기</td></tr>
       <tr><td>R</td><td>⚔ 근처 야생 포켓몬과 배틀 (멀티에선 친구에게 대전 신청)</td></tr>
       <tr><td>V</td><td>🎒 포켓몬 가방 (포켓몬 아이템은 전부 여기 자동 보관!)</td></tr>
+      <tr><td>X</td><td>⚡ 파트너에게 기술 명령! ("리자몽, 화염방사!" — 시선 방향으로 발사)</td></tr>
       <tr><td>P</td><td>내 포켓몬 (파티)</td></tr>
       <tr><td>K</td><td>포켓몬 도감</td></tr>
       <tr><td>Space 2번</td><td>비행 켜기/끄기 (크리에이티브 · 마크와 동일, F키도 가능)</td></tr>
@@ -381,19 +384,19 @@
 
 <script src="lib/three.min.js"></script>
 <script src="lib/peerjs.min.js"></script>
-<script src="js/util.js?v=45"></script>
-<script src="js/account.js?v=45"></script>
-<script src="js/content.js?v=45"></script>
-<script src="js/world.js?v=45"></script>
-<script src="js/entities.js?v=45"></script>
-<script src="js/mobs.js?v=45"></script>
-<script src="js/pokemon.js?v=45"></script>
-<script src="js/player.js?v=45"></script>
-<script src="js/ui.js?v=45"></script>
-<script src="js/extras.js?v=45"></script>
-<script src="js/guide.js?v=45"></script>
-<script src="js/quests.js?v=45"></script>
-<script src="js/net.js?v=45"></script>
-<script src="js/main.js?v=45"></script>
+<script src="js/util.js?v=46"></script>
+<script src="js/account.js?v=46"></script>
+<script src="js/content.js?v=46"></script>
+<script src="js/world.js?v=46"></script>
+<script src="js/entities.js?v=46"></script>
+<script src="js/mobs.js?v=46"></script>
+<script src="js/pokemon.js?v=46"></script>
+<script src="js/player.js?v=46"></script>
+<script src="js/ui.js?v=46"></script>
+<script src="js/extras.js?v=46"></script>
+<script src="js/guide.js?v=46"></script>
+<script src="js/quests.js?v=46"></script>
+<script src="js/net.js?v=46"></script>
+<script src="js/main.js?v=46"></script>
 </body>
 </html>

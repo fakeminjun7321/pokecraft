@@ -731,7 +731,7 @@ const UI = {
       '전체': () => true,
       '몬스터볼': id => !!ballBonus(id),
       '회복': id => !!(itemDef(id) && itemDef(id).pokeHeal) || id === I.RARECANDY,
-      '진화/도구': id => [I.FIRE_STONE,I.WATER_STONE,I.THUNDER_STONE,I.LEAF_STONE,I.MOON_STONE,I.LINK_CABLE,I.MEGA_STONE].includes(id),
+      '진화/도구': id => [I.FIRE_STONE,I.WATER_STONE,I.THUNDER_STONE,I.LEAF_STONE,I.MOON_STONE,I.LINK_CABLE,I.MEGA_STONE,I.GOD_ORB].includes(id),
       '화석': id => [I.FOSSIL_HELIX,I.FOSSIL_DOME,I.FOSSIL_AMBER].includes(id),
     };
     const tabs = $id('bag-tabs');
@@ -752,6 +752,12 @@ const UI = {
       const row = document.createElement('div');
       row.className = 'bag-row' + (ballBonus(id) && id === PokeMan.activeBall ? ' equipped' : '');
       row.innerHTML = `<img src="${getIconURL(id)}" alt=""><span class="bag-name">${itemName(id)}</span><span class="bag-cnt">×${PokeMan.bag[id]}</span>`;
+      if(id === I.GOD_ORB){
+        const b = document.createElement('button');
+        b.className = 'mini-btn'; b.textContent = '⚡ 소환';
+        b.onclick = () => { if(confirm('신의 오브를 사용해 신급 포켓몬을 소환할까요?\n(Lv.85+ — 마스터볼을 준비하세요!)')) PokeMan.summonGod(); };
+        row.appendChild(b);
+      }
       if(ballBonus(id) && id !== PokeMan.activeBall){
         const b = document.createElement('button');
         b.className = 'mini-btn'; b.textContent = '장착';
@@ -962,10 +968,11 @@ const UI = {
   openDex(){
     if(!PokeMan.enabled){ this.toast('포켓몬 모드가 꺼져 있습니다'); return; }
     this.closeOnly();
-    $id('dex-stats').textContent = `· 봤다 ${PokeMan.seen.size} · 잡았다 ${PokeMan.caught.size} / ${SPECIES.length - 1}`;
+    $id('dex-stats').textContent = `· 봤다 ${PokeMan.seen.size} · 잡았다 ${PokeMan.caught.size} / ${SPECIES.filter(Boolean).length}`;
     const grid = $id('dex-grid');
     grid.innerHTML = '';
     for(let sp = 1; sp < SPECIES.length; sp++){
+      if(!SPECIES[sp]) continue; // 신급 등 비연속 도감 번호
       const cell = document.createElement('div');
       cell.className = 'dex-cell';
       if(PokeMan.caught.has(sp)){

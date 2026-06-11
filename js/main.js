@@ -1337,6 +1337,7 @@ function bindInput(){
     }
     if(e.code === 'KeyG') toggleRide();
     if(e.code === 'KeyV' && !UI.isOpen() && PokeMan.enabled) UI.openBag();
+    if(e.code === 'KeyX' && !UI.isOpen() && !game.inBattle) partnerFieldMove();
     if(e.code === 'KeyM'){
       if(e.shiftKey){
         Minimap.visible = !Minimap.visible;
