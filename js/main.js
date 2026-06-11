@@ -953,7 +953,7 @@ function closeChat(send){
   const txt = inp.value.trim();
   if(send && txt.startsWith('/')) runCommand(txt);
   else if(send && txt && Net.mode !== 'off') Net.sendChat(txt);
-  else if(send && txt) UI.toast('💬 (멀티가 아니에요 — /도움말 로 명령어 보기)');
+  else if(send && txt) UI.toast('💬 (멀티가 아니에요 — /help 로 명령어 보기)');
   inp.value = '';
   inp.classList.add('hidden');
   inp.blur();
@@ -963,10 +963,46 @@ function closeChat(send){
 
 // ---------- 💬 명령어 ----------
 function _findByName(name){
-  // 아이템/블록 한국어 이름 검색
+  // 아이템/블록 한국어 이름 검색 (정확 일치 우선, 부분 일치 폴백)
   for(const idStr in ITEMS){ if(ITEMS[idStr] && ITEMS[idStr].name === name) return +idStr; }
   for(let i = 1; i < BLOCKS.length; i++){ if(BLOCKS[i] && BLOCKS[i].name === name) return i; }
+  for(const idStr in ITEMS){ if(ITEMS[idStr] && ITEMS[idStr].name.includes(name)) return +idStr; }
+  for(let i = 1; i < BLOCKS.length; i++){ if(BLOCKS[i] && BLOCKS[i].name.includes(name)) return i; }
   return null;
+}
+function _locateNearest(type){
+  const cfg = {
+    village:   ['over',   128, (a, b) => world.villageAt(a, b)],
+    gym:       ['over',   160, (a, b) => world.gymAt(a, b)],
+    monument:  ['over',   192, (a, b) => world.monumentAt(a, b)],
+    ruin:      ['over',   200, (a, b) => world.ruinAt(a, b)],
+    stronghold:['over',   384, (a, b) => world.strongholdAt(a, b)],
+    fortress:  ['nether', 256, (a, b) => world.fortressAt(a, b)]
+  }[type];
+  if(!cfg) return undefined;
+  const [dim, size, fn] = cfg;
+  if(world.dim !== dim) return { wrongDim: dim };
+  const px = player.body.x, pz = player.body.z;
+  const r0x = Math.floor(px / size), r0z = Math.floor(pz / size);
+  let best = null;
+  for(let R = 0; R <= 14; R++){
+    for(let rx = r0x - R; rx <= r0x + R; rx++){
+      for(let rz = r0z - R; rz <= r0z + R; rz++){
+        if(Math.max(Math.abs(rx - r0x), Math.abs(rz - r0z)) !== R) continue;
+        const st = fn(rx, rz);
+        if(!st) continue;
+        const d = Math.hypot(st.x - px, st.z - pz);
+        if(!best || d < best.d) best = { x: st.x, z: st.z, d };
+      }
+    }
+    if(best && best.d < R * size) break; // 더 바깥 링에 더 가까운 건 없음
+  }
+  return best;
+}
+function _dirTo(dx, dz){
+  let ang = Math.atan2(dx, -dz) * 180 / Math.PI; // HUD와 동일: 북=0°, 동=90°
+  if(ang < 0) ang += 360;
+  return ['북', '북동', '동', '남동', '남', '남서', '서', '북서'][Math.round(ang / 45) % 8] + '쪽';
 }
 function _findSpecies(name){
   for(let i = 1; i < SPECIES.length; i++){ if(SPECIES[i] && SPECIES[i].name === name) return i; }
@@ -974,30 +1010,81 @@ function _findSpecies(name){
 }
 function runCommand(raw){
   const parts = raw.slice(1).trim().split(/\s+/);
-  const cmd = parts[0];
+  const cmd = (parts[0] || '').toLowerCase();
   const isGuest = Net.mode === 'guest';
   const say = (t) => UI.toast(t, 5000);
+  // 크리에이티브 전용 (마크 치트처럼) — 멀티 게스트는 항상 불가
+  const needCreative = () => {
+    if(isGuest){ say('⛔ 게스트는 치트 명령어를 쓸 수 없어요'); return false; }
+    if(game.mode !== 'creative'){ say('⛔ 크리에이티브 전용 명령어예요 — /gamemode creative 로 전환'); return false; }
+    return true;
+  };
   switch(cmd){
-    case '도움말': case 'help':
-      say('💬 /시간 낮|밤 · /tp x z | /tp 스폰 · /회복 · /집설정 · /집 · /아이템 이름 [개수] · /포켓몬 이름 [레벨] · /샤이니 이름 [레벨]');
+    case 'help': case '도움말':
+      say('🟢 서바이벌: /sethome · /home · /locate village|gym|stronghold|fortress|ruin|monument · /seed');
+      setTimeout(() => say('🟡 크리에이티브: /give 이름 [개수] · /tp x z|spawn · /time set day|noon|night|midnight · /heal · /summon 포켓몬 [레벨] [shiny]' + (isGuest ? '' : ' · /gamemode')), 120);
       break;
-    case '시간':
-      if(isGuest){ say('시간은 호스트만 바꿀 수 있어요'); break; }
-      if(parts[1] === '낮' || parts[1] === '아침') game.time = 0.06;
-      else if(parts[1] === '밤') game.time = 0.55;
-      else if(parts[1] === '정오') game.time = 0.25;
-      else { say('사용법: /시간 낮|정오|밤'); break; }
+    case 'seed':
+      say('🌱 시드: ' + game.seed);
+      break;
+    case 'sethome': case '집설정':
+      localStorage.setItem(storeKey('home_' + game.seed), JSON.stringify({ x: player.body.x, y: player.body.y, z: player.body.z }));
+      say('🏠 여기를 집으로 설정! (/home 으로 돌아오기)');
+      break;
+    case 'home': case '집': {
+      const hm = JSON.parse(localStorage.getItem(storeKey('home_' + game.seed)) || 'null');
+      if(!hm){ say('아직 집이 없어요 — /sethome 먼저!'); break; }
+      const pg2 = world.pregen(hm.x, hm.z);
+      for(let i = 0; i < pg2.todo.length && pg2.todo[i][2] <= 1.5; i++) pg2.step(i);
+      player.body.x = hm.x; player.body.y = hm.y + 0.5; player.body.z = hm.z;
+      player.body.vx = player.body.vy = player.body.vz = 0;
+      world.update(hm.x, hm.z);
+      say('🏠 집으로 돌아왔어요!');
+      break;
+    }
+    case 'locate': {
+      const alias = { village:'village', '마을':'village', gym:'gym', '체육관':'gym',
+        stronghold:'stronghold', '엔드요새':'stronghold', fortress:'fortress', '요새':'fortress', '네더요새':'fortress',
+        ruin:'ruin', '폐허':'ruin', '포탈':'ruin', monument:'monument', '신전':'monument', '해저신전':'monument' };
+      const type = alias[(parts[1] || '').toLowerCase()];
+      if(!type){ say('사용법: /locate village|gym|stronghold|fortress|ruin|monument'); break; }
+      const st = _locateNearest(type);
+      if(st && st.wrongDim){ say('🧭 그 구조물은 ' + (st.wrongDim === 'nether' ? '네더' : '오버월드') + '에 있어요'); break; }
+      if(!st){ say('🧭 주변에서 찾지 못했어요 (더 멀리 있을 수 있음)'); break; }
+      const names = { village:'마을', gym:'체육관', stronghold:'엔드 요새', fortress:'네더 요새', ruin:'포탈 폐허', monument:'해저신전' };
+      say('🧭 ' + names[type] + ': (' + Math.floor(st.x) + ', ' + Math.floor(st.z) + ') — ' + Math.round(st.d) + 'm ' + _dirTo(st.x - player.body.x, st.z - player.body.z));
+      break;
+    }
+    case 'gamemode': case 'gm': {
+      if(isGuest){ say('⛔ 게임모드는 호스트만 바꿀 수 있어요'); break; }
+      const m = { creative:'creative', c:'creative', '1':'creative', survival:'survival', s:'survival', '0':'survival' }[(parts[1] || '').toLowerCase()];
+      if(!m){ say('사용법: /gamemode creative|survival'); break; }
+      if(game.mode === m){ say('이미 ' + (m === 'creative' ? '크리에이티브' : '서바이벌') + ' 모드예요'); break; }
+      game.mode = m;
+      if(m === 'survival' && player.fly){ player.fly = false; player.body.noGravity = false; }
+      say('🎮 ' + (m === 'creative' ? '크리에이티브' : '서바이벌') + ' 모드로 전환!');
+      break;
+    }
+    // ---- 크리에이티브 전용 ----
+    case 'time': case '시간': {
+      if(!needCreative()) break;
+      const arg = (parts[1] === 'set' ? parts[2] : parts[1]) || '';
+      const t = { day:0.06, '낮':0.06, noon:0.25, '정오':0.25, night:0.55, '밤':0.55, midnight:0.75, '자정':0.75 }[arg.toLowerCase ? arg.toLowerCase() : arg];
+      if(t === undefined){ say('사용법: /time set day|noon|night|midnight'); break; }
+      game.time = t;
       updateSky();
       say('🕐 시간을 바꿨어요');
       break;
+    }
     case 'tp': case '이동': {
+      if(!needCreative()) break;
       let tx, tz;
-      if(parts[1] === '스폰'){
+      if((parts[1] || '').toLowerCase() === 'spawn' || parts[1] === '스폰'){
         const sp = world.spawnPoint || world.findSpawn();
         tx = sp.x; tz = sp.z;
       } else {
         tx = parseFloat(parts[1]); tz = parseFloat(parts[2]);
-        if(isNaN(tx) || isNaN(tz)){ say('사용법: /tp x z 또는 /tp 스폰'); break; }
+        if(isNaN(tx) || isNaN(tz)){ say('사용법: /tp x z 또는 /tp spawn'); break; }
         tx = clamp(tx, -100000, 100000); tz = clamp(tz, -100000, 100000);
       }
       const pg = world.pregen(tx, tz);
@@ -1009,46 +1096,33 @@ function runCommand(raw){
       say('🌀 이동! (' + Math.floor(tx) + ', ' + Math.floor(tz) + ')');
       break;
     }
-    case '회복':
+    case 'heal': case '회복':
+      if(!needCreative()) break;
       player.health = player.maxHealth;
       PokeMan.party.forEach(q => q.hp = q.maxHp);
       SFX.play('level');
       say('💖 나와 포켓몬 모두 회복!');
       break;
-    case '집설정':
-      localStorage.setItem(storeKey('home_' + game.seed), JSON.stringify({ x: player.body.x, y: player.body.y, z: player.body.z }));
-      say('🏠 여기를 집으로 설정! (/집 으로 돌아오기)');
-      break;
-    case '집': {
-      const hm = JSON.parse(localStorage.getItem(storeKey('home_' + game.seed)) || 'null');
-      if(!hm){ say('아직 집이 없어요 — /집설정 먼저!'); break; }
-      const pg2 = world.pregen(hm.x, hm.z);
-      for(let i = 0; i < pg2.todo.length && pg2.todo[i][2] <= 1.5; i++) pg2.step(i);
-      player.body.x = hm.x; player.body.y = hm.y + 0.5; player.body.z = hm.z;
-      player.body.vx = player.body.vy = player.body.vz = 0;
-      world.update(hm.x, hm.z);
-      say('🏠 집으로 돌아왔어요!');
-      break;
-    }
-    case '아이템': {
-      if(game.mode !== 'creative' && Net.mode === 'guest'){ say('아이템 명령은 호스트/싱글만!'); break; }
-      const id = _findByName(parts[1]);
-      if(id === null){ say('그런 아이템이 없어요: ' + (parts[1] || '?') + ' (정확한 이름으로)'); break; }
-      const n = clamp(parseInt(parts[2]) || 1, 1, 64);
+    case 'give': case '아이템': {
+      if(!needCreative()) break;
+      const id = _findByName(parts[1] || '');
+      if(id === null){ say('그런 아이템이 없어요: ' + (parts[1] || '?')); break; }
+      const n = clamp(parseInt(parts[2]) || 1, 1, 999);
       player.addItem(id, n);
       UI.updateHotbar();
       say('🎁 ' + itemName(id) + ' ×' + n + ' 획득!');
       break;
     }
-    case '포켓몬': case '샤이니': {
-      if(Net.mode === 'guest'){ say('포켓몬 소환은 호스트/싱글만!'); break; }
+    case 'summon': case '포켓몬': case '샤이니': {
+      if(!needCreative()) break;
       const sp = _findSpecies(parts[1]);
       if(!sp){ say('그런 포켓몬이 없어요: ' + (parts[1] || '?')); break; }
       const lv = clamp(parseInt(parts[2]) || 10, 1, 100);
+      const shiny = cmd === '샤이니' || (parts[2] || '').toLowerCase() === 'shiny' || (parts[3] || '').toLowerCase() === 'shiny';
       const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
       const wx = player.body.x + fx * 4, wz = player.body.z + fz * 4;
       const w = new WildPoke(sp, lv, wx, world.colTop(wx, wz) + 1, wz);
-      if(cmd === '샤이니'){
+      if(shiny){
         w.inst.shiny = true;
         if(w.built){ scene.remove(w.group); disposeObject(w.group); }
         const built = buildPokeModel(sp, true);
@@ -1058,11 +1132,11 @@ function runCommand(raw){
       }
       w.update(0.05, world, player);
       PokeMan.wilds.push(w);
-      say('🐾 야생 ' + (cmd === '샤이니' ? '✨' : '') + SPECIES[sp].name + ' Lv.' + lv + ' 등장!');
+      say('🐾 야생 ' + (shiny ? '✨' : '') + SPECIES[sp].name + ' Lv.' + lv + ' 등장!');
       break;
     }
     default:
-      say('❓ 모르는 명령어: /' + cmd + ' — /도움말 참고');
+      say('❓ 모르는 명령어: /' + cmd + ' — /help 참고');
   }
 }
 

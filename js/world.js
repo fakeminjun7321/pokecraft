@@ -1067,11 +1067,12 @@ class World {
   // ---------- 구조물 (마을 / 체육관 / 해저신전) — 모두 시드 결정론 ----------
   villageAt(rx, rz){
     if(this.dim !== 'over') return null;
-    if(rand2(rx, rz, this.seed ^ 0x7711) >= 0.22) return null;
+    if(rand2(rx, rz, this.seed ^ 0x7711) >= 0.45) return null;
     const cx = rx * 128 + 24 + Math.floor(rand2(rx, rz, this.seed ^ 0x7712) * 80);
     const cz = rz * 128 + 24 + Math.floor(rand2(rx, rz, this.seed ^ 0x7713) * 80);
     const b = this.biomeAt(cx, cz);
-    if(b !== 'plains' && b !== 'savanna' && b !== 'flower') return null;
+    // 마크처럼: 평원·사바나·꽃숲·사막·설원 마을
+    if(b !== 'plains' && b !== 'savanna' && b !== 'flower' && b !== 'desert' && b !== 'snow') return null;
     const h = this.terrainH(cx, cz);
     if(h <= SEA + 1 || h > 40) return null;
     return { x: cx, z: cz, y: h, key: 'v' + rx + ',' + rz };
