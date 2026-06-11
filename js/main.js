@@ -56,6 +56,33 @@ function updateAccountBar(){
     if(ni) ni.value = u.name;
   }
   refreshContinueBtn();
+  updateRescueBanner();
+}
+
+// 🛠 주인 잃은 세이브 발견 시 복구 배너 표시
+function updateRescueBanner(){
+  let bar = document.getElementById('acct-rescue-bar');
+  const orphans = Account.user ? Account.findOrphans() : [];
+  if(!orphans.length){ if(bar) bar.remove(); return; }
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'acct-rescue-bar';
+    bar.style.cssText = 'margin:8px auto; padding:10px 14px; background:#5a3a1a; border:2px solid #e8b820; border-radius:8px; max-width:520px; font-size:14px; line-height:1.5;';
+    const anchor = document.getElementById('account-bar');
+    anchor.parentNode.insertBefore(bar, anchor.nextSibling);
+  }
+  const total = orphans.reduce((s, o) => ({ w: s.w + o.worlds, p: s.p + o.party + o.box }), { w: 0, p: 0 });
+  bar.innerHTML = '🛠 <b>예전 계정의 데이터를 찾았어요!</b> 세계 ' + total.w + '개 · 포켓몬 ' + total.p +
+    '마리<br><button id="acct-rescue-btn" class="mini-btn" style="margin-top:6px">지금 계정(' +
+    Account.user.name + ')으로 가져오기</button>';
+  document.getElementById('acct-rescue-btn').onclick = () => {
+    let n = 0;
+    orphans.forEach(o => { n += Account.rescue(o.id); });
+    alert(n > 0
+      ? '✅ ' + n + '개 항목을 가져왔어요! 이어하기/내 세계에서 확인하세요.\n(원본 데이터는 지우지 않았으니 안심하세요)'
+      : '이미 모든 데이터가 현재 계정에 있어요 — 가져올 것이 없었습니다.');
+    updateAccountBar();
+  };
 }
 
 function openWorldsModal(){

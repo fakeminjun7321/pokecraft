@@ -161,6 +161,67 @@ const Account = {
     if(localStorage.getItem(storeKey('last')) === String(seed)) localStorage.removeItem(storeKey('last'));
   },
 
+  // ---------- 🛠 계정 닥터: 주인 잃은 세이브 데이터 찾기/복구 ----------
+  // 계정을 다시 만들거나 users 레코드가 바뀌면 데이터가 옛 id 밑에 고아로 남는다.
+  findOrphans(){
+    if(!this.user) return [];
+    const users = this.users();
+    const ns = {};
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      const m = k && k.match(/^pokecraft_u_([a-z0-9]+)_(.+)$/);
+      if(m) (ns[m[1]] = ns[m[1]] || []).push(m[2]);
+    }
+    let done = [];
+    try { done = JSON.parse(localStorage.getItem('pokecraft_u_' + this.user.id + '_rescued') || '[]'); } catch(e){}
+    const out = [];
+    for(const id in ns){
+      if(id === this.user.id || done.includes(id)) continue;
+      let party = 0, box = 0, dex = 0;
+      try {
+        const p = JSON.parse(localStorage.getItem('pokecraft_u_' + id + '_pokemon') || 'null');
+        if(p){ party = (p.party || []).length; box = (p.box || []).length; dex = (p.caught || []).length; }
+      } catch(e){}
+      const worlds = ns[id].filter(s => s.startsWith('save_')).length;
+      if(!worlds && !party && !box) continue; // 의미있는 데이터만
+      const owner = Object.keys(users).find(n => users[n].id === id) || null;
+      if(owner) continue; // 다른 계정이 쓰는 데이터는 제외 — 진짜 주인 잃은 것만
+      out.push({ id, owner, worlds, party, box, dex });
+    }
+    return out;
+  },
+  // id 네임스페이스의 데이터를 현재 계정으로 복사 — 비파괴 (원본은 그대로 둔다)
+  // 현재 계정에 이미 있는 키는 건드리지 않되, 포켓몬이 '비어있으면' 가져온 것으로 교체
+  rescue(id){
+    if(!this.user) throw new Error('로그인 후 복구할 수 있어요');
+    if(id === this.user.id) return 0;
+    const src = 'pokecraft_u_' + id + '_', dst = 'pokecraft_u_' + this.user.id + '_';
+    const keys = [];
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(k && k.startsWith(src)) keys.push(k);
+    }
+    let n = 0;
+    keys.forEach(k => {
+      const suf = k.slice(src.length), tk = dst + suf;
+      const cur = localStorage.getItem(tk);
+      let write = cur === null;
+      if(!write && suf === 'pokemon'){
+        try {
+          const p = JSON.parse(cur);
+          if(!(p && ((p.party && p.party.length) || (p.box && p.box.length)))) write = true;
+        } catch(e){ write = true; }
+      }
+      if(write){ try { localStorage.setItem(tk, localStorage.getItem(k)); n++; } catch(e){} }
+    });
+    try {
+      const dk = dst + 'rescued';
+      const done = JSON.parse(localStorage.getItem(dk) || '[]');
+      if(!done.includes(id)){ done.push(id); localStorage.setItem(dk, JSON.stringify(done)); }
+    } catch(e){}
+    return n;
+  },
+
   // ---------- 백업 ----------
   exportData(){
     if(!this.user) throw new Error('로그인 후 백업할 수 있어요');
