@@ -994,8 +994,8 @@ function evoStage(sp){
   while(_PRE_EVO[cur] && guard++ < 6){ cur = _PRE_EVO[cur]; depth++; }
   return depth;
 }
-// 통일된 진화 레벨: 1→2단계 = Lv.16, 2→3단계 = Lv.24
-function evoReqLevel(sp){ return evoStage(sp) <= 1 ? 16 : 24; }
+// 통일된 진화 레벨: 1→2단계 = Lv.30, 2→3단계 = Lv.60 (진화는 어렵게!)
+function evoReqLevel(sp){ return evoStage(sp) <= 1 ? 30 : 60; }
 // 네더: 불꽃 타입 천국 (파이어는 네더에서 더 잘 나옴)
 SPAWN_TABLES.nether = [[4, 10], [37, 10], [58, 10], [77, 8], [126, 7], [136, 5], [146, 0.5]];
 // 엔드: 에스퍼·고스트의 영역 — 케이시/윤겔라/후딘, 고오스 계열, 슬리퍼, 마임맨 + 뮤츠/뮤
@@ -1110,7 +1110,7 @@ class PokeInst {
     const e = this.spec.evo;
     if(!e) return null;
     if(e.special === 'eevee'){
-      if(this.level < 16) return null;
+      if(this.level < 30) return null;
       const b = world.biomeAt(Math.floor(player.body.x), Math.floor(player.body.z));
       let water = b === 'ocean';
       for(let dx = -4; dx <= 4 && !water; dx += 2){

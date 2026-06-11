@@ -927,7 +927,7 @@ function startGymBattle(gym){
 
 // ---------- 채팅 ----------
 function openChat(){
-  if(Net.mode === 'off') return;
+  // 싱글에서도 명령어 입력용으로 열림
   game.chatOpen = true;
   const inp = document.getElementById('chat-input');
   inp.classList.remove('hidden');
@@ -936,12 +936,120 @@ function openChat(){
 }
 function closeChat(send){
   const inp = document.getElementById('chat-input');
-  if(send && inp.value.trim()) Net.sendChat(inp.value);
+  const txt = inp.value.trim();
+  if(send && txt.startsWith('/')) runCommand(txt);
+  else if(send && txt && Net.mode !== 'off') Net.sendChat(txt);
+  else if(send && txt) UI.toast('💬 (멀티가 아니에요 — /도움말 로 명령어 보기)');
   inp.value = '';
   inp.classList.add('hidden');
   inp.blur();
   game.chatOpen = false;
   if(game.started && !UI.isOpen() && !game.inBattle && !player.dead) requestLock();
+}
+
+// ---------- 💬 명령어 ----------
+function _findByName(name){
+  // 아이템/블록 한국어 이름 검색
+  for(const idStr in ITEMS){ if(ITEMS[idStr] && ITEMS[idStr].name === name) return +idStr; }
+  for(let i = 1; i < BLOCKS.length; i++){ if(BLOCKS[i] && BLOCKS[i].name === name) return i; }
+  return null;
+}
+function _findSpecies(name){
+  for(let i = 1; i < SPECIES.length; i++){ if(SPECIES[i] && SPECIES[i].name === name) return i; }
+  return null;
+}
+function runCommand(raw){
+  const parts = raw.slice(1).trim().split(/\s+/);
+  const cmd = parts[0];
+  const isGuest = Net.mode === 'guest';
+  const say = (t) => UI.toast(t, 5000);
+  switch(cmd){
+    case '도움말': case 'help':
+      say('💬 /시간 낮|밤 · /tp x z | /tp 스폰 · /회복 · /집설정 · /집 · /아이템 이름 [개수] · /포켓몬 이름 [레벨] · /샤이니 이름 [레벨]');
+      break;
+    case '시간':
+      if(isGuest){ say('시간은 호스트만 바꿀 수 있어요'); break; }
+      if(parts[1] === '낮' || parts[1] === '아침') game.time = 0.06;
+      else if(parts[1] === '밤') game.time = 0.55;
+      else if(parts[1] === '정오') game.time = 0.25;
+      else { say('사용법: /시간 낮|정오|밤'); break; }
+      updateSky();
+      say('🕐 시간을 바꿨어요');
+      break;
+    case 'tp': case '이동': {
+      let tx, tz;
+      if(parts[1] === '스폰'){
+        const sp = world.spawnPoint || world.findSpawn();
+        tx = sp.x; tz = sp.z;
+      } else {
+        tx = parseFloat(parts[1]); tz = parseFloat(parts[2]);
+        if(isNaN(tx) || isNaN(tz)){ say('사용법: /tp x z 또는 /tp 스폰'); break; }
+        tx = clamp(tx, -100000, 100000); tz = clamp(tz, -100000, 100000);
+      }
+      const pg = world.pregen(tx, tz);
+      for(let i = 0; i < pg.todo.length && pg.todo[i][2] <= 1.5; i++) pg.step(i);
+      player.body.x = tx + 0.5; player.body.z = tz + 0.5;
+      player.body.y = world.colTop(tx, tz) + 2;
+      player.body.vx = player.body.vy = player.body.vz = 0;
+      world.update(tx, tz);
+      say('🌀 이동! (' + Math.floor(tx) + ', ' + Math.floor(tz) + ')');
+      break;
+    }
+    case '회복':
+      player.health = player.maxHealth;
+      PokeMan.party.forEach(q => q.hp = q.maxHp);
+      SFX.play('level');
+      say('💖 나와 포켓몬 모두 회복!');
+      break;
+    case '집설정':
+      localStorage.setItem(storeKey('home_' + game.seed), JSON.stringify({ x: player.body.x, y: player.body.y, z: player.body.z }));
+      say('🏠 여기를 집으로 설정! (/집 으로 돌아오기)');
+      break;
+    case '집': {
+      const hm = JSON.parse(localStorage.getItem(storeKey('home_' + game.seed)) || 'null');
+      if(!hm){ say('아직 집이 없어요 — /집설정 먼저!'); break; }
+      const pg2 = world.pregen(hm.x, hm.z);
+      for(let i = 0; i < pg2.todo.length && pg2.todo[i][2] <= 1.5; i++) pg2.step(i);
+      player.body.x = hm.x; player.body.y = hm.y + 0.5; player.body.z = hm.z;
+      player.body.vx = player.body.vy = player.body.vz = 0;
+      world.update(hm.x, hm.z);
+      say('🏠 집으로 돌아왔어요!');
+      break;
+    }
+    case '아이템': {
+      if(game.mode !== 'creative' && Net.mode === 'guest'){ say('아이템 명령은 호스트/싱글만!'); break; }
+      const id = _findByName(parts[1]);
+      if(id === null){ say('그런 아이템이 없어요: ' + (parts[1] || '?') + ' (정확한 이름으로)'); break; }
+      const n = clamp(parseInt(parts[2]) || 1, 1, 64);
+      player.addItem(id, n);
+      UI.updateHotbar();
+      say('🎁 ' + itemName(id) + ' ×' + n + ' 획득!');
+      break;
+    }
+    case '포켓몬': case '샤이니': {
+      if(Net.mode === 'guest'){ say('포켓몬 소환은 호스트/싱글만!'); break; }
+      const sp = _findSpecies(parts[1]);
+      if(!sp){ say('그런 포켓몬이 없어요: ' + (parts[1] || '?')); break; }
+      const lv = clamp(parseInt(parts[2]) || 10, 1, 100);
+      const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+      const wx = player.body.x + fx * 4, wz = player.body.z + fz * 4;
+      const w = new WildPoke(sp, lv, wx, world.colTop(wx, wz) + 1, wz);
+      if(cmd === '샤이니'){
+        w.inst.shiny = true;
+        if(w.built){ scene.remove(w.group); disposeObject(w.group); }
+        const built = buildPokeModel(sp, true);
+        w.built = built; w.group = built.root;
+        w.setTag('✨' + w.inst.name + ' Lv.' + lv);
+        scene.add(w.group);
+      }
+      w.update(0.05, world, player);
+      PokeMan.wilds.push(w);
+      say('🐾 야생 ' + (cmd === '샤이니' ? '✨' : '') + SPECIES[sp].name + ' Lv.' + lv + ' 등장!');
+      break;
+    }
+    default:
+      say('❓ 모르는 명령어: /' + cmd + ' — /도움말 참고');
+  }
 }
 
 // ---------- 입력 ----------
