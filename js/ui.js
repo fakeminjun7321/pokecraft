@@ -613,14 +613,41 @@ const UI = {
   // ---------- 주민 거래 ----------
   openTrade(){
     this.closeOnly();
-    const TRADES = [
-      { give: [[I.WHEAT, 6]],    get: [I.EMERALD, 1] },
-      { give: [[I.FISH_RAW, 4]], get: [I.EMERALD, 1] },
-      { give: [[I.EMERALD, 2]],  get: [I.POKEBALL, 3] },
-      { give: [[I.EMERALD, 3]],  get: [I.ARROW, 8] },
-      { give: [[I.EMERALD, 4]],  get: [I.GREATBALL, 2] },
-      { give: [[I.EMERALD, 8]],  get: [I.RARECANDY, 1] },
+    // 주민마다 파는 물건이 조금씩 다르다 (마을별 고정)
+    const ALL_TRADES = [
+      // 📥 팔기 (에메랄드 벌기)
+      { give: [[I.WHEAT, 6]],     get: [I.EMERALD, 1] },
+      { give: [[I.FISH_RAW, 4]],  get: [I.EMERALD, 1] },
+      { give: [[I.COAL, 12]],     get: [I.EMERALD, 1] },
+      { give: [[I.IRON_INGOT, 4]],get: [I.EMERALD, 1] },
+      { give: [[I.PORK_RAW, 5]],  get: [I.EMERALD, 1] },
+      { give: [[I.DIAMOND, 1]],   get: [I.EMERALD, 4] },
+      // 📤 사기 (기본)
+      { give: [[I.EMERALD, 2]],   get: [I.POKEBALL, 3] },
+      { give: [[I.EMERALD, 3]],   get: [I.ARROW, 8] },
+      { give: [[I.EMERALD, 3]],   get: [I.BREAD, 4] },
+      { give: [[I.EMERALD, 4]],   get: [I.GREATBALL, 2] },
+      { give: [[I.EMERALD, 4]],   get: [B.TORCH, 24] },
+      { give: [[I.EMERALD, 8]],   get: [I.RARECANDY, 1] },
+      // 📤 사기 (고급 — 주민마다 일부만 취급)
+      { give: [[I.EMERALD, 6]],   get: [I.POTION, 3], rare: true },
+      { give: [[I.EMERALD, 10]],  get: [I.ULTRABALL, 2], rare: true },
+      { give: [[I.EMERALD, 12]],  get: [I.LINK_CABLE, 1], rare: true },
+      { give: [[I.EMERALD, 14]],  get: [I.FIRE_STONE, 1], rare: true },
+      { give: [[I.EMERALD, 14]],  get: [I.WATER_STONE, 1], rare: true },
+      { give: [[I.EMERALD, 14]],  get: [I.THUNDER_STONE, 1], rare: true },
+      { give: [[I.EMERALD, 14]],  get: [I.LEAF_STONE, 1], rare: true },
+      { give: [[I.EMERALD, 14]],  get: [I.MOON_STONE, 1], rare: true },
+      { give: [[I.EMERALD, 9]],   get: [I.GOLDEN_APPLE, 1], rare: true },
+      { give: [[I.EMERALD, 16]],  get: [I.ENDERPEARL, 2], rare: true },
     ];
+    // 기본 거래 + 마을 시드 기반 고급 3종
+    const baseTrades = ALL_TRADES.filter(t => !t.rare);
+    const rares = ALL_TRADES.filter(t => t.rare);
+    const vseed = Math.floor(player.body.x / 64) * 31 + Math.floor(player.body.z / 64) * 17 + game.seed;
+    const pick = [];
+    for(let i = 0; i < 3; i++) pick.push(rares[Math.abs((vseed * (i + 7) * 2654435761) >> 8) % rares.length]);
+    const TRADES = baseTrades.concat([...new Set(pick)]);
     const list = $id('trade-list');
     list.innerHTML = '';
     TRADES.forEach(t => {

@@ -119,6 +119,17 @@ class World {
     const mt = this.nMt.fbm(wx * 0.003, wz * 0.003, 3);
     let h = 16 + e1 * 22 + e2 * 7;
     if(mt > 0.56) h += (mt - 0.56) / 0.44 * 34 * (0.4 + e2 * 0.8);
+    // 🏔 거대 산봉우리: 산악도가 아주 높은 곳에 융기된 능선 (드물게, 멀리서도 보임)
+    if(mt > 0.72){
+      const ridge = 1 - Math.abs(this.nDet.fbm(wx * 0.009 + 333, wz * 0.009 + 333, 2) - 0.5) * 2;
+      h += (mt - 0.72) / 0.28 * ridge * 26;
+    }
+    // 🏜 협곡: 가는 노이즈 띠를 따라 지표가 깊게 갈라진다
+    const rv = this.nTemp.fbm(wx * 0.006 + 991, wz * 0.006 + 991, 2);
+    if(Math.abs(rv - 0.5) < 0.016 && h > SEA + 2){
+      const depth = (1 - Math.abs(rv - 0.5) / 0.016) * (h - 10);
+      h -= depth;
+    }
     return Math.floor(clamp(h, 4, WORLD_H - 6));
   }
   biomeAt(wx, wz){
@@ -200,12 +211,13 @@ class World {
             else if(r >= 0.9985 && y < 28) id = B.MYSTIC_ORE;
             else if(r >= 0.9962 && y < 20) id = B.FOSSIL_ORE;
           }
-          // 동굴
-          if(id !== B.BEDROCK && y >= 6 && y <= h - 3 && h >= SEA){
+          // 동굴 (지표 근처는 입구가 크게 벌어진다 — 산비탈 동굴 입구!)
+          if(id !== B.BEDROCK && y >= 6 && y <= h - 1 && h >= SEA){
+            const nearSurf = (h - y) < 6 ? 1 + (6 - (h - y)) * 0.18 : 1;
             const c1 = noise3(wx * 0.075, y * 0.105, wz * 0.075, seed ^ 0xCAFE);
-            if(Math.abs(c1 - 0.5) < 0.042){
+            if(Math.abs(c1 - 0.5) < 0.042 * nearSurf){
               const c2 = noise3(wx * 0.05 + 77, y * 0.07, wz * 0.05 + 77, seed ^ 0xBEEF);
-              if(Math.abs(c2 - 0.5) < 0.075) id = B.AIR;
+              if(Math.abs(c2 - 0.5) < 0.075 * nearSurf) id = B.AIR;
             }
           }
           put(lx, y, lz, id);
@@ -859,6 +871,50 @@ class World {
   }
 
   // ---------- 스트롱홀드 (오버월드 지하, region 384) ----------
+  // 🌀 네더 포탈 폐허 (region 200) — 부서진 흑요석 프레임 + 보물
+  ruinAt(rx, rz){
+    if(this.dim !== 'over') return null;
+    if(rand2(rx, rz, this.seed ^ 41761) >= 0.4) return null;
+    const cx = rx * 200 + 30 + Math.floor(rand2(rx, rz, this.seed ^ 41762) * 140);
+    const cz = rz * 200 + 30 + Math.floor(rand2(rx, rz, this.seed ^ 41763) * 140);
+    const h = this.terrainH(cx, cz);
+    if(h <= SEA) return null;
+    return { x: cx, z: cz, y: h, key: 'rp' + rx + ',' + rz };
+  }
+  ruinsNear(wx, wz){ return this._regionsNear(wx, wz, 200, (a, b) => this.ruinAt(a, b)); }
+  _stampRuin(wput, rp, loot){
+    const y0 = rp.y, seed = this.seed;
+    // 부서진 4x5 프레임 (블록마다 60%만 남음, 일부는 네더랙으로 풍화)
+    for(let i = 0; i < 2; i++){
+      [[rp.x + i, y0 + 1, rp.z], [rp.x + i, y0 + 5, rp.z]].forEach(([x, y, z]) => {
+        const r = rand3(x, y, z, seed ^ 555);
+        if(r < 0.55) wput(x, y, z, B.OBSIDIAN);
+        else if(r < 0.7) wput(x, y, z, B.NETHERRACK);
+      });
+    }
+    for(let j = 2; j <= 4; j++){
+      [[rp.x - 1, y0 + j, rp.z], [rp.x + 2, y0 + j, rp.z]].forEach(([x, y, z]) => {
+        const r = rand3(x, y, z, seed ^ 556);
+        if(r < 0.55) wput(x, y, z, B.OBSIDIAN);
+        else if(r < 0.7) wput(x, y, z, B.NETHERRACK);
+      });
+    }
+    // 주변 풍화: 네더랙/용암 한 점
+    for(let dx = -3; dx <= 4; dx++) for(let dz = -3; dz <= 3; dz++){
+      const r = rand3(rp.x + dx, 0, rp.z + dz, seed ^ 557);
+      if(r < 0.18) wput(rp.x + dx, y0, rp.z + dz, B.NETHERRACK);
+      else if(r < 0.21) wput(rp.x + dx, y0, rp.z + dz, B.OBSIDIAN);
+    }
+    wput(rp.x + 3, y0 + 1, rp.z + 1, B.LAVA);
+    // 보물 상자: 포탈 재건 키트!
+    if(wput(rp.x - 2, y0 + 1, rp.z + 1, B.CHEST)){
+      const r = (k) => 1 + Math.floor(rand2(rp.x + k, rp.z, seed ^ 558) * 3);
+      loot.push([(rp.x - 2) + ',' + (y0 + 1) + ',' + (rp.z + 1), this._lootSlots([
+        { id: I.FLINT_STEEL, n: 1 }, { id: B.OBSIDIAN, n: r(1) + 2 },
+        { id: I.GOLD_INGOT, n: r(2) + 1 }, { id: I.GOLDEN_APPLE, n: rand2(rp.x, rp.z, seed ^ 559) < 0.3 ? 1 : 0 }
+      ].filter(it => it.n > 0))]);
+    }
+  }
   strongholdAt(rx, rz){
     if(this.dim !== 'over') return null;
     if(rand2(rx, rz, this.seed ^ 0x57A0) >= 0.6) return null;
@@ -1076,6 +1132,7 @@ class World {
       // 엔드는 구조물 없음
     } else {
       for(const s of this.strongholdsNear(x0 + 8, z0 + 8)) this._stampStronghold(wput, s, loot);
+      for(const rp of this.ruinsNear(x0 + 8, z0 + 8)) this._stampRuin(wput, rp, loot);
       for(const v of this.villagesNear(x0 + 8, z0 + 8)){
         for(const hs of this.villageHouses(v)) this._stampHouse(wput, hs, loot);
         wput(v.x, v.y + 1, v.z, B.HEAL_MACHINE); // 마을 중앙 = 미니 포켓몬센터
