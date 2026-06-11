@@ -902,7 +902,11 @@ function toggleRide(){
   if(p0.hp <= 0){ UI.toast(p0.name + '은(는) 지쳐서 태워줄 수 없어요...'); return; }
   game.riding = true;
   const rt = rideTypeFor(p0.sp);
-  UI.toast('🐾 ' + p0.name + RIDE_MSG[rt]);
+  {
+    const rs = rideStatsFor(PokeMan.party[0].sp);
+    const grade = rs.speed >= (rs.t === 'fly' ? 21 : 13.5) ? ' 🌟엄청나게 빠르다!!' : rs.speed >= (rs.t === 'fly' ? 18 : 11.5) ? ' ✨빠르다!' : '';
+    UI.toast('🐾 ' + p0.name + RIDE_MSG[rt] + grade);
+  }
   SFX.play('pop');
 }
 

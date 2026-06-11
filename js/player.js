@@ -68,12 +68,14 @@ class Player {
     if(ml > 0){ mx /= ml; mz /= ml; }
 
     const sprint = canControl && (k['ControlLeft'] || game.sprint) && fw > 0;
-    // 라이드 타입
-    const ride = game.riding && PokeMan.party.length ? rideTypeFor(PokeMan.party[0].sp) : null;
+    // 라이드 타입 — 종별 성능!
+    const rideInfo = game.riding && PokeMan.party.length ? rideStatsFor(PokeMan.party[0].sp) : null;
+    const ride = rideInfo ? rideInfo.t : null;
     let speed;
-    if(ride === 'fly') speed = 12;
-    else if(ride === 'surf' && b.inWater) speed = 9.5;
-    else if(ride === 'run' || (ride === 'surf' && !b.inWater)) speed = 8.5;
+    if(ride === 'fly') speed = rideInfo.speed;
+    else if(ride === 'surf' && b.inWater) speed = rideInfo.speed;
+    else if(ride === 'run') speed = rideInfo.speed;
+    else if(ride === 'surf' && !b.inWater) speed = rideInfo.land;
     else if(this.fly) speed = sprint ? 14 : 9;
     else if(b.inWater) speed = 2.6;
     else speed = sprint ? 5.8 : 4.3;
@@ -90,7 +92,7 @@ class Player {
     if(ride === 'fly' || (ride === 'surf' && b.inWater)){
       // 포켓몬 라이드: 자유 비행 / 수면 유영
       b.noGravity = true;
-      const vmax = ride === 'fly' ? 9 : 5;
+      const vmax = ride === 'fly' ? rideInfo.vert : 5;
       b.vy = lerp(b.vy, (jump ? 1 : 0) * vmax + (down ? -1 : 0) * vmax, Math.min(1, dt * 8));
       if(ride === 'fly' && Math.abs(b.vy) > 1 && typeof Ach !== 'undefined') Ach.unlock('first_fly');
       if(ride === 'surf' && typeof Ach !== 'undefined') Ach.unlock('first_surf');
@@ -99,7 +101,7 @@ class Player {
       b.vy = lerp(b.vy, (jump ? 1 : 0) * 9 + (down ? -1 : 0) * 9, Math.min(1, dt * 10));
     } else {
       b.noGravity = false;
-      const jumpV = (ride === 'run' ? 11 : 8.6) * (this.effects.jump > 0 ? 1.25 : 1);
+      const jumpV = (ride === 'run' ? rideInfo.jump : 8.6) * (this.effects.jump > 0 ? 1.25 : 1);
       if(jump){
         if(b.inWater) b.vy = Math.min(b.vy + 28 * dt, 3.4);
         else if(b.onGround) b.vy = jumpV;

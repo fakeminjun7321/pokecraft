@@ -241,6 +241,16 @@ function rideTypeFor(sp){
   if(types.includes('water')) return 'surf';
   return 'run';
 }
+// 🏇 종별 라이딩 성능: 그 종의 스피드 능력치가 빠를수록 더 빠르게/높게!
+function rideStatsFor(sp){
+  const spec = SPECIES[sp];
+  const spd = spec ? spec.bs[3] : 60; // 종 스피드 (15~160)
+  const k = Math.min(1, spd / 130);
+  const t = rideTypeFor(sp);
+  if(t === 'fly')  return { t, speed: 14 + k * 9,  vert: 9 + k * 4 };           // 비행 14~23
+  if(t === 'surf') return { t, speed: 8.5 + k * 6.5, land: 7.5 + k * 4 };       // 수영 8.5~15
+  return { t, speed: 8 + k * 7.5, jump: 10 + k * 4.5 };                          // 질주 8~15.5, 점프 10~14.5
+}
 const RIDE_MSG = { fly:'을(를) 타고 하늘로!', surf:'을(를) 타고 물살을 가른다!', run:'을(를) 타고 질주한다!' };
 
 // ---------- 터치 조작 (모바일 베타) ----------
