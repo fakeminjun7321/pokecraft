@@ -749,6 +749,23 @@ const UI = {
           btns.appendChild(b);
         }
       }
+      // 멀티: 포켓몬 교환 (제안 받은 상태면 '이걸로 교환')
+      if(typeof Net !== 'undefined' && Net.mode !== 'off'){
+        if(typeof TradeMan !== 'undefined' && TradeMan._incoming){
+          const b = document.createElement('button');
+          b.textContent = '🔄 이걸로 교환';
+          b.onclick = () => { TradeMan.pickMine(p); };
+          btns.appendChild(b);
+        } else {
+          const pid = Net.nearestPlayerId(8);
+          if(pid){
+            const b = document.createElement('button');
+            b.textContent = '🔄 교환 제안';
+            b.onclick = () => { TradeMan.propose(pid, p); this.openParty(); };
+            btns.appendChild(b);
+          }
+        }
+      }
       if(PokeMan.party.length > 1){
         const b = document.createElement('button');
         b.textContent = '박스로';

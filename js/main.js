@@ -672,7 +672,19 @@ function tryBattle(){
     const d = dist3(w.body.x, w.body.y, w.body.z, player.body.x, player.body.y, player.body.z);
     if(d < bd){ bd = d; best = w; }
   }
-  if(!best){ UI.toast('근처에 야생 포켓몬이 없어요 (9블록 이내)'); return; }
+  if(!best){
+    // 야생이 없으면 근처 친구에게 PvP 대전 신청!
+    if(Net.mode !== 'off'){
+      const pid = Net.nearestPlayerId(7);
+      if(pid){
+        const pname = (Net.players.get(pid) || {}).name || '친구';
+        if(confirm('⚔ ' + pname + '에게 포켓몬 대전을 신청할까요?')) Battle.pvpRequest(pid);
+        return;
+      }
+    }
+    UI.toast('근처에 야생 포켓몬이 없어요 (9블록 이내)');
+    return;
+  }
   Battle.start(best);
 }
 

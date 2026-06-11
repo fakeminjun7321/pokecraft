@@ -10,6 +10,12 @@ function _randCode(n){
   return s;
 }
 // 네트워크 입력 검증 (악성/버전 불일치 피어로부터 월드 보호)
+const MAX_PLAYERS = 20; // 호스트 포함 최대 인원
+const PEER_OPTS = { config: { iceServers: [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+] } };
 function _validBlockMsg(m){
   return Number.isInteger(m.x) && Number.isInteger(m.y) && Number.isInteger(m.z) &&
          m.y >= 0 && m.y < WORLD_H && Math.abs(m.x) < 1e7 && Math.abs(m.z) < 1e7 &&
@@ -38,13 +44,21 @@ const Net = {
   // ---------- 시작 ----------
   host(onCode, onError){
     this.code = _randCode(6);
-    this.peer = new Peer('pokecraft-' + this.code);
+    this.peer = new Peer('pokecraft-' + this.code, PEER_OPTS);
     this.peer.on('open', () => {
       this.mode = 'host';
       onCode(this.code);
     });
     this.peer.on('connection', conn => {
-      conn.on('open', () => { this.conns.set(conn.peer, conn); });
+      conn.on('open', () => {
+        // 최대 20명 (호스트 포함)
+        if(this.players.size + 1 >= MAX_PLAYERS){
+          this.send(conn, { t: 'full', max: MAX_PLAYERS });
+          setTimeout(() => { try { conn.close(); } catch(e){} }, 600);
+          return;
+        }
+        this.conns.set(conn.peer, conn);
+      });
       conn.on('data', m => { try { this.onHostMsg(conn, m); } catch(e){ console.error('net', e); } });
       conn.on('close', () => this._dropPlayer(conn.peer));
       conn.on('error', () => this._dropPlayer(conn.peer));
@@ -52,7 +66,7 @@ const Net = {
     this.peer.on('error', e => { console.error('peer', e); if(onError) onError(e); });
   },
   join(code, onInit, onError){
-    this.peer = new Peer();
+    this.peer = new Peer(PEER_OPTS);
     this.peer.on('open', () => {
       const conn = this.peer.connect('pokecraft-' + code.toUpperCase(), { reliable: true });
       this.hostConn = conn;
@@ -147,6 +161,16 @@ const Net = {
         }
         break;
       }
+      case 'relay': {
+        // 플레이어 간 1:1 메시지 (대전/교환)
+        if(!m.msg || typeof m.msg !== 'object') break;
+        if(m.to === 'host') this._onPeer(pid, m.msg);
+        else {
+          const c = this.conns.get(m.to);
+          if(c) this.send(c, { t: 'peer', from: pid, msg: m.msg });
+        }
+        break;
+      }
       case 'set':
         if(_validBlockMsg(m)){
           getWorld((m.d === 'nether' || m.d === 'end') ? m.d : 'over').setBlock(m.x, m.y, m.z, m.id, true);
@@ -233,6 +257,11 @@ const Net = {
   onGuestMsg(m){
     if(!game.started || !world || !player) return; // init 처리 전 도착한 메시지 무시
     switch(m.t){
+      case 'full':
+        UI.toast('😢 방이 가득 찼어요 (최대 ' + (m.max || 20) + '명)');
+        try { this.hostConn.close(); } catch(e){}
+        break;
+      case 'peer': this._onPeer(m.from, m.msg || {}); break;
       case 'set': if(_validBlockMsg(m)) getWorld((m.d === 'nether' || m.d === 'end') ? m.d : 'over').setBlock(m.x, m.y, m.z, m.id, true); break;
       case 'snap': this._applySnap(m); break;
       case 'give': {
@@ -665,5 +694,30 @@ const Net = {
   },
   playerCount(){
     return this.mode === 'off' ? 1 : this.players.size + 1;
+  },
+  // ---------- 플레이어 간 1:1 메시지 (대전/교환) ----------
+  sendTo(to, msg){
+    if(this.mode === 'host'){
+      const c = this.conns.get(to);
+      if(c) this.send(c, { t: 'peer', from: 'host', msg });
+    } else if(this.mode === 'guest'){
+      this.toHost({ t: 'relay', to, msg });
+    }
+  },
+  _onPeer(from, msg){
+    if(!msg || typeof msg.t !== 'string') return;
+    if(msg.t.startsWith('pvp')) Battle.onPvpMsg(from, msg);
+    else if(msg.t.startsWith('trade')) TradeMan.onMsg(from, msg);
+  },
+  // 같은 차원의 가장 가까운 플레이어 id
+  nearestPlayerId(maxD){
+    let best = null, bd = maxD || 6;
+    for(const [id, p] of this.players){
+      if(p.x === undefined) continue;
+      if((p.dm || 'over') !== game.dim) continue;
+      const d = Math.hypot(p.x - player.body.x, p.z - player.body.z);
+      if(d < bd){ bd = d; best = id; }
+    }
+    return best;
   }
 };

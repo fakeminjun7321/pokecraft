@@ -1288,6 +1288,7 @@ const Battle = {
   },
   // 인월드 배틀: 모델은 화면 속 캔버스가 아니라 월드에 직접 세운다
   setModel(side, sp, shiny){
+    if(this.pvp && !this.pvpMirror && this._pvpOpp) Net.sendTo(this._pvpOpp, { t: 'pvpEvt', e: { k: 'model', side, sp, sh: shiny ? 1 : 0 } });
     const old = side === 'E' ? this.mE : this.mA;
     if(old && old._temp){ scene.remove(old.root); disposeObject(old.root); }
     let root, temp = false;
@@ -1377,12 +1378,15 @@ const Battle = {
     const custom = typeof gymType === 'object';
     const G = custom ? gymType : GYM_TEAMS[gymType];
     if(!G) return false;
+    this.pvp = !!G.pvp;
+    this._pvpOpp = G.oppId || null;
+    if(this.pvp) this._pvpHpSnap = PokeMan.party.map(q => q.hp); // 친선전: 끝나면 회복
     this.initDom();
     this.active = true; this.busy = true;
     game.inBattle = true;
     if(document.exitPointerLock) document.exitPointerLock();
     this.trainer = custom ? { custom: true, ...G } : { type: gymType, gymKey, ...G };
-    this.enemyTeam = G.team.map(([sp, lv]) => new PokeInst(sp, lv));
+    this.enemyTeam = G.insts ? G.insts : G.team.map(([sp, lv]) => new PokeInst(sp, lv));
     this.enemyIdx = 0;
     this.wild = this.enemyTeam[0];
     this.wildEnt = null;
@@ -1442,6 +1446,7 @@ const Battle = {
     return true;
   },
   say(text){
+    if(this.pvp && !this.pvpMirror && this._pvpOpp) Net.sendTo(this._pvpOpp, { t: 'pvpEvt', e: { k: 'say', text } });
     const el = this.$('b-msg');
     el.textContent = '';
     // 백그라운드 탭은 타이머가 1초로 스로틀됨 — 타자기 생략하고 즉시 출력
@@ -1470,6 +1475,11 @@ const Battle = {
   },
   updateBars(){
     const w = this.wild, a = this.ally;
+    if(this.pvp && !this.pvpMirror && this._pvpOpp){
+      Net.sendTo(this._pvpOpp, { t: 'pvpEvt', e: { k: 'bars',
+        a: { n: a.name, lv: a.level, hp: a.hp, max: a.maxHp },
+        e: { n: w.name, lv: w.level, hp: w.hp, max: w.maxHp } } });
+    }
     this.$('b-enemy-name').textContent = w.name;
     this.$('b-enemy-lv').textContent = 'Lv.' + w.level;
     this.$('b-enemy-hpfill').style.width = (w.hp / w.maxHp * 100) + '%';
@@ -1510,6 +1520,11 @@ const Battle = {
     });
   },
   showBag(){
+    if(this.pvp || this.pvpMirror){
+      const el = this.$('b-msg');
+      el.textContent = '대전 중에는 가방을 쓸 수 없다!';
+      return;
+    }
     const s = this.$('b-sub');
     s.innerHTML = '';
     s.classList.remove('hidden');
@@ -1540,12 +1555,69 @@ const Battle = {
   },
   async turn(action){
     if(this.busy) return;
+    // 미러(대전 상대 화면): 행동을 시뮬레이터에게 보내기만 한다
+    if(this.pvpMirror){
+      this.busy = true;
+      this.hideSub();
+      this.menuEnabled(false);
+      if(action.type === 'run'){
+        if(confirm('항복할까요?')) Net.sendTo(this._pvpOpp, { t: 'pvpAct', a: { forfeit: 1 } });
+        else { this.busy = false; this.menuEnabled(true); }
+        return;
+      }
+      if(action.type === 'switch'){
+        this.ally = PokeMan.party[action.idx]; // 기술 목록용
+        this.allyIdx = action.idx;
+        Net.sendTo(this._pvpOpp, { t: 'pvpAct', a: { sw: action.idx } });
+        return;
+      }
+      if(action.type === 'move'){
+        Net.sendTo(this._pvpOpp, { t: 'pvpAct', a: { move: action.move } });
+        return;
+      }
+      this.busy = false; this.menuEnabled(true);
+      return;
+    }
     this.busy = true;
     this.hideSub();
     this.menuEnabled(false);
-    const enemyMove = this.wild.moves[Math.floor(Math.random() * this.wild.moves.length)];
+    let enemyMove = this.wild.moves[Math.floor(Math.random() * this.wild.moves.length)];
+    let enemySwitched = false;
+    if(this.pvp){
+      // 상대 플레이어의 행동을 기다린다
+      Net.sendTo(this._pvpOpp, { t: 'pvpEvt', e: { k: 'prompt' } });
+      await this.say('상대가 행동을 고르는 중...');
+      const act = await this._waitPvpAct();
+      if(!this.active) return;
+      if(act.forfeit){
+        await this.say('상대가 항복했다!');
+        this.end('win');
+        return;
+      }
+      if(act.sw !== undefined && this.enemyTeam[act.sw] && this.enemyTeam[act.sw].hp > 0){
+        this.enemyIdx = act.sw;
+        this.wild = this.enemyTeam[act.sw];
+        if(this.mE) this.mE.root.rotation.x = 0;
+        this.setModel('E', this.wild.sp, this.wild.shiny);
+        this.updateBars();
+        await this.say('상대는 ' + this.wild.name + '을(를) 내보냈다!');
+        enemySwitched = true;
+      } else if(act.move && this.wild.moves.includes(act.move)){
+        enemyMove = act.move;
+      }
+    }
     try {
       if(action.type === 'run'){
+        if(this.pvp){
+          if(confirm('항복할까요?')){
+            Net.sendTo(this._pvpOpp, { t: 'pvpEvt', e: { k: 'say', text: '상대가 항복했다!' } });
+            await this.say('항복했다...');
+            this.end('lose');
+            return;
+          }
+          this.busy = false; this.menuEnabled(true);
+          return;
+        }
         const chance = clamp(0.55 + (this.ally.spd - this.wild.spd) / Math.max(1, this.wild.spd) * 0.3, 0.25, 0.95);
         if(Math.random() < chance){
           await this.say('무사히 도망쳤다!');
@@ -1580,7 +1652,9 @@ const Battle = {
         else allyFirst = Math.random() < 0.5;
         const actingAlly = this.ally; // 기절→강제 교체된 포켓몬이 대신 공격하는 것 방지
         const actingEnemy = this.wild;
-        if(allyFirst){
+        if(enemySwitched){
+          await this.allyAttack(action.move); // 교체한 턴에는 상대가 공격하지 못한다
+        } else if(allyFirst){
           await this.allyAttack(action.move);
           if(this.active && this.wild === actingEnemy && this.wild.hp > 0) await this.enemyAttack(enemyMove);
         } else {
@@ -1768,6 +1842,15 @@ const Battle = {
     return false;
   },
   end(result){
+    if(this.pvp && !this.pvpMirror && this._pvpOpp){
+      Net.sendTo(this._pvpOpp, { t: 'pvpEvt', e: { k: 'end', r: result } });
+    }
+    if(this.pvp || this.pvpMirror){
+      // 친선전: 끝나면 모두 회복
+      if(this._pvpHpSnap) PokeMan.party.forEach((q, i) => { if(this._pvpHpSnap[i] !== undefined) q.hp = Math.max(q.hp, this._pvpHpSnap[i]); });
+      this._pvpHpSnap = null;
+      this.pvp = false; this.pvpMirror = false; this._pvpOpp = null; this._pvpActResolve = null;
+    }
     this.active = false;
     this.busy = false;
     this.trainer = null;
@@ -1809,10 +1892,183 @@ const Battle = {
       if(typeof saveGame === 'function') saveGame();
     }, 900);
   },
+  // ---------- 멀티 PvP 대전 ----------
+  _waitPvpAct(){
+    // 리졸버 등록 전에 도착한 행동은 버퍼에서 꺼낸다 (빠른 응답 레이스 방지)
+    if(this._pvpActBuf){ const a = this._pvpActBuf; this._pvpActBuf = null; return Promise.resolve(a); }
+    return new Promise(res => {
+      this._pvpActResolve = res;
+      // 90초 무응답이면 몰수승
+      setTimeout(() => { if(this._pvpActResolve === res){ this._pvpActResolve = null; res({ forfeit: 1 }); } }, 90000);
+    });
+  },
+  pvpRequest(id){
+    if(this.active || game.inBattle) return;
+    if(!PokeMan.partyAlive()){ UI.toast('내 포켓몬이 모두 지쳐 있다...'); return; }
+    this._pvpPendingTo = id;
+    Net.sendTo(id, { t: 'pvpReq', name: Net.myName || '친구', party: PokeMan.party.map(q => q.serialize()) });
+    UI.toast('⚔ 대전 신청을 보냈다! 상대의 수락을 기다리는 중...');
+  },
+  onPvpMsg(from, m){
+    if(m.t === 'pvpReq'){
+      if(this.active || game.inBattle || !Array.isArray(m.party) || !m.party.length){ Net.sendTo(from, { t: 'pvpDec' }); return; }
+      const ok = confirm('⚔ ' + (m.name || '친구') + '이(가) 포켓몬 대전을 신청했어요! 받아들일까요?\n(친선전 — 끝나면 체력이 회복돼요)');
+      if(!ok || !PokeMan.partyAlive()){ Net.sendTo(from, { t: 'pvpDec' }); return; }
+      Net.sendTo(from, { t: 'pvpAcc' });
+      this.startPvpMirror(from, m.name || '친구', m.party);
+    } else if(m.t === 'pvpAcc'){
+      if(from !== this._pvpPendingTo) return;
+      this._pvpPendingTo = null;
+      const oppName = (Net.players.get(from) || {}).name || '친구';
+      // 상대 파티는 수락 메시지의 미러가 자기 파티로 직접 굴림 — 시뮬은 상대 파티 데이터 필요
+      // → 수락 시 파티 동봉하도록 미러가 보냄 (아래 pvpAcc2)
+      Net.sendTo(from, { t: 'pvpNeedParty' });
+    } else if(m.t === 'pvpNeedParty'){
+      Net.sendTo(from, { t: 'pvpParty', party: PokeMan.party.map(q => q.serialize()) });
+    } else if(m.t === 'pvpParty'){
+      if(this.active) return;
+      const oppName = (Net.players.get(from) || {}).name || '친구';
+      this.startPvpSim(from, oppName, m.party || []);
+    } else if(m.t === 'pvpDec'){
+      if(from === this._pvpPendingTo){ this._pvpPendingTo = null; UI.toast('상대가 대전을 거절했어요'); }
+    } else if(m.t === 'pvpAct'){
+      if(this._pvpActResolve){ const r = this._pvpActResolve; this._pvpActResolve = null; r(m.a || {}); }
+      else this._pvpActBuf = m.a || {}; // 아직 대기 전이면 버퍼링
+    } else if(m.t === 'pvpEvt'){
+      this._mirrorQueue(m.e || {});
+    }
+  },
+  startPvpSim(oppId, oppName, partyData){
+    const insts = partyData.slice(0, 6).map(d => {
+      const inst = PokeInst.from(d);
+      inst.hp = inst.maxHp; // 친선전은 풀피로 시작
+      return inst;
+    });
+    if(!insts.length) return;
+    this.startTrainer({ name: oppName, insts, pvp: true, oppId, custom: true }, null);
+  },
+  startPvpMirror(oppId, oppName, oppPartyData){
+    this.initDom();
+    this.active = true; this.busy = true;
+    this.pvp = true; this.pvpMirror = true; this._pvpOpp = oppId;
+    this._pvpHpSnap = PokeMan.party.map(q => q.hp);
+    game.inBattle = true;
+    if(document.exitPointerLock) document.exitPointerLock();
+    this.trainer = { name: oppName, custom: true, pvp: true };
+    this.wildEnt = null;
+    this.allyIdx = PokeMan.party.findIndex(q => q.hp > 0);
+    this.ally = PokeMan.party[this.allyIdx];
+    this.wild = PokeInst.from(oppPartyData[0]); // 표시용
+    this._setupField();
+    this.setModel('A', this.ally.sp, this.ally.shiny);
+    this.setModel('E', this.wild.sp, !!oppPartyData[0].sh);
+    this.$('battle-overlay').classList.remove('hidden');
+    this.hideSub();
+    this.updateBars();
+    this.menuEnabled(false);
+    this.say('⚔ ' + oppName + '와(과)의 대전! 상대의 진행을 기다리는 중...');
+  },
+  _mirrorQueue(e){
+    this._mq = (this._mq || Promise.resolve()).then(() => this._mirrorEvt(e)).catch(() => {});
+  },
+  async _mirrorEvt(e){
+    if(!this.pvpMirror) return;
+    if(e.k === 'say'){ await this.say(e.text || ''); }
+    else if(e.k === 'bars'){
+      // 시뮬 기준 a=상대(시뮬) 포켓몬, e=내 포켓몬 → 미러는 뒤집는다
+      this._rawBars(e.e, e.a);
+    }
+    else if(e.k === 'model'){
+      this.setModel(e.side === 'A' ? 'E' : 'A', e.sp, !!e.sh);
+    }
+    else if(e.k === 'prompt'){ this.busy = false; this.menuEnabled(true); }
+    else if(e.k === 'end'){
+      // 시뮬의 win = 내(미러) lose
+      const myResult = e.r === 'win' ? 'lose' : 'win';
+      await this.say(myResult === 'win' ? '🎉 대전에서 승리했다!!' : '대전에서 졌다... 다음엔 이기자!');
+      this.end(myResult);
+    }
+  },
+  _rawBars(ally, enemy){
+    if(enemy){
+      this.$('b-enemy-name').textContent = enemy.n;
+      this.$('b-enemy-lv').textContent = 'Lv.' + enemy.lv;
+      this.$('b-enemy-hpfill').style.width = (enemy.hp / enemy.max * 100) + '%';
+      this.$('b-enemy-hpfill').style.background = enemy.hp / enemy.max > 0.5 ? '#44c944' : enemy.hp / enemy.max > 0.2 ? '#e8b820' : '#e23b3b';
+      if(this.mE) this.mE.root.rotation.x = enemy.hp <= 0 ? Math.PI / 2 : 0;
+    }
+    if(ally){
+      this.$('b-ally-name').textContent = ally.n;
+      this.$('b-ally-lv').textContent = 'Lv.' + ally.lv;
+      this.$('b-ally-hpfill').style.width = (ally.hp / ally.max * 100) + '%';
+      this.$('b-ally-hpfill').style.background = ally.hp / ally.max > 0.5 ? '#44c944' : ally.hp / ally.max > 0.2 ? '#e8b820' : '#e23b3b';
+      this.$('b-ally-hptext').textContent = ally.hp + ' / ' + ally.max;
+      if(this.mA) this.mA.root.rotation.x = ally.hp <= 0 ? -Math.PI / 2 : 0;
+    }
+  },
   renderTick(t){
     if(!this.active) return;
     if(this.mE && this.mE.root.rotation.x === 0) this.mE.root.rotation.y = this.mE._face + Math.sin(t * 0.0008) * 0.08;
     if(this.mA && this.mA.root.rotation.x === 0) this.mA.root.rotation.y = this.mA._face + Math.sin(t * 0.0009) * 0.08;
     this._camAim();
+  }
+};
+
+
+// ---------- 멀티 포켓몬 교환 ----------
+const TradeMan = {
+  _offer: null,      // 내가 보낸 제안 { to, inst }
+  _incoming: null,   // 받은 제안 { from, name, data }
+  propose(targetId, inst){
+    if(this._offer){ UI.toast('이미 교환을 제안했어요 — 답을 기다리는 중'); return; }
+    this._offer = { to: targetId, inst };
+    Net.sendTo(targetId, { t: 'tradeReq', name: Net.myName || '친구', inst: inst.serialize() });
+    UI.toast('🔄 ' + inst.name + ' 교환을 제안했다! 상대의 선택을 기다리는 중...');
+  },
+  pickMine(inst){
+    // 받은 제안에 대해 내 포켓몬 선택 → 즉시 스왑
+    const inc = this._incoming;
+    if(!inc) return;
+    this._incoming = null;
+    Net.sendTo(inc.from, { t: 'tradeAcc', inst: inst.serialize() });
+    // 내 것 제거 + 상대 것 받기
+    const pi = PokeMan.party.indexOf(inst), bi = PokeMan.box.indexOf(inst);
+    if(pi >= 0) PokeMan.party.splice(pi, 1); else if(bi >= 0) PokeMan.box.splice(bi, 1);
+    const got = PokeInst.from(inc.data);
+    PokeMan.addCaught(got);
+    SFX.play('caught');
+    UI.toast('🔄 ' + inst.name + ' ↔ ' + got.name + ' 교환 완료!', 5000);
+    if(TRADE_EVOS[got.sp]) setTimeout(() => evolveCeremony(got, TRADE_EVOS[got.sp]), 1200); // 통신교환 진화!
+    if(typeof UI !== 'undefined' && UI.open === 'party') UI.openParty();
+  },
+  onMsg(from, m){
+    if(m.t === 'tradeReq'){
+      if(this._incoming || game.inBattle){ Net.sendTo(from, { t: 'tradeDec' }); return; }
+      const d = m.inst || {};
+      const name = (SPECIES[d.sp] || {}).name || '?';
+      if(!confirm('🔄 ' + (m.name || '친구') + '이(가) [' + name + ' Lv.' + (d.level || 1) + ']을(를) 교환하자고 해요!\n수락하고 내 포켓몬을 고를까요?')){
+        Net.sendTo(from, { t: 'tradeDec' });
+        return;
+      }
+      this._incoming = { from, name: m.name, data: d };
+      UI.toast('파티 화면에서 교환할 포켓몬의 [이걸로 교환] 버튼을 누르세요!');
+      UI.openParty();
+    } else if(m.t === 'tradeAcc'){
+      const off = this._offer;
+      this._offer = null;
+      if(!off) return;
+      const inst = off.inst;
+      const pi = PokeMan.party.indexOf(inst), bi = PokeMan.box.indexOf(inst);
+      if(pi < 0 && bi < 0){ UI.toast('교환하려던 포켓몬을 찾을 수 없어요'); return; }
+      if(pi >= 0) PokeMan.party.splice(pi, 1); else PokeMan.box.splice(bi, 1);
+      const got = PokeInst.from(m.inst || {});
+      PokeMan.addCaught(got);
+      SFX.play('caught');
+      UI.toast('🔄 ' + inst.name + ' ↔ ' + got.name + ' 교환 완료!', 5000);
+      if(TRADE_EVOS[got.sp]) setTimeout(() => evolveCeremony(got, TRADE_EVOS[got.sp]), 1200);
+      if(typeof UI !== 'undefined' && UI.open === 'party') UI.openParty();
+    } else if(m.t === 'tradeDec'){
+      if(this._offer){ this._offer = null; UI.toast('상대가 교환을 거절했어요'); }
+    }
   }
 };
