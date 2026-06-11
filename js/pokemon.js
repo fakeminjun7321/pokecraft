@@ -512,7 +512,7 @@ for(const idStr in DEX){
 
 // 스폰 테이블 자동 생성 — 희귀도: 1흔함 2보통 3드묾 4희귀 5전설
 const RARE_WEIGHT = { 1: 20, 2: 10, 3: 3.5, 4: 1, 5: 0.12 };
-const SPAWN_TABLES = { plains: [], forest: [], desert: [], mountain: [], snow: [], water: [], ocean: [], nether: [] };
+const SPAWN_TABLES = { plains: [], forest: [], desert: [], mountain: [], snow: [], water: [], ocean: [], nether: [], end: [] };
 for(let id = 1; id < SPECIES.length; id++){
   const sp = SPECIES[id];
   if(!sp || !sp.spawn.biomes.length) continue;
@@ -525,6 +525,8 @@ for(let id = 1; id < SPECIES.length; id++){
 const LEGENDARIES = [144, 145, 146, 149, 150, 151];
 // 네더: 불꽃 타입 천국 (파이어는 네더에서 더 잘 나옴)
 SPAWN_TABLES.nether = [[4, 10], [37, 10], [58, 10], [77, 8], [126, 7], [136, 5], [146, 0.5]];
+// 엔드: 에스퍼·고스트의 영역 — 케이시/윤겔라/후딘, 고오스 계열, 슬리퍼, 마임맨 + 뮤츠/뮤
+SPAWN_TABLES.end = [[63, 10], [64, 5], [92, 9], [93, 5], [97, 5], [122, 4], [65, 1.5], [94, 1.5], [150, 0.35], [151, 0.06]];
 
 // 체육관 관장 팀
 const GYM_TEAMS = {
@@ -798,8 +800,9 @@ const PokeMan = {
       const d = Math.hypot(x - spawnP.x, z - spawnP.z);
       let lv = clamp(Math.floor(2 + d / 70 + Math.random() * 5 - 2), 2, 32);
       if(world.dim === 'nether') lv = clamp(lv + 8, 10, 40); // 네더는 강한 개체
+      if(world.dim === 'end') lv = clamp(lv + 15, 20, 55);    // 엔드는 최상위 개체
       // 밤에는 아주 낮은 확률로 뮤츠 출현
-      if(game.isNight() && world.dim !== 'nether' && Math.random() < 0.012) sp = 150;
+      if(game.isNight() && world.dim === 'over' && Math.random() < 0.012) sp = 150;
       if(LEGENDARIES.includes(sp)) lv = 35 + Math.floor(Math.random() * 10);
       this.wilds.push(new WildPoke(sp, lv, x, y + 0.1, z));
       this.seen.add(sp);

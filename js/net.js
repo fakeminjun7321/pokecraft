@@ -116,7 +116,8 @@ const Net = {
       t: 'init', seed: game.seed, time: game.time, mode: game.mode,
       pokeOn: PokeMan.enabled, edits: overW.edits, furnaces: furn, chests: chst,
       spawn: overW.spawnPoint,
-      nether: worlds.nether ? worlds.nether.serialize() : null
+      nether: worlds.nether ? worlds.nether.serialize() : null,
+      end: worlds.end ? worlds.end.serialize() : null
     });
     this.players.set(pid, { name: (name || '친구').slice(0, 12), x: 0, y: 0, z: 0, yaw: 0, fol: 0 });
     this.chat('[' + this.players.get(pid).name + '님이 접속했습니다]');
@@ -141,14 +142,14 @@ const Net = {
           p.yaw = _validNum(m.yaw, -100, 100) ? m.yaw : 0;
           p.fol = (Number.isInteger(m.fol) && SPECIES[m.fol]) ? m.fol : 0;
           p.rid = m.rid ? 1 : 0;
-          p.dm = m.dm === 'nether' ? 'nether' : 'over';
+          p.dm = (m.dm === 'nether' || m.dm === 'end') ? m.dm : 'over';
           p.arm = Array.isArray(m.arm) ? m.arm.slice(0, 3).map(a => _validItemId(a) && armorInfo(a) ? a : 0) : null;
         }
         break;
       }
       case 'set':
         if(_validBlockMsg(m)){
-          getWorld(m.d === 'nether' ? 'nether' : 'over').setBlock(m.x, m.y, m.z, m.id, true);
+          getWorld((m.d === 'nether' || m.d === 'end') ? m.d : 'over').setBlock(m.x, m.y, m.z, m.id, true);
           this.broadcast(m, pid);
         }
         break;
@@ -232,7 +233,7 @@ const Net = {
   onGuestMsg(m){
     if(!game.started || !world || !player) return; // init 처리 전 도착한 메시지 무시
     switch(m.t){
-      case 'set': if(_validBlockMsg(m)) getWorld(m.d === 'nether' ? 'nether' : 'over').setBlock(m.x, m.y, m.z, m.id, true); break;
+      case 'set': if(_validBlockMsg(m)) getWorld((m.d === 'nether' || m.d === 'end') ? m.d : 'over').setBlock(m.x, m.y, m.z, m.id, true); break;
       case 'snap': this._applySnap(m); break;
       case 'give': {
         const left = player.addItem(m.id, m.n, m.dur, m.ench);

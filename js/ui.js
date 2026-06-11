@@ -34,6 +34,13 @@ const UI = {
     for(let i = 0; i < 9; i++){
       const d = document.createElement('div');
       d.className = 'hslot';
+      // 탭/클릭으로 슬롯 선택 (모바일 필수)
+      d.addEventListener('pointerdown', e => {
+        if(!game.started || this.isOpen()) return;
+        e.preventDefault();
+        player.selected = i;
+        this.updateHotbar();
+      });
       hb.appendChild(d);
     }
     // 하트

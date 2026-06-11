@@ -58,6 +58,8 @@ class World {
     this.seed = seed | 0;
     this.dim = dim || 'over';
     this.portals = new Set(); // "x,y,z" 포탈 블록 위치
+    this.crystals = new Set(); // 엔드 크리스탈 "x,y,z"
+    this.flags = {};           // 차원 진행 플래그 (dragonDead 등)
     this.chunks = new Map();
     this.edits = {};        // { "cx,cz": { idx: blockId } }
     this.furnaces = new Map(); // "x,y,z" -> {in,fuel,out,burn,burnMax,prog}
@@ -121,6 +123,7 @@ class World {
   }
   biomeAt(wx, wz){
     if(this.dim === 'nether') return 'nether';
+    if(this.dim === 'end') return 'end';
     const h = this.terrainH(wx, wz);
     let temp = this.nTemp.fbm(wx * 0.0022, wz * 0.0022, 3) - (h - 30) * 0.004;
     const moist = this.nMoist.fbm(wx * 0.0025, wz * 0.0025, 3);
@@ -169,6 +172,7 @@ class World {
     const put = (lx, y, lz, id) => { d[lx + lz*CHUNK + y*CHUNK*CHUNK] = id; };
     const get = (lx, y, lz) => d[lx + lz*CHUNK + y*CHUNK*CHUNK];
     if(this.dim === 'nether') return this._genNetherChunk(c, cx, cz, put, get);
+    if(this.dim === 'end') return this._genEndChunk(c, cx, cz, put, get);
 
     for(let lx = 0; lx < CHUNK; lx++){
       for(let lz = 0; lz < CHUNK; lz++){
@@ -361,6 +365,8 @@ class World {
     const pk = wx + ',' + wy + ',' + wz;
     if(BLOCKS[old].light >= 1) c.torches.delete(pk);
     if(BLOCKS[id].light >= 1) c.torches.add(pk);
+    if(old === B.END_CRYSTAL) this.crystals.delete(pk);
+    if(id === B.END_CRYSTAL) this.crystals.add(pk);
     if(old === B.PORTAL) this.portals.delete(pk);
     if(id === B.PORTAL) this.portals.add(pk);
     const wasFurn = World.isFurnaceId(old), isFurn = World.isFurnaceId(id);
@@ -387,7 +393,7 @@ class World {
     }
     if(id === B.CHEST && !this.chests.has(pk)) this.chests.set(pk, { slots: new Array(27).fill(null) });
     // 멀티플레이 동기화
-    if(!fromNet && typeof Net !== 'undefined' && Net.mode !== 'off') Net.blockChanged(wx, wy, wz, id);
+    if(!fromNet && typeof Net !== 'undefined' && Net.mode !== 'off') Net.blockChanged(wx, wy, wz, id, this.dim);
 
     if(typeof Minimap !== 'undefined') Minimap.invalidate(ck(cx, cz));
     // 리메시 대상
@@ -429,6 +435,8 @@ class World {
     let l;
     if(this.dim === 'nether'){
       l = 0.52; // 네더는 은은한 자체 조명
+    } else if(this.dim === 'end'){
+      l = 0.58; // 엔드는 별빛 아래 균일 조명
     } else {
       const top = this.colTop(wx, wz);
       l = wy >= top ? 1 : Math.max(0.18, 1 - 0.13 * (top - wy));
@@ -705,7 +713,7 @@ class World {
     const furn = {}, chst = {};
     for(const [k, f] of this.furnaces) furn[k] = f;
     for(const [k, c] of this.chests) chst[k] = c;
-    return { seed: this.seed, edits: this.edits, furnaces: furn, chests: chst, spawn: this.spawnPoint, gyms: [...this.gymsBeaten] };
+    return { seed: this.seed, edits: this.edits, furnaces: furn, chests: chst, spawn: this.spawnPoint, gyms: [...this.gymsBeaten], flags: this.flags };
   }
   deserialize(d){
     this.edits = d.edits || {};
@@ -715,6 +723,7 @@ class World {
     this.chests.clear();
     if(d.chests) for(const k in d.chests) this.chests.set(k, d.chests[k]);
     this.gymsBeaten = new Set(d.gyms || []);
+    this.flags = d.flags || {};
   }
 
   // ---------- 네더 청크 ----------
@@ -778,6 +787,121 @@ class World {
     }
     return c;
   }
+  // ---------- 엔드 청크 ----------
+  _genEndChunk(c, cx, cz, put, get){
+    // 공허 위에 떠 있는 엔드스톤 본섬 (반지름 ~58)
+    for(let lx = 0; lx < CHUNK; lx++){
+      for(let lz = 0; lz < CHUNK; lz++){
+        const wx = cx*CHUNK + lx, wz = cz*CHUNK + lz;
+        const d = Math.hypot(wx, wz);
+        if(d >= 58) continue;
+        const f = this.nDet.fbm(wx * 0.045 + 900, wz * 0.045 + 900, 3);
+        const top = Math.round(32 + f * 3 - Math.max(0, d - 42) * 0.5);
+        const thick = Math.max(2, Math.round((58 - d) * 0.3 + f * 5));
+        for(let y = Math.max(1, top - thick); y <= top && y < WORLD_H - 1; y++) put(lx, y, lz, B.ENDSTONE);
+      }
+    }
+    // 흑요석 기둥 6개 + 꼭대기 엔드 크리스탈 (반지름 27 원형 배치)
+    const pillars = [];
+    for(let k = 0; k < 6; k++){
+      const a = k / 6 * Math.PI * 2;
+      pillars.push([Math.round(Math.cos(a) * 27), Math.round(Math.sin(a) * 27), 40 + (k % 3) * 4]);
+    }
+    for(const [px, pz, hTop] of pillars){
+      for(let dx = -2; dx <= 2; dx++){
+        for(let dz = -2; dz <= 2; dz++){
+          if(dx*dx + dz*dz > 4) continue;
+          const lx = px + dx - cx*CHUNK, lz = pz + dz - cz*CHUNK;
+          if(lx < 0 || lx >= CHUNK || lz < 0 || lz >= CHUNK) continue;
+          for(let y = 22; y <= hTop; y++) put(lx, y, lz, B.OBSIDIAN);
+        }
+      }
+      const lx = px - cx*CHUNK, lz = pz - cz*CHUNK;
+      if(lx >= 0 && lx < CHUNK && lz >= 0 && lz < CHUNK){
+        put(lx, hTop + 1, lz, B.END_CRYSTAL);
+        c.torches.add(px + ',' + (hTop + 1) + ',' + pz);
+      }
+    }
+    // 저장된 수정사항
+    const ed = this.edits[ck(cx, cz)];
+    if(ed){
+      for(const k in ed){
+        const idx = +k;
+        c.data[idx] = ed[k];
+        const y = Math.floor(idx / (CHUNK*CHUNK));
+        const rem = idx % (CHUNK*CHUNK);
+        const wx = cx*CHUNK + rem % CHUNK, wz = cz*CHUNK + Math.floor(rem / CHUNK);
+        const pk = wx + ',' + y + ',' + wz;
+        if(BLOCKS[ed[k]].light >= 1) c.torches.add(pk);
+        if(ed[k] === B.PORTAL) this.portals.add(pk);
+      }
+    }
+    // 크리스탈 레지스트리: 수정사항 반영 후 실제로 남아있는 것만 등록
+    for(const [px, pz, hTop] of pillars){
+      const lx = px - cx*CHUNK, lz = pz - cz*CHUNK;
+      if(lx < 0 || lx >= CHUNK || lz < 0 || lz >= CHUNK) continue;
+      const pk = px + ',' + (hTop + 1) + ',' + pz;
+      if(c.data[lx + lz*CHUNK + (hTop + 1)*CHUNK*CHUNK] === B.END_CRYSTAL) this.crystals.add(pk);
+      else { this.crystals.delete(pk); c.torches.delete(pk); }
+    }
+    // 하늘이 뚫려 있으므로 일반 스카이라이트 높이
+    for(let lx = 0; lx < CHUNK; lx++){
+      for(let lz = 0; lz < CHUNK; lz++){
+        c.heights[lz*CHUNK + lx] = this._calcColTop(c, lx, lz);
+      }
+    }
+    return c;
+  }
+
+  // ---------- 스트롱홀드 (오버월드 지하, region 384) ----------
+  strongholdAt(rx, rz){
+    if(this.dim !== 'over') return null;
+    if(rand2(rx, rz, this.seed ^ 0x57A0) >= 0.6) return null;
+    const cx = rx * 384 + 60 + Math.floor(rand2(rx, rz, this.seed ^ 0x57A1) * 264);
+    const cz = rz * 384 + 60 + Math.floor(rand2(rx, rz, this.seed ^ 0x57A2) * 264);
+    return { x: cx, z: cz, y: 13, key: 'sh' + rx + ',' + rz };
+  }
+  strongholdsNear(wx, wz){ return this._regionsNear(wx, wz, 384, (a, b) => this.strongholdAt(a, b)); }
+  _stampStronghold(wput, s, loot){
+    const y0 = s.y;
+    // 포탈룸 13x13
+    for(let wx = s.x - 6; wx <= s.x + 6; wx++){
+      for(let wz = s.z - 6; wz <= s.z + 6; wz++){
+        wput(wx, y0, wz, B.STONEBRICK);
+        const edge = Math.abs(wx - s.x) === 6 || Math.abs(wz - s.z) === 6;
+        for(let wy = y0 + 1; wy <= y0 + 5; wy++) wput(wx, wy, wz, edge ? B.STONEBRICK : B.AIR);
+        wput(wx, y0 + 6, wz, B.STONEBRICK);
+      }
+    }
+    // 엔드 포탈 프레임 링 (12개, 중앙 3x3은 비워둠 — 엔더의 눈 12개로 점등)
+    for(let t = -1; t <= 1; t++){
+      wput(s.x - 2, y0 + 1, s.z + t, B.END_FRAME);
+      wput(s.x + 2, y0 + 1, s.z + t, B.END_FRAME);
+      wput(s.x + t, y0 + 1, s.z - 2, B.END_FRAME);
+      wput(s.x + t, y0 + 1, s.z + 2, B.END_FRAME);
+    }
+    wput(s.x - 4, y0 + 2, s.z - 4, B.TORCH);
+    wput(s.x + 4, y0 + 2, s.z + 4, B.TORCH);
+    wput(s.x + 4, y0 + 2, s.z - 4, B.TORCH);
+    wput(s.x - 4, y0 + 2, s.z + 4, B.TORCH);
+    // 입구 통로 (+x)
+    for(let i = 6; i <= 16; i++){
+      for(let t = -1; t <= 1; t++){
+        wput(s.x + i, y0, s.z + t, B.STONEBRICK);
+        for(let wy = y0 + 1; wy <= y0 + 3; wy++) wput(s.x + i, wy, s.z + t, Math.abs(t) === 1 ? B.STONEBRICK : B.AIR);
+        wput(s.x + i, y0 + 4, s.z + t, B.STONEBRICK);
+      }
+    }
+    if(wput(s.x - 4, y0 + 1, s.z + 4, B.CHEST)){
+      const r = (k) => 1 + Math.floor(rand2(s.x + k, s.z, this.seed ^ 0xE0E) * 3);
+      loot.push([(s.x - 4) + ',' + (y0 + 1) + ',' + (s.z + 4), this._lootSlots([
+        { id: I.ENDERPEARL, n: r(1) + 1 }, { id: I.DIAMOND, n: r(2) },
+        { id: I.GOLDEN_APPLE, n: 1 }, { id: I.RARECANDY, n: r(3) },
+        { id: I.IRON_INGOT, n: r(4) + 2 }
+      ])]);
+    }
+  }
+
   // 네더 요새 (region 256)
   fortressAt(rx, rz){
     if(this.dim !== 'nether') return null;
@@ -869,7 +993,7 @@ class World {
 
   // ---------- 구조물 (마을 / 체육관 / 해저신전) — 모두 시드 결정론 ----------
   villageAt(rx, rz){
-    if(this.dim === 'nether') return null;
+    if(this.dim !== 'over') return null;
     if(rand2(rx, rz, this.seed ^ 0x7711) >= 0.22) return null;
     const cx = rx * 128 + 24 + Math.floor(rand2(rx, rz, this.seed ^ 0x7712) * 80);
     const cz = rz * 128 + 24 + Math.floor(rand2(rx, rz, this.seed ^ 0x7713) * 80);
@@ -890,7 +1014,7 @@ class World {
     return houses;
   }
   gymAt(rx, rz){
-    if(this.dim === 'nether') return null;
+    if(this.dim !== 'over') return null;
     if(rand2(rx, rz, this.seed ^ 0x8811) >= 0.3) return null;
     const cx = rx * 160 + 30 + Math.floor(rand2(rx, rz, this.seed ^ 0x8812) * 100);
     const cz = rz * 160 + 30 + Math.floor(rand2(rx, rz, this.seed ^ 0x8813) * 100);
@@ -905,7 +1029,7 @@ class World {
     return { x: cx, z: cz, y: h, type, key: 'g' + rx + ',' + rz };
   }
   monumentAt(rx, rz){
-    if(this.dim === 'nether') return null;
+    if(this.dim !== 'over') return null;
     if(rand2(rx, rz, this.seed ^ 0x9911) >= 0.35) return null;
     const cx = rx * 192 + 40 + Math.floor(rand2(rx, rz, this.seed ^ 0x9912) * 110);
     const cz = rz * 192 + 40 + Math.floor(rand2(rx, rz, this.seed ^ 0x9913) * 110);
@@ -943,7 +1067,10 @@ class World {
     const loot = [];
     if(this.dim === 'nether'){
       for(const f of this.fortressesNear(x0 + 8, z0 + 8)) this._stampFortress(wput, f, loot);
+    } else if(this.dim === 'end'){
+      // 엔드는 구조물 없음
     } else {
+      for(const s of this.strongholdsNear(x0 + 8, z0 + 8)) this._stampStronghold(wput, s, loot);
       for(const v of this.villagesNear(x0 + 8, z0 + 8)){
         for(const hs of this.villageHouses(v)) this._stampHouse(wput, hs, loot);
       }

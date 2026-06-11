@@ -22,6 +22,7 @@ const game = {
 };
 
 function requestLock(showPauseOnFail){
+  if(game.touch) return; // 터치 모드는 포인터락 불필요 (안드로이드 오류/토스트 방지)
   const cv = document.getElementById('game-canvas');
   if(!cv.requestPointerLock) return;
   // 크롬은 Esc 해제 직후 ~1.25초간 재잠금을 거부함
@@ -303,6 +304,7 @@ window.addEventListener('load', () => {
   Music.init();
   Minimap.init();
   Touch.init();
+  if(game.touch) document.body.classList.add('touch');
   requestAnimationFrame(loop);
 });
 
@@ -475,7 +477,9 @@ function startGame(opts){
   pendingWorldSaves = {};
   game.dim = (opts.loadData && opts.loadData.dim) || 'over';
   if(opts.loadData && opts.loadData.netherWorld) pendingWorldSaves.nether = opts.loadData.netherWorld;
+  if(opts.loadData && opts.loadData.endWorld) pendingWorldSaves.end = opts.loadData.endWorld;
   if(opts.netInit && opts.netInit.nether) pendingWorldSaves.nether = opts.netInit.nether;
+  if(opts.netInit && opts.netInit.end) pendingWorldSaves.end = opts.netInit.end;
   world = getWorld(game.dim);
   const userOpts = JSON.parse(localStorage.getItem('pokecraft_opts') || '{}');
   if(userOpts.renderDist) world.renderDist = clamp(userOpts.renderDist, 3, 6);
@@ -588,6 +592,7 @@ function saveGame(){
       mode: game.mode, time: game.time, dim: game.dim,
       world: worlds.over ? worlds.over.serialize() : (pendingWorldSaves.over || overW.serialize()),
       netherWorld: worlds.nether ? worlds.nether.serialize() : (pendingWorldSaves.nether || null),
+      endWorld: worlds.end ? worlds.end.serialize() : (pendingWorldSaves.end || null),
       player: pdata,
       poke: PokeMan.serialize(),
     };
@@ -683,8 +688,9 @@ function swapWorldTo(to){
     d.mesh.visible = d.dim === to;
   });
 }
-function switchDimension(){
-  const to = game.dim === 'over' ? 'nether' : 'over';
+function switchDimension(target){
+  const from = game.dim;
+  const to = target || (from === 'over' ? 'nether' : 'over');
   const fade = document.getElementById('fade');
   fade.style.opacity = 1;
   game.portalCd = 5;
@@ -693,23 +699,92 @@ function switchDimension(){
   const sz = to === 'nether' ? player.body.z / 8 : player.body.z * 8;
   swapWorldTo(to);
   setTimeout(() => {
-    // 도착 지점 청크 먼저 생성 (포탈 레지스트리가 채워져야 기존 포탈을 찾음)
-    const pg0 = world.pregen(sx, sz);
-    for(let i = 0; i < pg0.todo.length && pg0.todo[i][2] <= 2.5; i++) pg0.step(i);
-    // 도착 포탈 찾기/건설
-    let dest = world.nearestPortal(sx, sz, 24);
-    if(dest) dest = { x: dest.x + 0.5, y: dest.y + 0.2, z: dest.z + 0.5 };
-    else dest = world.buildArrivalPortal(sx, sz);
+    let dest;
+    if(to === 'end'){
+      // 엔드: 본섬 동쪽 가장자리에 도착
+      const pg0 = world.pregen(44, 0);
+      for(let i = 0; i < pg0.todo.length && pg0.todo[i][2] <= 2.5; i++) pg0.step(i);
+      let ty = world.colTop(44, 0);
+      if(ty < 5){
+        for(let dx = -2; dx <= 2; dx++) for(let dz = -2; dz <= 2; dz++) world.setBlock(44 + dx, 30, dz, B.OBSIDIAN);
+        ty = 30;
+      }
+      dest = { x: 44.5, y: ty + 1.6, z: 0.5 };
+    } else if(from === 'end'){
+      // 엔드에서 귀환: 오버월드 스폰(침대)으로
+      const sp = world.spawnPoint || world.findSpawn();
+      const pg0 = world.pregen(sp.x, sp.z);
+      for(let i = 0; i < pg0.todo.length && pg0.todo[i][2] <= 2.5; i++) pg0.step(i);
+      let ty = sp.y;
+      if(world.isSolid(sp.x, ty, sp.z) || world.isSolid(sp.x, ty + 1, sp.z)) ty = world.colTop(sp.x, sp.z) + 1.5;
+      dest = { x: sp.x, y: ty + 0.3, z: sp.z };
+    } else {
+      // 도착 지점 청크 먼저 생성 (포탈 레지스트리가 채워져야 기존 포탈을 찾음)
+      const pg0 = world.pregen(sx, sz);
+      for(let i = 0; i < pg0.todo.length && pg0.todo[i][2] <= 2.5; i++) pg0.step(i);
+      // 도착 포탈 찾기/건설
+      dest = world.nearestPortal(sx, sz, 24);
+      if(dest) dest = { x: dest.x + 0.5, y: dest.y + 0.2, z: dest.z + 0.5 };
+      else dest = world.buildArrivalPortal(sx, sz);
+    }
     player.portalArmed = false; // 도착 포탈에서 나가야 재발동
     player.spawnAt(dest);
     // 펫 이동
     MobManager.list.forEach(mb => { if(mb.tamed){ mb.body.x = dest.x + 1; mb.body.y = dest.y + 1; mb.body.z = dest.z + 1; } });
     world.update(dest.x, dest.z);
     fade.style.opacity = 0;
-    UI.toast(to === 'nether' ? '🔥 네더에 도착했다...' : '🌍 오버월드로 돌아왔다!');
-    if(to === 'nether' && typeof Ach !== 'undefined') Ach.unlock('nether');
+    UI.toast(to === 'nether' ? '🔥 네더에 도착했다...'
+      : to === 'end' ? '🌌 엔드에 도착했다... 엔더드래곤을 물리쳐라!'
+      : '🌍 오버월드로 돌아왔다!');
+    if(typeof Ach !== 'undefined'){
+      if(to === 'nether') Ach.unlock('nether');
+      if(to === 'end') Ach.unlock('end');
+    }
     saveGame();
   }, 700);
+}
+
+// 엔드 포탈 프레임 12개가 모두 점등됐는지 검사 → 3x3 포탈 생성
+function tryActivateEndPortal(w, fx, fy, fz){
+  for(let cx = fx - 2; cx <= fx + 2; cx++){
+    for(let cz = fz - 2; cz <= fz + 2; cz++){
+      let ok = true;
+      for(let t = -1; t <= 1 && ok; t++){
+        if(w.getBlock(cx - 2, fy, cz + t) !== B.END_FRAME_LIT) ok = false;
+        if(w.getBlock(cx + 2, fy, cz + t) !== B.END_FRAME_LIT) ok = false;
+        if(w.getBlock(cx + t, fy, cz - 2) !== B.END_FRAME_LIT) ok = false;
+        if(w.getBlock(cx + t, fy, cz + 2) !== B.END_FRAME_LIT) ok = false;
+      }
+      if(!ok) continue;
+      for(let dx = -1; dx <= 1; dx++) for(let dz = -1; dz <= 1; dz++) w.setBlock(cx + dx, fy, cz + dz, B.END_PORTAL);
+      return true;
+    }
+  }
+  return false;
+}
+
+// 엔더드래곤 처치: 귀환 포탈 + 드래곤 알
+function dragonDefeated(mob){
+  const w = worlds.end || world;
+  if(w.flags.dragonDead) return;
+  w.flags.dragonDead = true;
+  const ty = w.colTop(0, 0) || 32;
+  for(let dx = -2; dx <= 2; dx++) for(let dz = -2; dz <= 2; dz++) w.setBlock(dx, ty + 1, dz, B.BEDROCK);
+  for(let dx = -1; dx <= 1; dx++) for(let dz = -1; dz <= 1; dz++) if(dx || dz) w.setBlock(dx, ty + 2, dz, B.END_PORTAL);
+  w.setBlock(0, ty + 2, 0, B.BEDROCK);
+  w.setBlock(0, ty + 3, 0, B.BEDROCK);
+  w.setBlock(0, ty + 4, 0, B.DRAGON_EGG);
+  if(mob) explodeFx(mob.body.x, mob.body.y + 1, mob.body.z);
+  UI.toast('🏆 엔더드래곤을 물리쳤다!! 섬 중앙의 귀환 포탈로 돌아가자!', 8000);
+  SFX.play('evolve');
+  if(typeof Ach !== 'undefined') Ach.unlock('dragon');
+  saveGame();
+}
+function explodeFx(x, y, z){
+  for(let i = 0; i < 6; i++){
+    setTimeout(() => Particles.spawn(x + (Math.random() - 0.5) * 4, y + (Math.random() - 0.5) * 3, z + (Math.random() - 0.5) * 4, 0xc84af0, 20, 3, 1, 2), i * 180);
+  }
+  game.shake = Math.max(game.shake, 0.8);
 }
 
 // ---------- 포켓몬 타기 ----------
@@ -920,6 +995,19 @@ const skySunset = new THREE.Color(0xe8915a);
 const _skyColor = new THREE.Color();
 
 function updateSky(){
+  if(game.dim === 'end'){
+    ambLight.intensity = 0.55;
+    sunLight.intensity = 0.15;
+    _skyColor.setHex(0x0b0a16);
+    scene.background = _skyColor;
+    scene.fog.color.copy(_skyColor);
+    scene.fog.near = 35; scene.fog.far = 95;
+    sunSprite.material.opacity = 0; moonSprite.material.opacity = 0;
+    stars.material.opacity = 0.9;
+    cloudMesh.material.opacity = 0;
+    document.getElementById('water-tint').style.opacity = 0;
+    return;
+  }
   if(game.dim === 'nether'){
     ambLight.intensity = 0.55;
     sunLight.intensity = 0.12;
@@ -1041,6 +1129,7 @@ function tick(t){
       game.keys['KeyA'] = Touch.move.x < -0.3;
       game.keys['KeyD'] = Touch.move.x > 0.3;
       game.locked = true; // 터치 모드는 포인터락 없이 조작
+      game.sprint = Touch.sprinting ? Touch.sprinting() : false; // 스틱 끝까지 = 달리기
     }
     player.update(dt);
     world.update(player.body.x, player.body.z);

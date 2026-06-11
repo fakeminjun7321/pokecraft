@@ -182,6 +182,18 @@ const MOB_DEFS = {
       makeBox(g, 0.5, 0.45, 0.5, '#f08020', 0, 0.4, 0);
       makeBox(g, 0.1, 0.1, 0.02, '#ffce3d', -0.15, 0.55, 0.46); makeBox(g, 0.1, 0.1, 0.02, '#ffce3d', 0.15, 0.55, 0.46);
       return { group: g, legs: [], head: outer }; } },
+  dragon: { name:'엔더드래곤', hp:150, speed:9, w:1.6, h:1.6, hostile:true, boss:true, fireImmune:true,
+    drops:[[I.RARECANDY,3,5],[I.DIAMOND,2,4],[I.ENDERPEARL,2,4]],
+    model:()=> { const g = new THREE.Group();
+      const body = makeBox(g, 1.6, 1.2, 3.2, '#1a1a22', 0, 1.2, 0);
+      const head = makeBox(g, 0.9, 0.8, 1.1, '#1a1a22', 0, 1.5, 2.0);
+      makeBox(head, 0.18, 0.18, 0.06, '#c84af0', -0.25, 0.1, 0.56); makeBox(head, 0.18, 0.18, 0.06, '#c84af0', 0.25, 0.1, 0.56);
+      makeBox(head, 0.5, 0.2, 0.4, '#0e0e14', 0, -0.3, 0.45);
+      makeBox(g, 0.5, 0.5, 2.4, '#15151c', 0, 1.3, -2.6);
+      makeBox(g, 0.3, 0.3, 1.4, '#15151c', 0, 1.35, -4.4);
+      const wingL = makeBox(g, 3.4, 0.12, 1.8, '#2a2a36', -2.2, 1.7, 0);
+      const wingR = makeBox(g, 3.4, 0.12, 1.8, '#2a2a36', 2.2, 1.7, 0);
+      return { group: g, legs: [wingL, wingR], head }; } },
   villager: { name:'주민', hp:20, speed:0.8, w:0.3, h:1.8, npc:true, drops:[[I.EMERALD,0,1]],
     model:()=> { const m = buildBiped({ body:'#8a6a4a', headC:'#d8a888', legC:'#6a5038', armC:'#8a6a4a', legH:0.7, bh:0.75 });
       makeBox(m.head, 0.12, 0.22, 0.1, '#c89878', 0, -0.05, 0.28);
@@ -240,6 +252,54 @@ class Mob {
     }
     const dToP = dist3(b.x, b.y, b.z, tgt.x, tgt.y, tgt.z);
     let speed = 0;
+
+    // ---- 엔더드래곤 보스 AI: 선회↔급강하, 크리스탈 회복, 노클립 비행 ----
+    if(def.boss){
+      this._bossT = (this._bossT === undefined ? Math.random() * 12 : this._bossT) + dt;
+      this.attackCd -= dt;
+      if(world.crystals && world.crystals.size > 0){
+        this.hp = Math.min(def.hp, this.hp + dt * 2); // 크리스탈이 남아있으면 회복!
+        if(Math.random() < dt * 3){
+          const pks = [...world.crystals];
+          const [cx2, cy2, cz2] = pks[(Math.random() * pks.length) | 0].split(',').map(Number);
+          Particles.spawn(cx2 + 0.5, cy2 + 0.8, cz2 + 0.5, 0xf06bdc, 2, 1.5, 0.6, 1.5);
+        }
+      }
+      const diving = (this._bossT % 12) > 8.5 && !tgt.dead;
+      let txp, typ, tzp;
+      if(diving){ txp = tgt.x; typ = tgt.y + 1; tzp = tgt.z; }
+      else {
+        const a = this._bossT * 0.25 + this.bobSeed;
+        txp = Math.cos(a) * 30; typ = 40 + Math.sin(a * 1.6) * 5; tzp = Math.sin(a) * 30;
+      }
+      const ddx = txp - b.x, ddy = typ - b.y, ddz = tzp - b.z;
+      const dl = Math.sqrt(ddx*ddx + ddy*ddy + ddz*ddz) || 1;
+      const sp = diving ? 14 : 9;
+      b.vx = lerp(b.vx, ddx/dl*sp, Math.min(1, dt*2));
+      b.vy = lerp(b.vy, ddy/dl*sp, Math.min(1, dt*2));
+      b.vz = lerp(b.vz, ddz/dl*sp, Math.min(1, dt*2));
+      this.dir = Math.atan2(b.vx, b.vz);
+      if(!tgt.dead && dToP < 3 && this.attackCd <= 0){
+        this.attackCd = 1.2;
+        tgt.hurt(8, (tgt.x - b.x) * 0.8, (tgt.z - b.z) * 0.8);
+        SFX.play('hit');
+      }
+      if(!diving && !tgt.dead && dToP < 35 && this.attackCd <= 0){
+        this.attackCd = 3.5;
+        const fx2 = tgt.x - b.x, fy2 = (tgt.y + 1) - b.y, fz2 = tgt.z - b.z;
+        const fl = Math.sqrt(fx2*fx2 + fy2*fy2 + fz2*fz2) || 1;
+        Projectiles.shootFireball(b.x, b.y + 0.8, b.z, fx2/fl, fy2/fl, fz2/fl, 1.5);
+        SFX.play('fuse');
+      }
+      this.walkPhase += dt * 5;
+      const flap = Math.sin(this.walkPhase) * 0.6;
+      this.legs.forEach((l, i) => { l.rotation.z = (i % 2 === 0 ? flap : -flap); });
+      b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; // 지형 통과 비행
+      if(b.y < 10) b.y = 10;
+      this.group.position.set(b.x, b.y, b.z);
+      this.group.rotation.y = this.dir;
+      return;
+    }
 
     // 번식 하트 / 아기 성장 / 길들인 늑대는 주인 따라다님
     if(this.love > 0){
@@ -441,6 +501,7 @@ class Mob {
   die(withDrops){
     if(this.dead) return;
     this.dead = true;
+    if(this.def.boss && typeof dragonDefeated === 'function') dragonDefeated(this);
     if(withDrops && this.def.drops){
       this.def.drops.forEach(([id, lo, hi]) => {
         const n = lo + Math.floor(Math.random() * (hi - lo + 1));
@@ -484,8 +545,8 @@ const MobManager = {
     }
     // 너무 먼 몹 디스폰 (NPC/펫 제외)
     for(const m of this.list.slice()){
-      if(m.def.npc || m.tamed) continue;
-      if(dist3(m.body.x, m.body.y, m.body.z, player.body.x, player.body.y, player.body.z) > 90){
+      if(m.def.npc || m.tamed || m.def.boss) continue;
+      if(m.body.y < -20 || dist3(m.body.x, m.body.y, m.body.z, player.body.x, player.body.y, player.body.z) > 90){
         m.dead = true;
         scene.remove(m.group);
         disposeObject(m.group);
@@ -501,13 +562,21 @@ const MobManager = {
     this.hostileTimer -= dt;
     if(this.hostileTimer <= 0){
       this.hostileTimer = 3;
-      if((game.isNight() || world.dim === 'nether') && this.count(true) < 12) this.trySpawn(true, world, player);
+      if((game.isNight() || world.dim !== 'over') && this.count(true) < 12) this.trySpawn(true, world, player);
     }
     // 구조물 NPC 유지 (주민/관장/가디언)
     this.npcTimer = (this.npcTimer === undefined ? 1 : this.npcTimer) - dt;
     if(this.npcTimer <= 0){
       this.npcTimer = 5;
       const px = player.body.x, pz = player.body.z;
+      if(world.dim === 'end'){
+        if(!world.flags.dragonDead && !this.list.some(x => x.type === 'dragon')){
+          this.list.push(new Mob('dragon', 0.5, 46, 0.5));
+          UI.toast('💀 엔더드래곤이 나타났다!! 기둥 위 크리스탈을 먼저 부수자!', 6000);
+          SFX.play('fuse');
+        }
+        return;
+      }
       if(world.dim === 'nether'){
         for(const f of world.fortressesNear(px, pz)){
           if(Math.hypot(f.x - px, f.z - pz) > 50) continue;
@@ -559,6 +628,14 @@ const MobManager = {
       const dist = hostile ? 20 + Math.random() * 20 : 14 + Math.random() * 28;
       const x = player.body.x + Math.sin(ang) * dist;
       const z = player.body.z + Math.cos(ang) * dist;
+      // 엔드: 엔더맨만
+      if(world.dim === 'end'){
+        if(!hostile) return;
+        const ey = world.colTop(x, z) + 1;
+        if(ey <= 2 || !BLOCKS[world.getBlock(x, ey - 1, z)].solid) continue;
+        this.list.push(new Mob('enderman', Math.floor(x) + 0.5, ey + 0.1, Math.floor(z) + 0.5));
+        return;
+      }
       // 네더: 바닥 찾기 + 전용 몹
       if(world.dim === 'nether'){
         const ny = world.netherFloorY(Math.floor(x), Math.floor(z));

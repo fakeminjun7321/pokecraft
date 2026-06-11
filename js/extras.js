@@ -25,6 +25,8 @@ const ACH_DEFS = {
   monument:      { n:'심해 탐험가',    d:'해저신전의 상자를 열었다' },
   nether:        { n:'지옥에 오신 것을 환영합니다', d:'네더에 발을 디뎠다' },
   fortress:      { n:'요새 침입자',    d:'네더 요새를 발견했다' },
+  end:           { n:'끝의 세계',      d:'엔드에 도착했다' },
+  dragon:        { n:'드래곤 슬레이어', d:'엔더드래곤을 물리쳤다!!' },
 };
 const Ach = {
   _key(){ return storeKey('ach'); },
@@ -276,28 +278,37 @@ const Touch = {
     stick.addEventListener('touchend', stickEnd);
     stick.addEventListener('touchcancel', stickEnd);
 
-    // 화면 드래그 = 시점
+    // 화면 드래그 = 시점 (이미 시점 터치가 있으면 새 손가락은 무시 — 멀티터치 점프 방지)
     cv.addEventListener('touchstart', e => {
+      e.preventDefault(); // iOS 더블탭 확대/스크롤 방지
+      if(this._lookId !== null) return;
       const t = e.changedTouches[0];
       this._lookId = t.identifier;
       this._lastLook = { x: t.clientX, y: t.clientY };
-    });
+    }, { passive: false });
     cv.addEventListener('touchmove', e => {
+      e.preventDefault();
       for(const t of e.changedTouches){
         if(t.identifier !== this._lookId || !player) continue;
         player.look((t.clientX - this._lastLook.x) * 2.4, (t.clientY - this._lastLook.y) * 2.4);
         this._lastLook = { x: t.clientX, y: t.clientY };
       }
-    });
-    cv.addEventListener('touchend', e => {
+    }, { passive: false });
+    const lookEnd = e => {
       for(const t of e.changedTouches) if(t.identifier === this._lookId) this._lookId = null;
-    });
+    };
+    cv.addEventListener('touchend', lookEnd);
+    cv.addEventListener('touchcancel', lookEnd);
 
-    // 버튼들
+    // 버튼들 (touchcancel도 up 처리 — 알림/제스처에 끊겨도 안 끼이게)
     const bind = (id, down, up) => {
       const el = document.getElementById(id);
+      if(!el) return;
       el.addEventListener('touchstart', e => { e.preventDefault(); down(); }, { passive: false });
-      if(up){ el.addEventListener('touchend', e => { e.preventDefault(); up(); }, { passive: false }); }
+      if(up){
+        el.addEventListener('touchend', e => { e.preventDefault(); up(); }, { passive: false });
+        el.addEventListener('touchcancel', () => up());
+      }
     };
     bind('t-jump', () => { game.keys['Space'] = true; }, () => { game.keys['Space'] = false; });
     bind('t-dig', () => { if(player){ player.mouseLeft = true; player.attack(); } }, () => { if(player) player.mouseLeft = false; });
@@ -307,5 +318,17 @@ const Touch = {
       else if(!UI.isOpen()) UI.openInventory(false);
     });
     bind('t-ride', () => { if(typeof toggleRide === 'function') toggleRide(); });
+    bind('t-sneak', () => { game.keys['ShiftLeft'] = true; }, () => { game.keys['ShiftLeft'] = false; });
+    bind('t-pause', () => {
+      if(game.inBattle) return;
+      if(UI.isOpen()) UI.close();
+      else UI.openPause();
+    });
+    bind('t-poke', () => {
+      if(UI.open === 'party') UI.close();
+      else if(!UI.isOpen()) UI.openParty();
+    });
+    // 조이스틱 끝까지 밀면 달리기
+    this.sprinting = () => this._stickId !== null && Math.hypot(this.move.x, this.move.z) > 0.92 && this.move.z < -0.5;
   }
 };

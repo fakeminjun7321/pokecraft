@@ -112,6 +112,8 @@ class Player {
       this.hurt(Math.floor((-prevVy - 13) * 0.7), 0, 0, true);
     }
 
+    // 공허 추락 (엔드)
+    if(b.y < -12 && !this.dead){ this.hurt(1000, 0, 0, true); return; }
     // 용암 데미지
     if(b.inLava){
       this.lavaAcc = (this.lavaAcc || 0) + dt;
@@ -122,15 +124,16 @@ class Player {
         SFX.play('hurt');
       }
     }
-    // 네더 포탈에 서 있으면 차원 이동 (도착 후 한 번 나갔다 와야 재발동 — 무한 왕복 방지)
-    if(this.world.getBlock(b.x, b.y + 0.5, b.z) === B.PORTAL){
+    // 포탈에 서 있으면 차원 이동 (도착 후 한 번 나갔다 와야 재발동 — 무한 왕복 방지)
+    const feetB = this.world.getBlock(b.x, b.y + 0.5, b.z);
+    if(feetB === B.PORTAL || feetB === B.END_PORTAL){
       if(this.portalArmed !== false){
         this.portalT = (this.portalT || 0) + dt;
         if(this.portalT === dt) UI.toast('🌀 포탈 이동 중... 2초만 기다리세요');
         if(this.portalT > 2 && (!game.portalCd || game.portalCd <= 0)){
           this.portalT = 0;
           this.portalArmed = false;
-          switchDimension();
+          switchDimension(feetB === B.END_PORTAL ? (game.dim === 'end' ? 'over' : 'end') : undefined);
         }
       }
     } else { this.portalT = 0; this.portalArmed = true; }
@@ -234,6 +237,12 @@ class Player {
     }
   }
   breakBlock(hit, withDrops){
+    if(hit.id === B.END_CRYSTAL){
+      this.world.setBlock(hit.bx, hit.by, hit.bz, B.AIR);
+      explode(this.world, hit.bx + 0.5, hit.by + 0.5, hit.bz + 0.5, 2, false);
+      UI.toast('💥 엔드 크리스탈 파괴! (' + (this.world.crystals ? this.world.crystals.size : 0) + '개 남음)');
+      return;
+    }
     const def = BLOCKS[hit.id];
     if(typeof Ach !== 'undefined'){
       if(hit.id === B.LOG || hit.id === B.BIRCH_LOG || hit.id === B.ACACIA_LOG) Ach.unlock('first_tree');
@@ -407,6 +416,40 @@ class Player {
     const item = this.currentItem();
     if(!item) return;
     const heldTool = toolInfo(item.id);
+    // 엔더의 눈: 포탈 프레임에 끼우기 / 스트롱홀드 방향 탐지
+    if(item.id === I.ENDER_EYE){
+      if(hit && hit.id === B.END_FRAME){
+        this.world.setBlock(hit.bx, hit.by, hit.bz, B.END_FRAME_LIT);
+        item.n--; if(item.n <= 0) this.inventory[this.selected] = null;
+        UI.updateHotbar();
+        SFX.play('place');
+        if(typeof tryActivateEndPortal === 'function' && tryActivateEndPortal(this.world, hit.bx, hit.by, hit.bz)){
+          SFX.play('evolve');
+          UI.toast('🌌 엔드 포탈이 열렸다!! 포탈에 들어가면 엔더드래곤이 기다린다...', 6000);
+        } else {
+          UI.toast('👁 엔더의 눈을 끼웠다 — 프레임 12개를 모두 채우자');
+        }
+        return;
+      }
+      if(hit && hit.id === B.END_FRAME_LIT){ UI.toast('이미 눈이 끼워져 있어요'); return; }
+      if(game.dim !== 'over'){ UI.toast('👁 엔더의 눈이 잠잠하다... (오버월드에서만 반응해요)'); return; }
+      const shs = this.world.strongholdsNear(this.body.x, this.body.z);
+      if(!shs.length){ UI.toast('👁 눈이 반응하지 않는다... 더 멀리 가보자'); return; }
+      let best = null, bd = 1e9;
+      for(const s of shs){
+        const d2 = Math.hypot(s.x - this.body.x, s.z - this.body.z);
+        if(d2 < bd){ bd = d2; best = s; }
+      }
+      const dx = best.x - this.body.x, dz = best.z - this.body.z;
+      let a = Math.atan2(dx, -dz) * 180 / Math.PI; if(a < 0) a += 360;
+      const fx2 = -Math.sin(this.yaw), fz2 = -Math.cos(this.yaw);
+      let va = Math.atan2(fx2, -fz2) * 180 / Math.PI; if(va < 0) va += 360;
+      const rel = ((a - va) % 360 + 360) % 360;
+      const arrows = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+      SFX.play('pop');
+      UI.toast('👁 엔더의 눈이 ' + arrows[Math.round(rel / 45) % 8] + ' ' + Math.round(bd) + 'm 방향을 가리킨다! (지하 y13 부근)', 5000);
+      return;
+    }
     // 호미: 잔디/흙 → 경작지
     if(heldTool && heldTool.kind === 'hoe'){
       if(hit && (hit.id === B.GRASS || hit.id === B.DIRT) && this.world.getBlock(hit.bx, hit.by + 1, hit.bz) === B.AIR){

@@ -2,9 +2,9 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>포케크래프트 - PokeCraft</title>
-<link rel="stylesheet" href="css/style.css?v=7">
+<link rel="stylesheet" href="css/style.css?v=8">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -103,8 +103,11 @@
       <button id="t-jump">⬆</button>
       <button id="t-dig">⛏</button>
       <button id="t-use">✋</button>
+      <button id="t-sneak">⬇</button>
       <button id="t-ride">🐾</button>
       <button id="t-inv">🎒</button>
+      <button id="t-poke">❤</button>
+      <button id="t-pause">⚙</button>
     </div>
   </div>
   <div id="chat-box"></div>
@@ -288,6 +291,7 @@
       <tr><td>F5</td><td>1인칭 ↔ 3인칭 시점 전환</td></tr>
       <tr><td>G</td><td>🐾 파트너 포켓몬 타기/내리기 (비행=하늘, 물=수영, 그 외=질주)</td></tr>
       <tr><td colspan="2">🔥 네더: 흑요석 4×5 프레임 → 부싯돌과 부시(철+부싯돌)로 점화 → 포탈에 2초 서 있기!</td></tr>
+      <tr><td colspan="2">🌌 엔드: 엔더의 눈(진주+블레이즈 막대)으로 지하 스트롱홀드를 찾아 프레임 12개를 점등! 드래곤을 잡으려면 기둥 위 크리스탈부터!</td></tr>
       <tr><td>M</td><td>미니맵 켜기/끄기</td></tr>
       <tr><td>마우스 드래그</td><td>인벤토리에서 우클릭 드래그: 1개씩 뿌리기 / 좌클릭 드래그: 균등 분배</td></tr>
       <tr><td>숫자키(슬롯 위)</td><td>인벤토리에서 슬롯에 마우스 올리고 1~9: 핫바와 교체</td></tr>
@@ -323,17 +327,17 @@
 
 <script src="lib/three.min.js"></script>
 <script src="lib/peerjs.min.js"></script>
-<script src="js/util.js?v=7"></script>
-<script src="js/account.js?v=7"></script>
-<script src="js/content.js?v=7"></script>
-<script src="js/world.js?v=7"></script>
-<script src="js/entities.js?v=7"></script>
-<script src="js/mobs.js?v=7"></script>
-<script src="js/pokemon.js?v=7"></script>
-<script src="js/player.js?v=7"></script>
-<script src="js/ui.js?v=7"></script>
-<script src="js/extras.js?v=7"></script>
-<script src="js/net.js?v=7"></script>
-<script src="js/main.js?v=7"></script>
+<script src="js/util.js?v=8"></script>
+<script src="js/account.js?v=8"></script>
+<script src="js/content.js?v=8"></script>
+<script src="js/world.js?v=8"></script>
+<script src="js/entities.js?v=8"></script>
+<script src="js/mobs.js?v=8"></script>
+<script src="js/pokemon.js?v=8"></script>
+<script src="js/player.js?v=8"></script>
+<script src="js/ui.js?v=8"></script>
+<script src="js/extras.js?v=8"></script>
+<script src="js/net.js?v=8"></script>
+<script src="js/main.js?v=8"></script>
 </body>
 </html>
