@@ -588,6 +588,8 @@ class World {
       g.setIndex(L.idx);
       const m = new THREE.Mesh(g, mats[name]);
       m.position.set(ox, 0, oz);
+      m.matrixAutoUpdate = false; // 정적 청크 — 행렬 갱신 생략
+      m.updateMatrix();
       m.matrixAutoUpdate = false;
       m.updateMatrix();
       if(name === 'water') m.renderOrder = 2;

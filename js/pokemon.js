@@ -1283,6 +1283,17 @@ const PokeMan = {
         UI.toast('🐣 알에서 ' + (inst.shiny ? '✨' : '') + inst.name + '이(가) 태어났다!!' + (where === 'box' ? ' (PC로 이동)' : ''), 6000);
       }
     }
+    // 너무 먼 야생은 정리 (무한 누적 → 렉 방지)
+    this._despawnAcc = (this._despawnAcc || 0) + dt;
+    if(this._despawnAcc > 3){
+      this._despawnAcc = 0;
+      for(const w of this.wilds.slice()){
+        if(w.catching || w.fainted) continue;
+        if(dist3(w.body.x, w.body.y, w.body.z, player.body.x, player.body.y, player.body.z) > 100){
+          this.removeWild(w, false);
+        }
+      }
+    }
     for(const w of this.wilds) w.update(dt, world, player);
     for(const w of this.wilds.slice()){
       if(w.catching) continue; // 포획 연출/배틀 중에는 디스폰 금지

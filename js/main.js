@@ -338,7 +338,7 @@ function setupThree(){
   if(renderer) return;
   const cv = document.getElementById('game-canvas');
   renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: false });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // 레티나 과부하 방지
   renderer.setSize(window.innerWidth, window.innerHeight);
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -1270,7 +1270,10 @@ function tick(t){
     updateSky();
     updateHighlight();
     UI.tickOpenUI();
-    UI.updateHUD();
+    // DOM 갱신은 10Hz면 충분 (매 프레임 스타일 변경은 렉 유발)
+    game._hudAcc = (game._hudAcc || 0) + dt;
+    const hudTick = game._hudAcc >= 0.1;
+    if(hudTick){ game._hudAcc = 0; UI.updateHUD(); }
     updateDebug(dt);
 
     // 물/용암 흐름 애니메이션
@@ -1295,8 +1298,10 @@ function tick(t){
     autosaveAcc += dt;
     if(autosaveAcc > 30){ autosaveAcc = 0; saveGame(); }
   }
-  // 좌표 HUD (시선 방위 포함)
-  {
+  // 멀티 동기화는 매 프레임 (스로틀 금지!)
+  if(Net.mode !== 'off') Net.tick(dt);
+  // 좌표 HUD (시선 방위 포함) — 10Hz
+  if(game._hudAcc === 0){
     const cb = player.body;
     const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
     let ang = Math.atan2(fx, -fz) * 180 / Math.PI; // 북=0°, 동=90°
@@ -1306,9 +1311,8 @@ function tick(t){
     document.getElementById('coords').textContent =
       'X ' + Math.floor(cb.x) + '  Y ' + Math.floor(cb.y) + '  Z ' + Math.floor(cb.z) + '  · ' + dn + '쪽';
 
-    // 멀티플레이는 일시정지/배틀 중에도 계속 동기화
+    // 멀티 정보 표시 (텍스트만 — 동기화는 위에서 매 프레임)
     if(Net.mode !== 'off'){
-      Net.tick(dt);
       const mi = document.getElementById('mp-info');
       let txt = Net.mode === 'host'
         ? '방 코드 ' + Net.code + ' · ' + Net.playerCount() + '명 접속 중'
