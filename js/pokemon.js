@@ -19,24 +19,28 @@ const TYPES = {
   fighting:{ n:'격투',   c:'#c03028' },
   ghost:   { n:'고스트', c:'#705898' },
   dragon:  { n:'드래곤', c:'#7038f8' },
+  dark:    { n:'악',     c:'#705848' },
+  steel:   { n:'강철',   c:'#b8b8d0' },
 };
 const TYPE_CHART = {
-  normal:  { rock:0.5, ghost:0 },
-  fire:    { grass:2, ice:2, bug:2, water:0.5, fire:0.5, rock:0.5, dragon:0.5 },
+  normal:  { rock:0.5, ghost:0, steel:0.5 },
+  fire:    { grass:2, ice:2, bug:2, steel:2, water:0.5, fire:0.5, rock:0.5, dragon:0.5 },
   water:   { fire:2, rock:2, ground:2, water:0.5, grass:0.5, dragon:0.5 },
   grass:   { water:2, rock:2, ground:2, fire:0.5, grass:0.5, flying:0.5, bug:0.5, poison:0.5, dragon:0.5 },
   electric:{ water:2, flying:2, grass:0.5, electric:0.5, ground:0, dragon:0.5 },
   flying:  { grass:2, bug:2, fighting:2, electric:0.5, rock:0.5 },
-  bug:     { grass:2, psychic:2, fire:0.5, flying:0.5, poison:0.5, fairy:0.5, fighting:0.5, ghost:0.5 },
+  bug:     { grass:2, psychic:2, dark:2, fire:0.5, flying:0.5, poison:0.5, fairy:0.5, fighting:0.5, ghost:0.5, steel:0.5 },
   rock:    { fire:2, ice:2, flying:2, bug:2, ground:0.5, fighting:0.5 },
-  ground:  { fire:2, electric:2, rock:2, poison:2, grass:0.5, bug:0.5, flying:0 },
-  psychic: { poison:2, fighting:2, psychic:0.5 },
-  fairy:   { fighting:2, dragon:2, poison:0.5, fire:0.5 },
+  ground:  { fire:2, electric:2, rock:2, poison:2, steel:2, grass:0.5, bug:0.5, flying:0 },
+  psychic: { poison:2, fighting:2, psychic:0.5, steel:0.5, dark:0 },
+  fairy:   { fighting:2, dragon:2, dark:2, poison:0.5, fire:0.5, steel:0.5 },
   ice:     { grass:2, ground:2, flying:2, dragon:2, fire:0.5, water:0.5, ice:0.5 },
-  poison:  { grass:2, fairy:2, poison:0.5, rock:0.5, ground:0.5, ghost:0.5 },
-  fighting:{ normal:2, rock:2, ice:2, flying:0.5, poison:0.5, bug:0.5, psychic:0.5, fairy:0.5, ghost:0 },
-  ghost:   { ghost:2, psychic:2, normal:0 },
-  dragon:  { dragon:2, fairy:0 },
+  poison:  { grass:2, fairy:2, poison:0.5, rock:0.5, ground:0.5, ghost:0.5, steel:0 },
+  fighting:{ normal:2, rock:2, ice:2, dark:2, steel:2, flying:0.5, poison:0.5, bug:0.5, psychic:0.5, fairy:0.5, ghost:0 },
+  ghost:   { ghost:2, psychic:2, normal:0, dark:0.5 },
+  dragon:  { dragon:2, fairy:0, steel:0.5 },
+  dark:    { psychic:2, ghost:2, dark:0.5, fighting:0.5, fairy:0.5 },
+  steel:   { ice:2, rock:2, fairy:2, fire:0.5, water:0.5, electric:0.5, steel:0.5 },
 };
 function typeMult(moveType, defTypes){
   let m = 1;
@@ -99,6 +103,12 @@ const MOVES = {
   karatechop:  { n:'가라테촙',     t:'fighting',p:50,  a:100 },
   brickbreak:  { n:'깨트리기',     t:'fighting',p:75,  a:100 },
   closecombat: { n:'인파이트',     t:'fighting',p:110, a:95 },
+  pursuit:     { n:'추격',         t:'dark',    p:40,  a:100 },
+  crunch:      { n:'깨물어부수기', t:'dark',    p:80,  a:100 },
+  darkpulse:   { n:'악의 파동',    t:'dark',    p:80,  a:100 },
+  metalclaw:   { n:'메탈클로',     t:'steel',   p:50,  a:95 },
+  irontail:    { n:'아이언테일',   t:'steel',   p:100, a:75 },
+  steelwing:   { n:'강철날개',     t:'steel',   p:70,  a:90 },
   lick:        { n:'핥기',         t:'ghost',   p:30,  a:100 },
   shadowpunch: { n:'섀도펀치',     t:'ghost',   p:60,  a:100 },
   shadowball:  { n:'섀도볼',       t:'ghost',   p:80,  a:100 },
@@ -251,7 +261,7 @@ const DEX = {
 39:['푸린','fairy,normal',115,45,20,20,170,30,40,'o',.5,'#f9aec5','#f0a0b8','p',2],
 40:['푸크린','fairy,normal',140,70,45,45,50,0,0,'o',.7,'#f9aec5','#ffffff','p',4],
 41:['주뱃','poison,flying',40,45,35,55,255,22,42,'B',.45,'#6878c8','#8898d8','m,f',1],
-42:['골뱃','poison,flying',75,80,70,90,90,0,0,'B',.8,'#5868b8','#e8a8c8','m',3],
+42:['골뱃','poison,flying',75,80,70,90,90,24,169,'B',.8,'#5868b8','#e8a8c8','m',3],
 43:['뚜벅쵸','grass,poison',45,50,55,30,255,21,44,'o',.45,'#4878b8','#58a838','f',1],
 44:['냄새꼬','grass,poison',60,65,70,40,120,36,45,'o',.6,'#4878b8','#e85f3a','f',3],
 45:['라플레시아','grass,poison',75,80,85,50,45,0,0,'b',.8,'#4878b8','#e84d60','f',4],
@@ -361,6 +371,241 @@ const DEX = {
 149:['망나뇽','dragon,flying',91,134,95,80,45,0,0,'b',1.1,'#e8a050','#88c8a8','w',5],
 150:['뮤츠','psychic',106,110,90,130,5,0,0,'b',1,'#c8bcd8','#8a5fa8','p,f,d,m,s',5],
 151:['뮤','psychic',100,100,100,100,8,0,0,'f',.5,'#f8c8d8','#88c8e8','p,f,d,m,s,w',5],
+152:['치코리타','grass',45,49,65,45,45,16,153,'q',.5,'#8ed8a0','#5ac08c','f',2],
+153:['베이리프','grass',60,62,80,60,45,24,154,'q',.72,'#a8d860','#5ac08c','f',3],
+154:['메가니움','grass',80,82,100,80,45,0,0,'q',1.05,'#8ec860','#e89ab8','f',4],
+155:['브케인','fire',39,52,43,65,45,16,156,'q',.5,'#3a6a8a','#ffce3d','d,m',2],
+156:['마그케인','fire',58,64,58,80,45,24,157,'q',.72,'#3a6a8a','#f08020','m',3],
+157:['블레이범','fire',78,84,78,100,45,0,0,'q',1.05,'#3a6a8a','#e8633a','m',4],
+158:['리아코','water',50,65,64,43,45,16,159,'b',.5,'#58a8e8','#e84d60','w',2],
+159:['엘리게이','water',65,80,80,58,45,24,160,'b',.75,'#58a8e8','#e84d60','w',3],
+160:['장크로다일','water',85,105,100,78,45,0,0,'b',1.1,'#3a8fd8','#e84d60','w',4],
+161:['꼬리선','normal',35,46,34,20,255,16,162,'q',.45,'#b89a72','#e8e0d0','p,f',1],
+162:['다꼬리','normal',85,76,64,90,90,0,0,'q',.75,'#b89a72','#e8e0d0','p,f',2],
+163:['부우부','normal,flying',60,30,30,50,255,16,164,'B',.45,'#b8926a','#e8d8b8','f',1],
+164:['야부엉','normal,flying',100,50,50,70,90,0,0,'B',.85,'#b8926a','#e8d8b8','f',2],
+165:['레디바','bug,flying',40,20,30,55,255,16,166,'B',.45,'#e84d3a','#2a2a32','f,p',1],
+166:['레디안','bug,flying',55,35,50,85,90,0,0,'B',.7,'#e84d3a','#2a2a32','f',2],
+167:['페이검','bug,poison',40,60,40,30,255,16,168,'q',.45,'#5a8a4a','#c84a8a','f',1],
+168:['아리아도스','bug,poison',70,90,70,40,90,0,0,'q',.8,'#e84d3a','#5a3a8a','f',2],
+169:['크로뱃','poison,flying',85,90,80,130,90,0,0,'B',.85,'#7858b8','#e89ab8','m',4],
+170:['초라기','water,electric',75,38,38,67,190,16,171,'f',.5,'#4878c8','#ffe97a','w',2],
+171:['랜턴','water,electric',125,58,58,67,75,0,0,'f',.8,'#4878c8','#ffe97a','w',3],
+172:['피츄','electric',20,40,15,60,190,16,25,'q',.4,'#ffe97a','#2a2a32','f,p',2],
+173:['삐','fairy',50,25,28,15,150,16,35,'o',.4,'#f5c8d8','#e89ab8','p',2],
+174:['푸푸린','normal,fairy',90,30,15,15,170,16,39,'o',.4,'#e8c8e0','#58a858','p',2],
+175:['토게피','fairy',35,20,65,20,190,16,176,'o',.4,'#f5f0e0','#e84d60','p',3],
+176:['토게틱','fairy,flying',55,40,85,40,75,0,0,'B',.6,'#f5f0e0','#58a8e8','p',3],
+177:['네이티','psychic,flying',40,50,45,70,190,16,178,'B',.45,'#48b858','#e8c84a','d,p',2],
+178:['네이티오','psychic,flying',65,75,70,95,75,0,0,'B',.85,'#48b858','#e8e0d0','d',3],
+179:['메리프','electric',55,40,40,35,235,16,180,'q',.5,'#f5f0e0','#58a8e8','p',1],
+180:['보송송','electric',70,55,55,45,120,24,181,'b',.7,'#e89ab8','#f5f0e0','p',2],
+181:['전룡','electric',90,75,85,55,45,0,0,'b',1,'#ffe97a','#f5f0e0','p',3],
+182:['아르코','grass',75,80,95,50,255,0,0,'q',.6,'#48b858','#e84d60','f,p',2],
+183:['마릴','water,fairy',70,20,50,40,190,16,184,'o',.5,'#58a8e8','#f5f0e0','w',2],
+184:['마릴리','water,fairy',100,50,80,50,75,0,0,'o',.8,'#58a8e8','#f5f0e0','w',3],
+185:['꼬지모','rock',70,100,115,30,65,0,0,'b',.85,'#a8825a','#5a8a4a','f',3],
+186:['왕구리','water',90,75,75,70,45,0,0,'o',.85,'#48b858','#e8c84a','w',3],
+187:['통통코','grass,flying',35,35,40,50,255,16,188,'o',.4,'#e89ab8','#8ed8a0','p',1],
+188:['두코','grass,flying',55,45,50,80,120,24,189,'o',.55,'#8ed8a0','#ffe97a','p',2],
+189:['솜솜코','grass,flying',75,55,70,110,45,0,0,'o',.7,'#8ed8a0','#f5f0e0','p',3],
+190:['에이팜','normal',55,70,55,85,45,0,0,'b',.6,'#b87ad8','#f5e0c8','f',2],
+191:['해너츠','grass',30,30,30,30,235,16,192,'o',.4,'#f5e08a','#5ac08c','p',1],
+192:['해루미','grass',75,75,55,30,120,0,0,'b',.7,'#ffe97a','#48b858','p',2],
+193:['왕자리','bug,flying',65,65,45,95,75,0,0,'B',.7,'#e84d3a','#8ed8e8','w,p',2],
+194:['우파','water,ground',55,45,45,15,255,16,195,'q',.45,'#58a8e8','#c8a8d8','w',1],
+195:['누오','water,ground',95,85,85,35,90,0,0,'q',.9,'#5878a8','#8ed8e8','w',2],
+196:['에브이','psychic',65,65,60,110,45,0,0,'q',.65,'#d8b8e8','#7858b8','f',4],
+197:['블래키','dark',95,65,110,65,45,0,0,'q',.65,'#2a2a32','#ffe97a','f',4],
+198:['니로우','dark,flying',60,85,42,91,190,0,0,'B',.5,'#2a2a32','#7858b8','f,m',2],
+199:['야도킹','water,psychic',95,75,80,30,70,0,0,'b',.95,'#e89ab8','#e8e0d0','w',4],
+200:['무우마','ghost',60,60,60,85,190,0,0,'f',.5,'#7858b8','#e84d60','m,f',3],
+201:['안농','psychic',48,72,48,48,225,0,0,'f',.45,'#2a2a32','#e8e0d0','d',3],
+202:['마자용','psychic',190,33,58,33,45,0,0,'o',.85,'#48a8d8','#2a2a32','m',3],
+203:['키링키','normal,psychic',70,80,65,85,60,0,0,'q',.85,'#e8c84a','#a8825a','p',3],
+204:['피콘','bug',50,65,90,15,190,16,205,'o',.45,'#a8825a','#5a8a4a','f',2],
+205:['쏘콘','bug,steel',75,90,140,40,75,0,0,'o',.7,'#8a8a95','#5a8a4a','f',3],
+206:['노고치','normal',100,70,70,45,190,0,0,'s',.8,'#e8c8a8','#58a8e8','p,m',2],
+207:['글라이거','ground,flying',65,75,105,85,60,0,0,'B',.7,'#c8a8d8','#58a8e8','d,m',3],
+208:['강철톤','steel,ground',75,85,200,30,25,0,0,'s',1.2,'#8a8a95','#5a5a65','m',4],
+209:['블루','fairy',60,80,50,30,190,16,210,'q',.5,'#e89ab8','#2a2a32','p',2],
+210:['그랑블루','fairy',90,120,75,45,75,0,0,'q',.85,'#d87ab8','#2a2a32','p',3],
+211:['침바루','water,poison',65,95,85,85,45,0,0,'o',.6,'#48a8d8','#e8c84a','w',3],
+212:['핫삼','bug,steel',70,130,100,65,25,0,0,'b',.95,'#e84d3a','#8a8a95','f',4],
+213:['단단지','bug,rock',20,10,230,5,190,0,0,'o',.45,'#e8c84a','#e84d60','m',3],
+214:['헤라크로스','bug,fighting',80,125,75,85,45,0,0,'b',.85,'#4878c8','#e8e0d0','f',3],
+215:['포푸니','dark,ice',55,95,55,115,60,0,0,'b',.7,'#2a3a42','#e84d60','s',3],
+216:['깜지곰','normal',60,80,50,40,120,16,217,'b',.55,'#e8a838','#f5e0c8','f',2],
+217:['링곰','normal',90,130,75,55,60,0,0,'b',1.05,'#a8825a','#e8c84a','f,m',3],
+218:['마그마그','fire',40,40,40,20,190,24,219,'o',.45,'#e84d3a','#ffe97a','m',2],
+219:['마그카르고','fire,rock',60,50,120,30,75,0,0,'o',.7,'#a83a2a','#5a5a65','m,nether',3],
+220:['꾸꾸리','ice,ground',50,50,40,50,225,24,221,'q',.45,'#a8825a','#e8e0d0','s',1],
+221:['메꾸리','ice,ground',100,100,80,50,75,0,0,'q',.9,'#a8825a','#e8e0d0','s',2],
+222:['코산호','water,rock',65,55,95,35,60,0,0,'o',.5,'#e89ab8','#f5f0e0','w',3],
+223:['총어','water',35,65,35,65,190,24,224,'f',.45,'#58a8e8','#e8c84a','w',2],
+224:['대포무노','water',75,105,75,45,75,0,0,'f',.75,'#e84d3a','#e8c84a','w',3],
+225:['딜리버드','ice,flying',45,55,45,75,45,0,0,'B',.6,'#e84d3a','#f5f0e0','s',3],
+226:['만타인','water,flying',85,40,70,70,25,0,0,'f',1.05,'#4878c8','#f5f0e0','w',3],
+227:['무장조','steel,flying',65,80,140,70,25,0,0,'B',.85,'#8a8a95','#e84d3a','m',3],
+228:['델빌','dark,fire',45,60,30,65,120,24,229,'q',.5,'#2a2a32','#e84d3a','d,nether',2],
+229:['헬가','dark,fire',75,90,50,95,45,0,0,'q',.85,'#2a2a32','#e84d3a','d,nether',3],
+230:['킹드라','water,dragon',75,95,95,85,45,0,0,'s',.85,'#48a8d8','#ffe97a','w',4],
+231:['코코리','ground',90,60,60,40,120,24,232,'q',.6,'#8ed8e8','#a8825a','d',2],
+232:['코리갑','ground',90,120,120,50,60,0,0,'q',.95,'#5a5a65','#a8825a','d',3],
+233:['폴리곤2','normal',85,80,90,60,45,0,0,'f',.7,'#e84d60','#58a8e8','p',4],
+234:['노라키','normal',73,95,62,85,45,0,0,'q',.85,'#a8825a','#ffe97a','f',3],
+235:['루브도','normal',55,20,35,75,45,0,0,'b',.6,'#e8e0d0','#48b858','p',3],
+236:['배루키','fighting',35,35,35,35,180,16,237,'b',.5,'#c8a8d8','#a8825a','m',2],
+237:['카포에라','fighting',50,95,95,70,45,0,0,'b',.7,'#a8825a','#58a8e8','m',3],
+238:['뽀뽀라','ice,psychic',45,30,15,65,45,16,124,'b',.5,'#e89ab8','#f5e08a','s',2],
+239:['에레키드','electric',45,63,37,95,45,16,125,'b',.5,'#ffe97a','#2a2a32','p',2],
+240:['마그비','fire',45,75,37,83,45,16,126,'b',.5,'#e84d3a','#ffe97a','m',2],
+241:['밀탱크','normal',95,80,105,100,45,0,0,'q',.9,'#e89ab8','#f5e0c8','p',3],
+242:['해피너스','normal',255,10,10,55,30,0,0,'o',.9,'#e89ab8','#f5f0e0','p',4],
+243:['라이코','electric',90,85,75,115,3,0,0,'q',1.05,'#ffe97a','#7858b8','p,m',5],
+244:['앤테이','fire',115,115,85,100,3,0,0,'q',1.1,'#a8552a','#5a5a65','d,m',5],
+245:['스이쿤','water',100,75,115,85,3,0,0,'q',1.05,'#48a8d8','#e89ab8','w',5],
+246:['애버라스','rock,ground',50,64,50,41,45,16,247,'b',.5,'#5a8a4a','#2a2a32','m',3],
+247:['데기라스','rock,ground',70,84,70,51,45,24,248,'b',.75,'#8a8a95','#2a2a32','m',3],
+248:['마기라스','rock,dark',100,134,110,61,45,0,0,'b',1.1,'#5a8a4a','#2a2a32','m',4],
+249:['루기아','psychic,flying',106,90,130,110,3,0,0,'B',1.25,'#e8e8f5','#3a5a8a','w',5],
+250:['칠색조','fire,flying',106,130,90,90,3,0,0,'B',1.2,'#e8a838','#e84d3a','m',5],
+251:['세레비','psychic,grass',100,100,100,100,3,0,0,'f',.6,'#8ed8a0','#48b858','f',5],
+252:['나무지기','grass',40,45,35,70,45,16,253,'q',.5,'#48b858','#e84d60','f',2],
+253:['나무돌이','grass',50,65,45,95,45,24,254,'b',.75,'#48b858','#e84d60','f',3],
+254:['나무킹','grass',70,85,65,120,45,0,0,'b',1.05,'#48b858','#e84d60','f',4],
+255:['아차모','fire',45,60,40,45,45,16,256,'B',.45,'#f5a838','#ffe97a','d',2],
+256:['영치코','fire,fighting',60,85,60,55,45,24,257,'b',.75,'#f5a838','#e8e0d0','d',3],
+257:['번치코','fire,fighting',80,120,70,80,45,0,0,'b',1.05,'#e84d3a','#e8e0d0','d',4],
+258:['물짱이','water',50,70,50,40,45,16,259,'q',.5,'#58a8e8','#f5a838','w',2],
+259:['늪짱이','water,ground',70,85,70,50,45,24,260,'b',.8,'#58a8e8','#f5a838','w',3],
+260:['대짱이','water,ground',100,110,90,60,45,0,0,'b',1.1,'#4878c8','#f5a838','w',4],
+261:['포챠나','dark',35,55,35,35,255,16,262,'q',.45,'#5a5a65','#2a2a32','p,f',1],
+262:['그라에나','dark',70,90,70,70,127,0,0,'q',.85,'#5a5a65','#2a2a32','f',2],
+263:['지그제구리','normal',38,30,41,60,255,16,264,'q',.45,'#a8825a','#e8e0d0','p',1],
+264:['직구리','normal',78,70,61,100,90,0,0,'q',.8,'#a8825a','#e8e0d0','p',2],
+265:['개무소','bug',45,45,35,20,255,16,266,'o',.4,'#e84d3a','#f5f0e0','f',1],
+266:['실쿤','bug',50,35,55,15,120,24,267,'o',.5,'#e8e0d0','#5a5a65','f',2],
+267:['뷰티플라이','bug,flying',60,70,50,65,45,0,0,'B',.7,'#2a2a32','#ffe97a','f',2],
+268:['카스쿤','bug',50,35,55,15,120,24,269,'o',.5,'#c8a8d8','#5a5a65','f',2],
+269:['독케일','bug,poison',60,50,70,65,45,0,0,'B',.7,'#2a3a42','#48b858','f',2],
+270:['연꽃몬','water,grass',40,30,30,30,255,16,271,'o',.45,'#48b858','#e89ab8','w',1],
+271:['로토스','water,grass',60,50,50,50,120,24,272,'b',.7,'#48b858','#e8c84a','w',2],
+272:['로파파','water,grass',80,70,70,70,45,0,0,'b',.95,'#48b858','#e8c84a','w',3],
+273:['도토링','grass',40,40,50,30,255,16,274,'o',.4,'#a8825a','#e8e0d0','f',1],
+274:['잎새코','grass,dark',70,70,40,60,120,24,275,'b',.7,'#a8825a','#e84d60','f',2],
+275:['다탱구','grass,dark',90,100,60,80,45,0,0,'b',1,'#a8825a','#f5f0e0','f',3],
+276:['테일로','normal,flying',40,55,30,85,200,16,277,'B',.45,'#3a5a8a','#e84d3a','p',1],
+277:['스왈로','normal,flying',60,85,60,125,45,0,0,'B',.75,'#3a5a8a','#e84d3a','p',2],
+278:['갈모매','water,flying',40,30,30,85,190,24,279,'B',.5,'#e8e8f5','#58a8e8','w',1],
+279:['패리퍼','water,flying',60,50,100,65,45,0,0,'B',.85,'#e8e8f5','#ffe97a','w',2],
+280:['랄토스','psychic,fairy',28,25,25,40,235,16,281,'b',.45,'#e8e8f5','#48b858','p',2],
+281:['킬리아','psychic,fairy',38,35,35,50,120,24,282,'b',.7,'#e8e8f5','#48b858','p',3],
+282:['가디안','psychic,fairy',68,65,65,80,45,0,0,'b',.95,'#e8e8f5','#48b858','p',4],
+283:['비구술','bug,water',40,30,32,65,200,16,284,'o',.45,'#48a8d8','#e8c84a','w',1],
+284:['비나방','bug,flying',70,60,62,80,75,0,0,'B',.75,'#48a8d8','#e8c84a','w',2],
+285:['버섯꼬','grass',60,40,60,35,255,16,286,'o',.45,'#e84d3a','#f5e0c8','f',1],
+286:['버섯모','grass,fighting',60,130,80,70,90,0,0,'b',.8,'#e84d3a','#5a8a4a','f',3],
+287:['게을로','normal',60,60,60,30,255,16,288,'q',.6,'#a8825a','#f5e0c8','f',1],
+288:['발바로','normal',80,80,80,90,120,24,289,'b',.8,'#e8e0d0','#a8825a','f',2],
+289:['게을킹','normal',150,160,100,100,45,0,0,'b',1.1,'#a8825a','#f5e0c8','f',4],
+290:['토중몬','bug,ground',31,45,90,40,255,16,291,'o',.45,'#e8e0d0','#a8825a','f',2],
+291:['아이스크','bug,flying',61,90,45,160,120,0,0,'B',.7,'#48b858','#e8e0d0','f',3],
+292:['껍질몬','bug,ghost',1,90,45,40,45,0,0,'o',.5,'#a8825a','#5a5a65','f',3],
+293:['소곤룡','normal',64,51,23,28,190,16,294,'o',.5,'#c8a8d8','#e89ab8','m',2],
+294:['노공룡','normal',84,71,43,48,120,24,295,'b',.75,'#48a8d8','#e89ab8','m',2],
+295:['폭음룡','normal',104,91,63,68,45,0,0,'b',1.05,'#48a8d8','#e89ab8','m',3],
+296:['마크탕','fighting',72,60,30,25,180,24,297,'b',.6,'#a8825a','#e8e0d0','m',2],
+297:['하리뭉','fighting',144,120,60,50,200,0,0,'b',1.1,'#e8c8a8','#3a5a8a','m',3],
+298:['루리리','normal,fairy',50,20,40,20,150,16,183,'o',.4,'#58a8e8','#f5f0e0','w',2],
+299:['코코파스','rock',30,45,135,30,255,0,0,'o',.6,'#a8825a','#e84d3a','d,m',2],
+300:['에나비','normal',50,45,45,50,255,16,301,'q',.45,'#e8e0d0','#e89ab8','p',1],
+301:['델케티','normal',70,65,65,90,60,0,0,'q',.7,'#c8a8d8','#ffe97a','p',2],
+302:['깜까미','dark,ghost',50,75,75,50,225,0,0,'b',.55,'#2a3a42','#e84d60','m',3],
+303:['입치트','steel,fairy',50,85,85,50,45,0,0,'b',.6,'#2a3a42','#e84d60','m',3],
+304:['가보리','steel,rock',50,70,100,30,180,16,305,'q',.55,'#8a8a95','#2a2a32','m',2],
+305:['갱도라','steel,rock',60,90,140,40,90,24,306,'q',.8,'#8a8a95','#2a2a32','m',3],
+306:['보스로라','steel,rock',70,110,180,50,45,0,0,'b',1.1,'#8a8a95','#2a2a32','m',4],
+307:['요가랑','fighting,psychic',30,40,55,60,180,16,308,'b',.5,'#48a8d8','#e8e0d0','m',2],
+308:['요가램','fighting,psychic',60,60,75,80,90,0,0,'b',.85,'#e84d3a','#e8e0d0','m',3],
+309:['썬더라이','electric',40,45,40,65,120,24,310,'q',.5,'#48a8d8','#ffe97a','p',2],
+310:['썬더볼트','electric',70,75,60,105,45,0,0,'q',.85,'#48a8d8','#ffe97a','p',3],
+311:['플러시','electric',60,50,40,95,200,0,0,'b',.5,'#ffe97a','#e84d60','p',2],
+312:['마이농','electric',60,40,50,95,200,0,0,'b',.5,'#ffe97a','#48a8d8','p',2],
+313:['볼비트','bug',65,73,75,85,150,0,0,'b',.55,'#2a2a32','#ffe97a','f',2],
+314:['네오비트','bug',65,47,75,85,150,0,0,'b',.55,'#2a2a32','#e89ab8','f',2],
+315:['로젤리아','grass,poison',50,60,45,65,150,0,0,'b',.55,'#48b858','#e84d60','p,f',2],
+316:['꼴깍몬','poison',70,43,53,40,225,24,317,'o',.5,'#c8a8d8','#2a2a32','f',2],
+317:['꿀꺽몬','poison',100,73,83,55,75,0,0,'o',.8,'#c8a8d8','#2a2a32','f',2],
+318:['샤프니아','water,dark',45,90,20,65,225,24,319,'f',.55,'#48a8d8','#e84d3a','w',2],
+319:['샤크니아','water,dark',70,120,40,95,60,0,0,'f',.95,'#48a8d8','#e84d3a','w',3],
+320:['고래왕자','water',130,70,35,60,125,24,321,'f',.7,'#48a8d8','#f5f0e0','w',2],
+321:['고래왕','water',170,90,45,60,60,0,0,'f',1.3,'#3a5a8a','#f5f0e0','w',3],
+322:['둔타','fire,ground',60,60,40,35,255,24,323,'q',.55,'#a8825a','#5a5a65','d,nether',2],
+323:['폭타','fire,ground',70,100,70,40,150,0,0,'q',.9,'#e84d3a','#5a5a65','d,nether',3],
+324:['코터스','fire',70,85,140,20,90,0,0,'q',.7,'#a8552a','#2a2a32','d',3],
+325:['피그점프','psychic',60,25,35,60,255,24,326,'o',.5,'#2a2a32','#e89ab8','p',2],
+326:['그럼블몽','psychic',80,45,65,80,60,0,0,'b',.85,'#c8a8d8','#2a2a32','p',3],
+327:['얼루기','normal',60,60,60,60,255,0,0,'b',.6,'#e8e0d0','#e84d3a','p',2],
+328:['톱치','ground',45,100,45,10,255,24,329,'o',.5,'#f5a838','#e8e0d0','d',2],
+329:['비브라바','ground,dragon',50,70,50,70,120,24,330,'B',.7,'#48b858','#e8e0d0','d',3],
+330:['플라이곤','ground,dragon',80,100,80,100,45,0,0,'B',1,'#48b858','#e84d60','d',4],
+331:['선인왕','grass',50,85,40,35,190,24,332,'b',.55,'#48b858','#ffe97a','d',2],
+332:['밤선인','grass,dark',70,115,60,55,60,0,0,'b',.9,'#2a5a3a','#48b858','d',3],
+333:['파비코','normal,flying',45,40,60,50,255,24,334,'B',.5,'#48a8d8','#f5f0e0','m',2],
+334:['파비코리','dragon,flying',75,70,90,80,45,0,0,'B',.9,'#48a8d8','#f5f0e0','m',4],
+335:['쟝고','normal',73,115,60,90,90,0,0,'q',.7,'#e8e0d0','#a8825a','d',3],
+336:['세비퍼','poison',73,100,60,65,90,0,0,'s',.8,'#2a2a32','#e84d60','d',3],
+337:['루나톤','rock,psychic',90,55,65,70,45,0,0,'f',.6,'#e8c84a','#5a5a65','m,end',3],
+338:['솔록','rock,psychic',90,95,85,70,45,0,0,'f',.6,'#e84d3a','#5a5a65','m,end',3],
+339:['미꾸리','water,ground',50,48,43,60,190,24,340,'s',.5,'#48a8d8','#e8c84a','w',1],
+340:['메깅','water,ground',110,78,73,60,75,0,0,'f',.95,'#48a8d8','#e8c84a','w',2],
+341:['가재군','water',43,80,65,35,205,24,342,'b',.5,'#e84d3a','#e8c8a8','w',2],
+342:['가재장군','water,dark',63,120,85,55,155,0,0,'b',.8,'#e84d3a','#e8c8a8','w',3],
+343:['오뚝군','ground,psychic',40,40,55,55,255,24,344,'f',.45,'#e8c8a8','#e84d60','d',2],
+344:['점토도리','ground,psychic',60,70,105,75,90,0,0,'f',.7,'#2a3a42','#e84d60','d',3],
+345:['릴링','rock,grass',66,41,77,23,45,24,346,'f',.6,'#c8a8d8','#48b858','w',3],
+346:['릴리요','rock,grass',86,81,97,43,45,0,0,'f',.9,'#c8a8d8','#48b858','w',3],
+347:['아노딥스','rock,bug',45,95,50,75,45,24,348,'b',.6,'#5a5a65','#e84d3a','w',3],
+348:['아말도','rock,bug',75,125,100,45,45,0,0,'b',.95,'#5a5a65','#e84d3a','w',3],
+349:['빈티나','water',20,15,20,80,255,24,350,'f',.45,'#a8825a','#48a8d8','w',2],
+350:['밀로틱','water',95,60,79,81,60,0,0,'s',1.1,'#e8e8f5','#e89ab8','w',4],
+351:['캐스퐁','normal',70,70,70,70,45,0,0,'f',.5,'#e8e8f5','#48a8d8','p',3],
+352:['켈리몬','normal',60,90,70,40,60,0,0,'b',.7,'#48b858','#e89ab8','f',3],
+353:['어둠대신','ghost',44,75,35,45,225,24,354,'f',.5,'#2a2a32','#e8e0d0','f,m',2],
+354:['다크펫','ghost',64,115,65,65,45,0,0,'f',.8,'#2a2a32','#e8e0d0','m',3],
+355:['해골몽','ghost,dark',20,40,90,25,190,24,356,'f',.5,'#2a3a42','#e8e0d0','m',2],
+356:['미라몽','ghost,dark',40,70,130,25,90,0,0,'b',.8,'#2a3a42','#e8e0d0','m',3],
+357:['트로피우스','grass,flying',99,68,83,51,200,0,0,'q',1.05,'#48b858','#e8c84a','f',3],
+358:['치렁','psychic',75,50,80,65,45,0,0,'f',.6,'#48a8d8','#ffe97a','f',3],
+359:['앱솔','dark',65,130,60,75,30,0,0,'q',.85,'#e8e8f5','#2a3a42','m',4],
+360:['마자','psychic',95,23,48,23,125,16,202,'o',.45,'#48a8d8','#2a2a32','m',2],
+361:['눈꼬마','ice',50,50,50,50,190,24,362,'o',.5,'#2a3a42','#e8e0d0','s',1],
+362:['얼음귀신','ice',80,80,80,80,75,0,0,'b',.9,'#2a3a42','#8ed8e8','s',3],
+363:['대굴레오','ice,water',70,40,50,25,255,16,364,'o',.55,'#48a8d8','#e8e0d0','s',1],
+364:['씨레오','ice,water',90,60,70,45,120,24,365,'o',.8,'#48a8d8','#e8c8a8','s',2],
+365:['씨카이저','ice,water',110,80,90,65,45,0,0,'o',1.05,'#3a5a8a','#e8c8a8','s',3],
+366:['진주몽','water',35,64,85,32,255,0,0,'o',.5,'#48a8d8','#e89ab8','w',2],
+367:['헌테일','water',55,104,105,52,60,0,0,'s',.8,'#3a5a8a','#e8e0d0','w',3],
+368:['분홍장이','water',55,84,105,52,60,0,0,'s',.8,'#e89ab8','#e8e0d0','w',3],
+369:['시라칸','water,rock',100,90,130,55,25,0,0,'f',.85,'#a8552a','#e8e0d0','w',4],
+370:['사랑동이','water',43,30,55,97,225,0,0,'f',.45,'#e89ab8','#f5f0e0','w',2],
+371:['아공이','dragon',45,75,60,50,45,24,372,'o',.5,'#48a8d8','#e8e0d0','m',3],
+372:['쉘곤','dragon',65,95,100,50,45,24,373,'o',.75,'#e8e0d0','#48a8d8','m',3],
+373:['보만다','dragon,flying',95,135,80,100,45,0,0,'B',1.1,'#48a8d8','#e84d3a','m',4],
+374:['메탈몽','steel,psychic',40,55,80,30,3,24,375,'f',.5,'#8a8a95','#e84d3a','m',3],
+375:['메탕구','steel,psychic',60,75,100,50,3,24,376,'f',.75,'#8a8a95','#e84d3a','m',3],
+376:['메타그로스','steel,psychic',80,135,130,70,3,0,0,'q',1.1,'#8a8a95','#e84d3a','m',4],
+377:['레지락','rock',80,100,200,50,3,0,0,'b',1.15,'#a8825a','#e84d3a','d',5],
+378:['레지아이스','ice',80,50,100,50,3,0,0,'b',1.15,'#8ed8e8','#ffe97a','s',5],
+379:['레지스틸','steel',80,75,150,50,3,0,0,'b',1.15,'#8a8a95','#e84d3a','m',5],
+380:['라티아스','dragon,psychic',80,80,90,110,3,0,0,'B',1,'#e8e8f5','#e84d60','p,w',5],
+381:['라티오스','dragon,psychic',80,90,80,110,3,0,0,'B',1,'#e8e8f5','#4878c8','p,w',5],
+382:['가이오가','water',100,100,90,90,3,0,0,'f',1.3,'#3a5a8a','#e84d3a','w',5],
+383:['그란돈','ground',100,150,140,90,3,0,0,'q',1.3,'#e84d3a','#2a3a42','d,nether',5],
+384:['레쿠쟈','dragon,flying',105,150,90,95,3,0,0,'s',1.4,'#48b858','#ffe97a','m,end',5],
+385:['지라치','steel,psychic',100,100,100,100,3,0,0,'f',.6,'#ffe97a','#e8e8f5','end',5],
+386:['테오키스','psychic',50,150,50,150,3,0,0,'b',1,'#e84d3a','#48a8d8','end',5],
 };
 
 // 디테일 모델 (대표 포켓몬은 손으로 만든 모델 유지)
@@ -506,7 +751,7 @@ for(const idStr in DEX){
     evo,
     learn: autoLearn(types),
     model: DETAIL[id] || autoModel(form, scale, c1, c2, types),
-    spawn: { biomes: biomeStr ? biomeStr.split(',').map(b => BIOME_MAP[b]) : [], rare }
+    spawn: { biomes: biomeStr ? biomeStr.split(',').map(b => BIOME_MAP[b] || b) : [], rare }
   };
 }
 
@@ -531,8 +776,8 @@ function startNPCBattle(npc){
   const n = 1 + Math.floor(Math.random() * clamp(1 + maxLv / 12, 1, 3));
   const team = [];
   for(let i = 0; i < n; i++){
-    let sp = 1 + Math.floor(Math.random() * 151);
-    while(LEGENDARIES.includes(sp)) sp = 1 + Math.floor(Math.random() * 151);
+    let sp = 1 + Math.floor(Math.random() * (SPECIES.length - 1));
+    while(LEGENDARIES.includes(sp) || !SPECIES[sp]) sp = 1 + Math.floor(Math.random() * (SPECIES.length - 1));
     team.push([sp, clamp(maxLv - 2 + Math.floor(Math.random() * 5), 3, 60)]);
   }
   const names = ['짧은바지 영수', '벌레잡이 민호', '아가씨 수진', '등산가 강철', '낚시꾼 태공', '사이킥 유리'];
@@ -564,7 +809,11 @@ function startRocketBattle(npc){
   }, null);
 }
 
-const LEGENDARIES = [144, 145, 146, 149, 150, 151];
+// 물 밖으로 못 나오는 종 — 수면에서만 스폰
+const WATER_ONLY = new Set([129, 116, 117, 230, 90, 91, 120, 121, 222, 223, 224, 226, 320, 321, 349, 350, 366, 367, 368, 369, 370, 382]);
+const LEGENDARIES = [144, 145, 146, 149, 150, 151,
+  243, 244, 245, 249, 250, 251,                       // 2세대: 삼견수·루기아·칠색조·세레비
+  377, 378, 379, 380, 381, 382, 383, 384, 385, 386]; // 3세대: 레지 삼총사·라티·날씨 트리오·지라치·테오키스
 // 진화의 돌: 돌 아이템 → { 현재 도감번호: 진화 도감번호 }
 const STONE_EVOS = {
   [I.FIRE_STONE]:    { 37:38, 58:59, 133:136 },
@@ -574,8 +823,11 @@ const STONE_EVOS = {
   [I.MOON_STONE]:    { 30:31, 33:34, 35:36, 39:40 },
 };
 const FOSSIL_POKES = { [I.FOSSIL_HELIX]: 138, [I.FOSSIL_DOME]: 140, [I.FOSSIL_AMBER]: 142 };
+// 🔮 메가진화 가능 종 (배틀 한정 강화)
+const MEGA_FORMS = new Set([3, 6, 9, 65, 80, 94, 115, 127, 130, 142, 150, 181, 212, 229, 248,
+  254, 257, 260, 282, 302, 303, 306, 308, 310, 319, 323, 334, 354, 359, 362, 373, 376, 380, 381, 384]);
 // 통신교환 진화 (연결의 끈으로 레벨 무관 즉시 진화 — 레벨 38 진화도 그대로 가능)
-const TRADE_EVOS = { 64:65, 67:68, 75:76, 93:94 };
+const TRADE_EVOS = { 64:65, 67:68, 75:76, 93:94, 117:230, 79:199, 95:208, 123:212, 137:233 };
 // 진화 세리머니: 빛 + 사운드 + 모델 갱신 + 축하 메시지
 function evolveCeremony(inst, to){
   const isPartner = PokeMan.party[0] === inst;
@@ -625,6 +877,9 @@ function evoReqLevel(sp){ return evoStage(sp) <= 1 ? 16 : 24; }
 SPAWN_TABLES.nether = [[4, 10], [37, 10], [58, 10], [77, 8], [126, 7], [136, 5], [146, 0.5]];
 // 엔드: 에스퍼·고스트의 영역 — 케이시/윤겔라/후딘, 고오스 계열, 슬리퍼, 마임맨 + 뮤츠/뮤
 SPAWN_TABLES.end = [[63, 10], [64, 5], [92, 9], [93, 5], [97, 5], [122, 4], [65, 1.5], [94, 1.5], [150, 0.35], [151, 0.06]];
+// 2·3세대 추가 서식지
+SPAWN_TABLES.end.push([337, 3], [338, 3], [200, 4], [353, 4], [384, 0.25], [385, 0.12], [386, 0.12]);
+SPAWN_TABLES.nether.push([228, 5], [229, 3], [219, 4], [322, 5], [323, 3], [383, 0.25]);
 
 // 체육관 관장 팀
 const GYM_TEAMS = {
@@ -696,7 +951,6 @@ class PokeInst {
     this.updateMoves();
   }
   get spec(){ return SPECIES[this.sp]; }
-  get name(){ return this.spec.name; }
   calc(){
     const bs = this.spec.bs, lv = this.level;
     this.maxHp = Math.floor(bs[0] * 2 * lv / 100) + lv + 10;
@@ -742,7 +996,9 @@ class PokeInst {
         }
       }
       if(water) return 134;   // 샤미드
+      if(game.isNight()) return 197; // 블래키 (밤)
       if(b === 'desert' || b === 'mountain' || b === 'nether') return 136; // 부스터
+      if(b === 'forest' || b === 'flower' || b === 'birch') return 196; // 에브이 (숲)
       return 135;               // 쥬피썬더
     }
     // 통일 규칙: 2단계 진화 Lv.16, 3단계 진화 Lv.24
@@ -758,6 +1014,27 @@ class PokeInst {
     PokeMan.seen.add(to);
     PokeMan.caught.add(to);
   }
+  applyMega(){
+    if(this.mega) return false;
+    this.mega = true;
+    this._preMega = { atk: this.atk, def: this.def, spd: this.spd, maxHp: this.maxHp };
+    const ratio = this.hp / this.maxHp;
+    this.atk = Math.round(this.atk * 1.5);
+    this.def = Math.round(this.def * 1.4);
+    this.spd = Math.round(this.spd * 1.3);
+    this.maxHp = Math.round(this.maxHp * 1.2);
+    this.hp = Math.max(1, Math.round(this.maxHp * ratio));
+    return true;
+  }
+  revertMega(){
+    if(!this.mega) return;
+    this.mega = false;
+    const ratio = this.hp / this.maxHp;
+    Object.assign(this, this._preMega);
+    this.hp = Math.max(1, Math.min(this.maxHp, Math.round(this.maxHp * ratio)));
+    this._preMega = null;
+  }
+  get name(){ return (this.mega ? '메가 ' : '') + this.spec.name; }
   serialize(){ return { sp:this.sp, level:this.level, exp:this.exp, hp:this.hp, sh:this.shiny ? 1 : 0 }; }
   static from(d){
     const p = new PokeInst(d.sp, d.level);
@@ -968,6 +1245,8 @@ const PokeMan = {
       const total = table.reduce((s, [, w]) => s + w, 0);
       let r = Math.random() * total, sp = table[0][0];
       for(const [id, w] of table){ r -= w; if(r <= 0){ sp = id; break; } }
+      // 헤엄만 치는 종(잉어킹 등)은 뭍에 스폰되지 않는다
+      if(!onWater && WATER_ONLY.has(sp)) continue;
       const spawnP = world.spawnPoint || { x:0, z:0 };
       const d = Math.hypot(x - spawnP.x, z - spawnP.z);
       let lv = clamp(Math.floor(2 + d / 60 + Math.random() * 5 - 2), 2, 42);
@@ -992,7 +1271,25 @@ const PokeMan = {
   },
   addCaught(inst){
     this.seen.add(inst.sp);
+    const isNew = !this.caught.has(inst.sp);
     this.caught.add(inst.sp);
+    // 🎁 포획 보상: 어떤 포켓몬이든 잡으면 파티 선두가 경험치 획득!
+    if(this.party.length && this.party[0] !== inst){
+      const lead = this.party[0];
+      const evs = lead.gainExp(12 + inst.level * 4);
+      for(const ev of evs){
+        if(ev.type === 'level'){ UI.toast('포획 경험치! ' + lead.name + '은(는) 레벨 ' + ev.lv + '이(가) 되었다!'); SFX.play('level'); }
+        else if(ev.type === 'evolve'){ if(confirmEvolve(lead, ev.to)) evolveCeremony(lead, ev.to); }
+      }
+    }
+    // 🆕 신규 도감 등록 보상
+    if(isNew){
+      player.addItem(I.POKEBALL, 2);
+      player.addItem(I.EMERALD, 1);
+      let bonus = '';
+      if(this.caught.size % 10 === 0){ player.addItem(I.RARECANDY, 2); bonus = ' + 이상한 사탕 2개(' + this.caught.size + '종 달성!)'; }
+      UI.toast('📖 도감 신규 등록! 보상: 포켓볼 2 + 에메랄드 1' + bonus, 4500);
+    }
     if(typeof Ach !== 'undefined'){
       Ach.unlock('first_catch');
       if(inst.shiny) Ach.unlock('shiny');
@@ -1209,7 +1506,7 @@ const Follower = {
       Particles.spawn(ctgt.body.x, ctgt.body.y + 0.8, ctgt.body.z, 0xffe97a, 8, 1.6, 0.5, 1.5);
       if(ctgt.dead){
         // 몬스터 사냥 경험치!
-        const evs = par.gainExp(10 + (ctgt.def.hp | 0));
+        const evs = par.gainExp(15 + Math.round(ctgt.def.hp * 1.5));
         for(const ev of evs){
           if(ev.type === 'level'){ UI.toast(par.name + '은(는) 레벨 ' + ev.lv + '이(가) 되었다!'); SFX.play('level'); }
           else if(ev.type === 'move') UI.toast(par.name + '은(는) ' + MOVES[ev.move].n + '을(를) 배웠다!');
@@ -1247,6 +1544,23 @@ const Follower = {
     const hoverY = e.built.hover ? Math.sin(e.bob * 2) * 0.15 + 0.1 : 0;
     e.group.position.set(b.x, b.y + hoverY, b.z);
     e.group.rotation.y = e.dir;
+    // 🚶 동행 경험치: 함께 걸은 거리만큼 조금씩 경험치 (배틀 없이도 성장!)
+    if(!game.inBattle && par.level < 100){
+      const moved = Math.hypot(player.body.x - (this._lastPX || player.body.x), player.body.z - (this._lastPZ || player.body.z));
+      this._lastPX = player.body.x; this._lastPZ = player.body.z;
+      if(moved > 0.05 && moved < 2){
+        this._walkAcc = (this._walkAcc || 0) + moved;
+        if(this._walkAcc >= 24){
+          this._walkAcc = 0;
+          const evs = par.gainExp(6 + Math.round(par.level * 0.6));
+          for(const ev of evs){
+            if(ev.type === 'level'){ UI.toast('🚶 함께 걸어서 ' + par.name + '이(가) 레벨 ' + ev.lv + '이(가) 되었다!'); SFX.play('level'); }
+            else if(ev.type === 'move') UI.toast(par.name + '은(는) ' + MOVES[ev.move].n + '을(를) 배웠다!');
+            else if(ev.type === 'evolve'){ if(confirmEvolve(par, ev.to)) evolveCeremony(par, ev.to); }
+          }
+        }
+      }
+    }
   }
 };
 
@@ -1565,6 +1879,13 @@ const Battle = {
     const s = this.$('b-sub');
     s.innerHTML = '';
     s.classList.remove('hidden');
+    // 🔮 메가진화 버튼
+    if(player.countItem(I.MEGA_STONE) > 0 && this.ally && MEGA_FORMS.has(this.ally.sp) && !this.ally.mega && !this._megaUsed){
+      const mb = document.createElement('button');
+      mb.innerHTML = '🔮 메가진화!' + ` <span class="sub-detail">${this.ally.spec.name} → 메가 ${this.ally.spec.name}</span>`;
+      mb.onclick = () => { this.turn({ type: 'mega' }); };
+      s.appendChild(mb);
+    }
     [I.POKEBALL, I.GREATBALL, I.ULTRABALL, I.POTION].forEach(id => {
       const cnt = player.countItem(id);
       if(cnt <= 0) return;
@@ -1667,6 +1988,18 @@ const Battle = {
         const caught = await this.tryCatch(action.id);
         if(caught) return;
         await this.enemyAttack(enemyMove);
+      } else if(action.type === 'mega'){
+        if(this.ally.applyMega()){
+          this._megaUsed = true;
+          SFX.play('evolve');
+          if(this.mA){
+            this.mA.root.scale.setScalar(1.25);
+            Particles.spawn(this.mA.root.position.x, this.mA.root.position.y + 0.9, this.mA.root.position.z, 0xc84af0, 30, 3, 1.2, 2.2);
+          }
+          this.updateBars();
+          await this.say('🔮 ' + this.ally.spec.name + '이(가) 메가진화했다!! 힘이 넘쳐흐른다!');
+        }
+        await this.enemyAttack(enemyMove);
       } else if(action.type === 'potion'){
         if(player.countItem(I.POTION) > 0){
           player.removeItem(I.POTION, 1);
@@ -1753,7 +2086,7 @@ const Battle = {
     SFX.play('faint');
     if(this.mE) this.mE.root.rotation.x = Math.PI / 2;
     await this.say('야생 ' + this.wild.name + '은(는) 쓰러졌다!');
-    const exp = Math.floor(this.wild.spec.bx * this.wild.level / 5) + 1;
+    const exp = Math.floor(this.wild.spec.bx * this.wild.level / 4) + 1;
     await this.say(this.ally.name + '은(는) 경험치 ' + exp + '을(를) 얻었다!');
     const evs = this.ally.gainExp(exp);
     this.updateBars();
@@ -1920,6 +2253,8 @@ const Battle = {
       this._pvpHpSnap = null;
       this.pvp = false; this.pvpMirror = false; this._pvpOpp = null; this._pvpActResolve = null;
     }
+    PokeMan.party.forEach(q => q.revertMega && q.revertMega());
+    this._megaUsed = false;
     this.active = false;
     this.busy = false;
     this.trainer = null;

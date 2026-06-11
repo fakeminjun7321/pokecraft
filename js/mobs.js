@@ -753,7 +753,15 @@ const MobManager = {
         return;
       }
       const y = world.colTop(x, z) + 1;
-      if(y <= SEA + 1 || y >= WORLD_H - 2) continue;
+      if(y <= SEA + 1){
+        // 🌊 깊은 물(3블록 이상): 가디언 수중 스폰
+        if(hostile && world.getBlock(x, SEA - 1, z) === B.WATER && world.getBlock(x, SEA - 3, z) === B.WATER){
+          this.list.push(new Mob('guardian', Math.floor(x) + 0.5, SEA - 1.5, Math.floor(z) + 0.5));
+          return;
+        }
+        continue;
+      }
+      if(y >= WORLD_H - 2) continue;
       const ground = world.getBlock(x, y - 1, z);
       if(!BLOCKS[ground].solid || ground === B.WATER || ground === B.LEAVES || ground === B.BIRCH_LEAVES) continue;
       if(world.getBlock(x, y, z) !== B.AIR) continue;
