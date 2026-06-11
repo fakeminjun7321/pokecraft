@@ -1187,6 +1187,13 @@ const Battle = {
     const mm = { root, _temp: temp, _face: face || 0 };
     if(side === 'E') this.mE = mm; else this.mA = mm;
   },
+  // 기준 높이 근처에서 진짜 지면 찾기 (colTop은 나무 꼭대기를 줄 수 있음)
+  _groundY(x, z, refY){
+    for(let y = Math.floor(refY) + 2; y >= Math.floor(refY) - 8 && y > 0; y--){
+      if(world.isSolid(x, y, z) && !world.isSolid(x, y + 1, z) && !world.isSolid(x, y + 2, z)) return y + 1.02;
+    }
+    return refY;
+  },
   // 배틀 무대 셋업: 적/아군 자리, 서로 마주보기, 카메라 조준
   _setupField(){
     this.$('battle-overlay').classList.add('field');
@@ -1198,12 +1205,12 @@ const Battle = {
       const dd = player.dir();
       const fl = Math.hypot(dd.x, dd.z) || 1;
       ex = pb.x + dd.x / fl * 5; ez = pb.z + dd.z / fl * 5;
-      ey = world.colTop(ex, ez) + 1.02;
+      ey = this._groundY(ex, ez, pb.y); // 플레이어 높이 기준 지면
     }
     let vx = pb.x - ex, vz = pb.z - ez;
     const vl = Math.hypot(vx, vz) || 1; vx /= vl; vz /= vl;
     const ax = ex + vx * 2.6, az = ez + vz * 2.6;
-    const ay = world.colTop(ax, az) + 1.02;
+    const ay = this._groundY(ax, az, ey); // 적 높이 기준 지면 (나무 위 배치 방지)
     this._spotE = { x: ex, y: ey, z: ez };
     this._spotA = { x: ax, y: ay, z: az };
     this._faceA = Math.atan2(ex - ax, ez - az);
@@ -1212,6 +1219,7 @@ const Battle = {
       // catching 동결로 update가 위치를 못 잡았을 수 있음 — 명시적으로 배치
       this.wildEnt.group.position.set(ex, ey, ez);
       this.wildEnt.group.rotation.y = this._faceE;
+      if(this.wildEnt.tag) this.wildEnt.tag.visible = false; // HP바와 중복되는 이름표 숨김
     }
     if(typeof Follower !== 'undefined' && Follower.ent) Follower.ent.group.visible = false; // 임시 배틀 모델과 겹침 방지
     this._camAim();
@@ -1223,10 +1231,20 @@ const Battle = {
     const dl = Math.hypot(dirX, dirZ) || 1;
     // 살짝 오른쪽으로 비껴서 (적과 아군이 겹치지 않게)
     const px2 = -dirZ / dl, pz2 = dirX / dl;
-    const cx = this._spotA.x - dirX / dl * 3.4 + px2 * 1.2;
-    const cz = this._spotA.z - dirZ / dl * 3.4 + pz2 * 1.2;
+    let cx = this._spotA.x - dirX / dl * 3.4 + px2 * 1.2;
+    let cz = this._spotA.z - dirZ / dl * 3.4 + pz2 * 1.2;
     let cy = Math.max(this._spotA.y, this._spotE.y) + 1.3;
     cy = Math.max(cy, world.colTop(cx, cz) + 1.3);
+    // 장애물(나뭇잎/벽)에 막히면 카메라를 아군 쪽으로 당긴다
+    const axh = this._spotA.x, ayh = this._spotA.y + 1.0, azh = this._spotA.z;
+    let ox = cx - axh, oy = cy - ayh, oz = cz - azh;
+    const ol = Math.sqrt(ox*ox + oy*oy + oz*oz) || 1;
+    ox /= ol; oy /= ol; oz /= ol;
+    const hit = world.raycast(axh, ayh, azh, ox, oy, oz, ol + 0.3);
+    if(hit){
+      const dd2 = Math.max(0.7, hit.dist - 0.35);
+      cx = axh + ox * dd2; cy = ayh + oy * dd2; cz = azh + oz * dd2;
+    }
     const tx = this._spotE.x, ty = this._spotE.y + 0.4, tz = this._spotE.z;
     const ddx = tx - cx, ddy = ty - cy, ddz = tz - cz;
     camera.position.set(cx, cy, cz);
@@ -1630,6 +1648,7 @@ const Battle = {
     this.$('battle-overlay').classList.remove('field');
     if(typeof Follower !== 'undefined' && Follower.ent) Follower.ent.group.visible = true;
     if(this.wildEnt){
+      if(this.wildEnt.tag) this.wildEnt.tag.visible = true;
       if(this.wildEnt.isNet){
         // 멀티플레이 게스트: 호스트에게 결과 통보
         if(typeof Net !== 'undefined') Net.wildBattleEnd(this.wildEnt.netId, result === 'win' || result === 'catch');
