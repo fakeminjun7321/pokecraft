@@ -124,13 +124,19 @@ class World {
       const ridge = 1 - Math.abs(this.nDet.fbm(wx * 0.009 + 333, wz * 0.009 + 333, 2) - 0.5) * 2;
       h += (mt - 0.72) / 0.28 * ridge * 26;
     }
-    // 🏜 협곡: 가는 노이즈 띠를 따라 지표가 깊게 갈라진다
-    const rv = this.nTemp.fbm(wx * 0.006 + 991, wz * 0.006 + 991, 2);
-    if(Math.abs(rv - 0.5) < 0.016 && h > SEA + 2){
-      const depth = (1 - Math.abs(rv - 0.5) / 0.016) * (h - 10);
-      h -= depth;
+    // 🌊 깊은 바다: 수면 아래로 갈수록 바닥을 크게 깊게 (깊이 ×2.4 + 심해 노이즈)
+    if(h < SEA - 1){
+      const depth = (SEA - 1 - h);
+      const deep = this.nCont.fbm(wx * 0.005 + 555, wz * 0.005 + 555, 2) * 6;
+      h = SEA - 1 - depth * 2.4 - deep;
     }
     return Math.floor(clamp(h, 4, WORLD_H - 6));
+  }
+  // 🏜 협곡 깊이 비율 (0=없음, 1=최대) — 지형 함수와 분리해 물이 차지 않게
+  ravineDepth(wx, wz){
+    const rv = this.nTemp.fbm(wx * 0.006 + 991, wz * 0.006 + 991, 2);
+    if(Math.abs(rv - 0.5) >= 0.016) return 0;
+    return 1 - Math.abs(rv - 0.5) / 0.016;
   }
   biomeAt(wx, wz){
     if(this.dim === 'nether') return 'nether';
@@ -188,7 +194,11 @@ class World {
     for(let lx = 0; lx < CHUNK; lx++){
       for(let lz = 0; lz < CHUNK; lz++){
         const wx = cx*CHUNK + lx, wz = cz*CHUNK + lz;
-        const h = this.terrainH(wx, wz);
+        const baseH = this.terrainH(wx, wz);
+        let h = baseH;
+        // 협곡: 내륙에서만 깎고, 물은 채우지 않는다
+        const rd = this.ravineDepth(wx, wz);
+        if(rd > 0 && baseH > SEA + 2) h = Math.max(9, Math.floor(baseH - rd * (baseH - 9)));
         const biome = this.biomeAt(wx, wz);
         const surf = this.surfaceBlockFor(biome, h);
         const filler = (biome === 'desert' || surf === B.SAND) ? B.SAND : B.DIRT;
@@ -222,8 +232,10 @@ class World {
           }
           put(lx, y, lz, id);
         }
-        // 물
-        for(let y = h + 1; y <= SEA; y++) put(lx, y, lz, B.WATER);
+        // 물: 협곡(내륙 함몰)이 아닌 진짜 바다/호수만 채운다
+        if(baseH <= SEA + 2 || rd === 0){
+          for(let y = h + 1; y <= SEA; y++) put(lx, y, lz, B.WATER);
+        }
       }
     }
 
