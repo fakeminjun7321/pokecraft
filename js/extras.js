@@ -123,12 +123,14 @@ const Music = {
 
 // ---------- 미니맵 ----------
 const Minimap = {
-  visible: true, _tiles: new Map(), _cv: null, _ctx: null, _colors: {}, _acc: 0,
+  visible: true, fullVisible: false, _tiles: new Map(), _cv: null, _ctx: null, _colors: {}, _acc: 0,
   init(){
     this._cv = document.getElementById('minimap');
     if(!this._cv) return;
     this._ctx = this._cv.getContext('2d');
     this._ctx.imageSmoothingEnabled = false;
+    const close = document.getElementById('map-close-btn');
+    if(close) close.onclick = () => this.toggleFull(false);
   },
   invalidate(key){ this._tiles.delete(key); },
   reset(){ this._tiles.clear(); },
@@ -210,6 +212,44 @@ const Minimap = {
     // 테두리
     ctx.strokeStyle = 'rgba(255,255,255,.5)';
     ctx.strokeRect(0.5, 0.5, S - 1, S - 1);
+    if(this.fullVisible) this.renderFull();
+  },
+  toggleFull(force){
+    this.fullVisible = force === undefined ? !this.fullVisible : !!force;
+    const ov = document.getElementById('map-overlay');
+    if(ov) ov.classList.toggle('hidden', !this.fullVisible);
+    if(this.fullVisible) this.renderFull();
+  },
+  renderFull(){
+    const cv = document.getElementById('world-map');
+    if(!cv || !game.started || !player || !world) return;
+    const ctx = cv.getContext('2d'), Sx = cv.width, Sy = cv.height;
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillRect(0, 0, Sx, Sy);
+    const scale = 2.2, px = player.body.x, pz = player.body.z;
+    const ccx = Math.floor(px / 16), ccz = Math.floor(pz / 16);
+    const R = Math.ceil(Math.max(Sx, Sy) / (16 * scale * 2)) + 1;
+    for(let dx = -R; dx <= R; dx++){
+      for(let dz = -R; dz <= R; dz++){
+        const c = world.chunks.get((ccx + dx) + ',' + (ccz + dz));
+        if(!c) continue;
+        const sx = Sx / 2 + (c.cx * 16 - px) * scale;
+        const sz = Sy / 2 + (c.cz * 16 - pz) * scale;
+        ctx.drawImage(this._tile(c), sx, sz, 16 * scale, 16 * scale);
+      }
+    }
+    const mark = (x, z, color, size) => {
+      const sx = Sx / 2 + (x - px) * scale, sz = Sy / 2 + (z - pz) * scale;
+      if(sx < 0 || sx > Sx || sz < 0 || sz > Sy) return;
+      ctx.fillStyle = color;
+      ctx.fillRect(sx - size / 2, sz - size / 2, size, size);
+    };
+    world.villagesNear(px, pz).forEach(v => mark(v.x, v.z, '#e8c84a', 8));
+    world.gymsNear(px, pz).forEach(g => mark(g.x, g.z, '#e84a8a', 8));
+    mark(px, pz, '#ffffff', 10);
+    ctx.strokeStyle = 'rgba(255,255,255,.7)';
+    ctx.strokeRect(0.5, 0.5, Sx - 1, Sy - 1);
   }
 };
 

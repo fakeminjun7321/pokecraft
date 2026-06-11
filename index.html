@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>포케크래프트 - PokeCraft</title>
-<link rel="stylesheet" href="css/style.css?v=26">
+<link rel="stylesheet" href="css/style.css?v=27">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -115,6 +115,13 @@
 </div>
 
 <!-- ===== 인벤토리 / 제작 ===== -->
+<div id="map-overlay" class="overlay hidden">
+  <div class="window wide">
+    <h3>World Map <button class="overlay-close" id="map-close-btn">×</button></h3>
+    <canvas id="world-map" width="720" height="520"></canvas>
+  </div>
+</div>
+
 <div id="inv-overlay" class="overlay hidden">
   <div class="window">
     <h3 id="inv-title">인벤토리</h3>
@@ -212,6 +219,7 @@
       <div class="b-info">
         <span id="b-enemy-name">?</span> <span id="b-enemy-lv">Lv.5</span>
         <div class="b-hpbar"><div id="b-enemy-hpfill"></div></div>
+        <div id="b-enemy-hptext">20/20</div>
       </div>
       <canvas id="b-enemy-canvas" width="260" height="200"></canvas>
     </div>
@@ -335,17 +343,17 @@
 
 <script src="lib/three.min.js"></script>
 <script src="lib/peerjs.min.js"></script>
-<script src="js/util.js?v=26"></script>
-<script src="js/account.js?v=26"></script>
-<script src="js/content.js?v=26"></script>
-<script src="js/world.js?v=26"></script>
-<script src="js/entities.js?v=26"></script>
-<script src="js/mobs.js?v=26"></script>
-<script src="js/pokemon.js?v=26"></script>
-<script src="js/player.js?v=26"></script>
-<script src="js/ui.js?v=26"></script>
-<script src="js/extras.js?v=26"></script>
-<script src="js/net.js?v=26"></script>
-<script src="js/main.js?v=26"></script>
+<script src="js/util.js?v=27"></script>
+<script src="js/account.js?v=27"></script>
+<script src="js/content.js?v=27"></script>
+<script src="js/world.js?v=27"></script>
+<script src="js/entities.js?v=27"></script>
+<script src="js/mobs.js?v=27"></script>
+<script src="js/pokemon.js?v=27"></script>
+<script src="js/player.js?v=27"></script>
+<script src="js/ui.js?v=27"></script>
+<script src="js/extras.js?v=27"></script>
+<script src="js/net.js?v=27"></script>
+<script src="js/main.js?v=27"></script>
 </body>
 </html>

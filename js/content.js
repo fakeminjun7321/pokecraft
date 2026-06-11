@@ -29,7 +29,7 @@ const I = {
   IRON_PICK:128, IRON_AXE:129, IRON_SHOVEL:130, IRON_SWORD:131,
   DIA_PICK:132, DIA_AXE:133, DIA_SHOVEL:134, DIA_SWORD:135,
   WOOD_HOE:136, STONE_HOE:137, IRON_HOE:138, DIA_HOE:139,
-  POKEBALL:150, GREATBALL:151, ULTRABALL:152, POTION:153,
+  POKEBALL:150, GREATBALL:151, ULTRABALL:152, POTION:153, SUPERPOTION:154, HYPERPOTION:155,
   SEEDS:160, WHEAT:161, BREAD:162, BONEMEAL:163, STRING:164,
   FISHING_ROD:165, BOW:166, ARROW:167, FLINT:168,
   FISH_RAW:169, FISH_COOKED:170, RARECANDY:171, GOLDEN_APPLE:172,
@@ -102,7 +102,7 @@ defBlock(B.TALLGRASS,  { name:'풀', rt:RT.CROSS, solid:false, tiles:{top:T.TALL
 defBlock(B.CRAFT,      { name:'제작대', tiles:{top:T.CRAFT_TOP, bottom:T.PLANKS, side:T.CRAFT_SIDE}, hard:2.2, tool:'axe' });
 defBlock(B.FURNACE,    { name:'화로', tiles:{top:T.STONE, bottom:T.STONE, side:T.FURN_FRONT}, hard:3, tool:'pick' });
 defBlock(B.FURNACE_LIT,{ name:'화로(가동중)', tiles:{top:T.STONE, bottom:T.STONE, side:T.FURN_LIT}, hard:3, tool:'pick', light:0.7, drop:()=>[[B.FURNACE,1]] });
-defBlock(B.TORCH,      { name:'횃불', rt:RT.CROSS, solid:false, tiles:{top:T.TORCH, bottom:T.TORCH, side:T.TORCH}, hard:0.05, light:1 });
+defBlock(B.TORCH,      { name:'횃불', rt:RT.CROSS, solid:false, tiles:{top:T.TORCH, bottom:T.TORCH, side:T.TORCH}, hard:0.05, light:1.35, drop:()=>[[B.TORCH,1]] });
 defBlock(B.TNT,        { name:'TNT', tiles:{top:T.TNT_TOP, bottom:T.TNT_TOP, side:T.TNT_SIDE}, hard:0.2 });
 defBlock(B.WOOL,       { name:'양털', tiles:{top:T.WOOL, bottom:T.WOOL, side:T.WOOL}, hard:0.8 });
 defBlock(B.BRICKS,     { name:'벽돌', tiles:{top:T.BRICKS, bottom:T.BRICKS, side:T.BRICKS}, hard:2.5, tool:'pick' });
@@ -186,6 +186,8 @@ defItem(I.POKEBALL,  { name:'포켓볼', stack:16, ball:1.2 });
 defItem(I.GREATBALL, { name:'슈퍼볼', stack:16, ball:1.8 });
 defItem(I.ULTRABALL, { name:'하이퍼볼', stack:16, ball:2.5 });
 defItem(I.POTION,    { name:'상처약', stack:16, pokeHeal:25 });
+defItem(I.SUPERPOTION,{ name:'좋은상처약', stack:16, pokeHeal:50 });
+defItem(I.HYPERPOTION,{ name:'고급상처약', stack:16, pokeHeal:120 });
 defItem(I.SEEDS,     { name:'밀 씨앗' });
 defItem(I.WHEAT,     { name:'밀' });
 defItem(I.BREAD,     { name:'빵', food:6 });
@@ -255,7 +257,7 @@ const CREATIVE_ITEMS = [
   I.STONE_PICK,I.STONE_AXE,I.STONE_SHOVEL,I.STONE_SWORD,I.STONE_HOE,
   I.IRON_PICK,I.IRON_AXE,I.IRON_SHOVEL,I.IRON_SWORD,I.IRON_HOE,
   I.DIA_PICK,I.DIA_AXE,I.DIA_SHOVEL,I.DIA_SWORD,I.DIA_HOE,
-  I.POKEBALL,I.GREATBALL,I.ULTRABALL,I.POTION,I.RARECANDY,I.GOLDEN_APPLE,I.EMERALD,I.ENDERPEARL,
+  I.POKEBALL,I.GREATBALL,I.ULTRABALL,I.POTION,I.SUPERPOTION,I.HYPERPOTION,I.RARECANDY,I.GOLDEN_APPLE,I.EMERALD,I.ENDERPEARL,
   I.LEATHER,I.L_HELM,I.L_CHEST,I.L_LEGS,I.I_HELM,I.I_CHEST,I.I_LEGS,I.D_HELM,I.D_CHEST,I.D_LEGS,
   I.POTION_SPEED,I.POTION_JUMP,I.POTION_REGEN,I.FLINT_STEEL,I.QUARTZ,I.GLOWDUST,I.BLAZE_ROD
 ];
@@ -488,6 +490,8 @@ function drawItemIcon(ctx, id){
       break;
     }
     case I.POTION: P(6,3,'#c8c8d8',4,2); P(5,5,'#d8e8f0',6,3); P(4,8,'#f06b9a',8,5); P(5,7,'#f06b9a',6,2); P(5,9,'#f898bc',2,2); break;
+    case I.SUPERPOTION: P(6,3,'#c8c8d8',4,2); P(5,5,'#d8e8f0',6,3); P(4,8,'#58c8e8',8,5); P(5,7,'#58c8e8',6,2); P(5,9,'#9adcf5',2,2); break;
+    case I.HYPERPOTION: P(6,3,'#c8c8d8',4,2); P(5,5,'#d8e8f0',6,3); P(4,8,'#e8b820',8,5); P(5,7,'#e8b820',6,2); P(5,9,'#ffe97a',2,2); break;
     case I.SEEDS: P(5,6,'#4fae3a',2,2); P(9,5,'#4fae3a',2,2); P(7,9,'#4fae3a',2,2); P(10,10,'#3e8f2c',2,2); P(4,11,'#3e8f2c',2,2); break;
     case I.WHEAT: for(let i=0;i<4;i++){ const wx=4+i*3; P(wx,4,'#b5a23c',1,9); P(wx-1,2,'#d8c455',3,3); } break;
     case I.BREAD: P(4,6,'#b5803c',9,5); P(5,5,'#c89456',7,2); P(5,8,'#9a6b2c',7,1); break;
@@ -579,6 +583,8 @@ const RECIPES = [
   { p:[' G ','IRI',' I '], k:{G:I.GOLD_INGOT, I:I.IRON_INGOT, R:I.REDSTONE}, out:[I.GREATBALL,3] },
   { p:[' D ','IRI',' I '], k:{D:I.DIAMOND, I:I.IRON_INGOT, R:I.REDSTONE}, out:[I.ULTRABALL,3] },
   { sl:[[B.FLOWER_R,2],[I.APPLE,1]], out:[I.POTION,2] },
+  { sl:[[I.POTION,2],[I.REDSTONE,1]], out:[I.SUPERPOTION,1] },
+  { sl:[[I.SUPERPOTION,2],[I.GOLD_INGOT,1]], out:[I.HYPERPOTION,1] },
   { p:['GGG','GAG','GGG'], k:{G:I.GOLD_INGOT, A:I.APPLE}, out:[I.GOLDEN_APPLE,1] },
   // 갑옷
   ...[[I.LEATHER,'L'], [I.IRON_INGOT,'I'], [I.DIAMOND,'D']].flatMap(([mat, pre])=>[

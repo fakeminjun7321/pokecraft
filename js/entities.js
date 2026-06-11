@@ -157,13 +157,13 @@ const ItemDrops = {
       // 자석/줍기
       if(player && !player.dead && e.age > 0.4){
         const d = dist3(e.x, e.y, e.z, player.body.x, player.body.y + 0.9, player.body.z);
-        if(d < 2.4 && d > 0.01){
-          const f = 8 * dt / d;
+        if(d < 3.2 && d > 0.01){
+          const f = 10 * dt / d;
           e.vx += (player.body.x - e.x) * f;
           e.vy += (player.body.y + 0.9 - e.y) * f;
           e.vz += (player.body.z - e.z) * f;
         }
-        if(d < 1.2){
+        if(d < 1.45){
           const left = player.addItem(e.id, e.n, e.dur, e.ench);
           if(left <= 0){
             SFX.play('pop');

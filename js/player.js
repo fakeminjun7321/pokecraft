@@ -124,6 +124,11 @@ class Player {
         SFX.play('hurt');
       }
     }
+    this.cactusAcc = Math.max(0, (this.cactusAcc || 0) - dt);
+    if(this.cactusAcc <= 0 && this.touchingBlock(B.CACTUS)){
+      this.cactusAcc = 0.65;
+      this.hurt(1, 0, 0, true);
+    }
     // 🌿 풀숲 인카운터: 수풀을 헤치며 걸으면 야생이 튀어나온다!
     if(PokeMan.enabled && !game.inBattle){
       this._grassCd = (this._grassCd || 0) - dt;
@@ -792,6 +797,16 @@ class Player {
   // ----- 데미지/죽음 -----
   armorPts(){
     return this.armor.reduce((s, a) => s + (a ? armorInfo(a.id).pts : 0), 0);
+  }
+  touchingBlock(id){
+    const b = this.body;
+    const x0 = Math.floor(b.x - b.w - 0.04), x1 = Math.floor(b.x + b.w + 0.04);
+    const y0 = Math.floor(b.y), y1 = Math.floor(b.y + b.h);
+    const z0 = Math.floor(b.z - b.w - 0.04), z1 = Math.floor(b.z + b.w + 0.04);
+    for(let x = x0; x <= x1; x++) for(let y = y0; y <= y1; y++) for(let z = z0; z <= z1; z++){
+      if(this.world.getBlock(x, y, z) === id) return true;
+    }
+    return false;
   }
   hurt(dmg, kx, kz, ignoreInvuln){
     if(this.dead) return;

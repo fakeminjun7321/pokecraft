@@ -191,11 +191,11 @@ class World {
           // 광물
           if(id === B.STONE){
             const r = rand3(wx, y, wz, seed ^ 0xabc1);
-            if(r < 0.018 && y < 52) id = B.COAL_ORE;
-            else if(r < 0.029 && y < 36) id = B.IRON_ORE;
-            else if(r < 0.0345 && y < 22) id = B.GOLD_ORE;
-            else if(r < 0.039 && y < 18) id = B.REDSTONE_ORE;
-            else if(r < 0.0435 && y < 14) id = B.DIAMOND_ORE;
+            if(r < 0.024 && y < 52) id = B.COAL_ORE;
+            else if(r < 0.039 && y < 38) id = B.IRON_ORE;
+            else if(r < 0.047 && y < 24) id = B.GOLD_ORE;
+            else if(r < 0.054 && y < 20) id = B.REDSTONE_ORE;
+            else if(r < 0.060 && y < 16) id = B.DIAMOND_ORE;
             // r 상위 구간 사용 — else-if 체인의 y 조건 낙수 효과 방지 (위 광석들과 독립)
             else if(r >= 0.9985 && y < 28) id = B.MYSTIC_ORE;
             else if(r >= 0.9962 && y < 20) id = B.FOSSIL_ORE;
@@ -447,7 +447,7 @@ class World {
     for(let i = 0; i < torches.length; i++){
       const t = torches[i];
       const d = dist3(wx + 0.5, wy + 0.5, wz + 0.5, t[0], t[1], t[2]);
-      if(d < 11) l = Math.max(l, 0.45 + (1 - d / 11) * 1.15); // 더 밝고 멀리
+      if(d < 14) l = Math.max(l, 0.55 + (1 - d / 14) * 1.25); // 더 밝고 멀리
     }
     return Math.min(l, 1.45);
   }

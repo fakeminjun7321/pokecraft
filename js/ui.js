@@ -121,7 +121,7 @@ const UI = {
       tabs.appendChild(b);
     });
     const catOf = (id) => {
-      if([I.POKEBALL, I.GREATBALL, I.ULTRABALL, I.POTION].includes(id)) return '포켓몬';
+      if([I.POKEBALL, I.GREATBALL, I.ULTRABALL, I.POTION, I.SUPERPOTION, I.HYPERPOTION].includes(id)) return '포켓몬';
       if(foodValue(id) > 0) return '음식';
       if(toolInfo(id) || id === I.ARROW) return '도구/무기';
       if(isBlockId(id)) return '블록';
@@ -703,17 +703,20 @@ const UI = {
         </div>
         <div class="party-btns"></div>`;
       const btns = row.querySelector('.party-btns');
-      if(p.hp < p.maxHp && player.countItem(I.POTION) > 0){
-        const b = document.createElement('button');
-        b.textContent = '상처약 (' + player.countItem(I.POTION) + ')';
-        b.onclick = () => {
-          player.removeItem(I.POTION, 1);
-          p.hp = Math.min(p.maxHp, p.hp + 25);
-          SFX.play('pop');
-          this.openParty();
-        };
-        btns.appendChild(b);
-      }
+      [I.POTION, I.SUPERPOTION, I.HYPERPOTION].forEach(id => {
+        const heal = itemDef(id).pokeHeal || 0;
+        if(p.hp < p.maxHp && heal > 0 && player.countItem(id) > 0){
+          const b = document.createElement('button');
+          b.textContent = itemName(id) + ' (' + player.countItem(id) + ')';
+          b.onclick = () => {
+            player.removeItem(id, 1);
+            p.hp = Math.min(p.maxHp, p.hp + heal);
+            SFX.play('pop');
+            this.openParty();
+          };
+          btns.appendChild(b);
+        }
+      });
       if(player.countItem(I.RARECANDY) > 0 && p.level < 100){
         const b = document.createElement('button');
         b.textContent = '이상한사탕 (' + player.countItem(I.RARECANDY) + ')';
