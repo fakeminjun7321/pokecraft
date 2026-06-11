@@ -508,7 +508,7 @@ function startGame(opts){
       player.spawnAt({ x: sp.x, y: sp.y + 2, z: sp.z });
       if(game.mode === 'survival'){
         player.addItem(I.APPLE, 5);
-        if(PokeMan.enabled) player.addItem(I.POKEBALL, 5);
+        if(PokeMan.enabled) player.addItem(I.POKEBALL, 15);
       }
       loadAccountPoke(null, true);
       if(opts.starterId && !PokeMan.party.length){
@@ -535,7 +535,7 @@ function startGame(opts){
     player.spawnAt({ x: sp.x, y: sp.y + 2, z: sp.z });
     if(game.mode === 'survival'){
       player.addItem(I.APPLE, 5);
-      if(opts.pokeOn) player.addItem(I.POKEBALL, 5);
+      if(opts.pokeOn) player.addItem(I.POKEBALL, 15);
     }
     loadAccountPoke(null, true);
     if(opts.starterId && !PokeMan.party.length){

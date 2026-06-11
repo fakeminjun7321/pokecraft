@@ -428,6 +428,7 @@ const Net = {
         ],
         mobs: MobManager.list.map(m => ({ id: m.netId, type: m.type, x: m.body.x, y: m.body.y, z: m.body.z, dir: m.dir })),
         wilds: PokeMan.wilds.map(w => ({ id: w.netId, sp: w.inst.sp, lv: w.inst.level, hp: w.inst.hp, sh: w.inst.shiny ? 1 : 0,
+                                          fn: w.fainted ? 1 : 0,
                                           x: w.body.x, y: w.body.y, z: w.body.z, dir: w.dir, frozen: !!w.catching })),
         drops: ItemDrops.list.filter(d => (d.dim || 'over') === game.dim).map(d => ({ id: d.netId, item: d.id, n: d.n, x: d.x, y: d.y, z: d.z })),
         tnts: TNTs.list.map(e => ({ x: e.x, y: e.y, z: e.z })),
@@ -595,6 +596,7 @@ const Net = {
       p.x += dx * k; p.y += (p.ty - p.y) * k; p.z += dz * k;
       p.group.position.set(p.x, p.y + (p.isDrop ? 0.2 : 0), p.z);
       if(p.tdir !== undefined && !p.isDrop) p.group.rotation.y = p.tdir;
+      if(p.data) p.group.rotation.x = p.data.fn ? Math.PI / 2 : 0;
       if(anim && p.built){
         const sp = Math.hypot(dx, dz) / Math.max(dt, 0.01);
         p.walkPhase += Math.min(sp, 5) * dt * 4;

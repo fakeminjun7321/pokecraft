@@ -706,7 +706,7 @@ function calcDamage(att, def, moveKey, mult){
 }
 function catchChance(inst, ballMod){
   const f = (3 * inst.maxHp - 2 * inst.hp) * inst.spec.cr * ballMod / (3 * inst.maxHp);
-  return clamp(f / 255, 0.05, 1);
+  return clamp(f / 200, 0.08, 1);
 }
 
 // ---------- 야생 포켓몬 ----------
@@ -731,6 +731,16 @@ class WildPoke {
     this.catching = false; this.fleeTimer = 0;
   }
   update(dt, world, player){
+    if(this.fainted){
+      // 기절: 누워서 카운트다운, 시간 지나면 사라짐
+      this.faintT -= dt;
+      this.group.rotation.x = Math.PI / 2;
+      if(this.faintT <= 0){
+        Particles.spawn(this.body.x, this.body.y + 0.5, this.body.z, 0xaaaaaa, 12, 2, 0.6, 1.5);
+        PokeMan.removeWild(this, false);
+      }
+      return;
+    }
     if(this.catching) return;
     if(this.inst.shiny && Math.random() < dt * 2.5)
       Particles.spawn(this.body.x, this.body.y + this.body.h * 0.7, this.body.z, 0xffe97a, 2, 1.2, 0.5, 1.2);
@@ -886,7 +896,9 @@ const PokeMan = {
     ball.position.set(bx, by, bz);
     scene.add(ball);
     const inst = wild.inst;
-    const success = Math.random() < catchChance(inst, ballBonus(ballId));
+    let chance = catchChance(inst, ballBonus(ballId));
+    if(wild.fainted) chance = clamp(chance * 3, 0.5, 0.95); // 쓰러진 포켓몬은 거의 잡힌다!
+    const success = Math.random() < chance;
     const shakes = success ? 3 : 1 + Math.floor(Math.random() * 2);
     for(let i = 0; i < shakes; i++){
       SFX.play('catch');
@@ -1288,7 +1300,7 @@ const Battle = {
     return true;
   },
   async start(wildEnt){
-    if(this.active || wildEnt.catching) return false; // 포획 연출 중인 야생과는 배틀 불가
+    if(this.active || wildEnt.catching || wildEnt.fainted) return false; // 포획 연출/기절 상태와는 배틀 불가
     this.initDom();
     this.active = true; this.busy = true;
     game.inBattle = true;
@@ -1323,6 +1335,11 @@ const Battle = {
   say(text){
     const el = this.$('b-msg');
     el.textContent = '';
+    // 백그라운드 탭은 타이머가 1초로 스로틀됨 — 타자기 생략하고 즉시 출력
+    if(document.hidden){
+      el.textContent = text;
+      return new Promise(res => setTimeout(res, 400));
+    }
     return new Promise(res => {
       let i = 0;
       const iv = setInterval(() => {
@@ -1652,8 +1669,19 @@ const Battle = {
       if(this.wildEnt.isNet){
         // 멀티플레이 게스트: 호스트에게 결과 통보
         if(typeof Net !== 'undefined') Net.wildBattleEnd(this.wildEnt.netId, result === 'win' || result === 'catch');
-      } else if(result === 'win' || result === 'catch'){
-        PokeMan.removeWild(this.wildEnt, result === 'win');
+      } else if(result === 'catch'){
+        PokeMan.removeWild(this.wildEnt, false);
+      } else if(result === 'win'){
+        // 쓰러진 포켓몬은 사라지지 않고 누워있다 — 20초 안에 볼을 던지면 거의 잡힌다!
+        const w2 = this.wildEnt;
+        w2.fainted = true; w2.faintT = 20; w2.catching = false;
+        w2.group.rotation.x = Math.PI / 2;
+        if(w2.tag){ w2.group.remove(w2.tag); disposeObject(w2.tag); }
+        w2.tag = makeNameTag('😵 ' + w2.inst.name + ' — 볼을 던져 잡자!');
+        w2.tag.position.y = w2.body.h + 0.45;
+        w2.tag.rotation.x = -Math.PI / 2; // 누운 모델 기준 보정
+        w2.group.add(w2.tag);
+        UI.toast('😵 ' + w2.inst.name + '이(가) 기절했다! 20초 안에 볼을 던지면 잡기 쉽다!', 5000);
       } else {
         this.wildEnt.catching = false;
         this.wildEnt.fleeTimer = 4;

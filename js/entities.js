@@ -333,6 +333,17 @@ const Projectiles = {
       e.mesh.position.set(e.x, e.y, e.z);
 
       if(e.type === 'ball'){
+        // 내 파트너에게 맞으면 볼로 회수
+        if(typeof Follower !== 'undefined' && Follower.ent && typeof PokeMan !== 'undefined' && PokeMan.party.length &&
+           dist3(e.x, e.y, e.z, Follower.ent.body.x, Follower.ent.body.y + 0.5, Follower.ent.body.z) < 1.1){
+          this._remove(i);
+          Particles.spawn(Follower.ent.body.x, Follower.ent.body.y + 0.7, Follower.ent.body.z, 0xff5a5a, 14, 2, 0.7, 1.5);
+          SFX.play('catch');
+          UI.toast('돌아와, ' + PokeMan.party[0].name + '!');
+          game.followerOn = false;
+          ItemDrops.spawn(e.x, e.y + 0.3, e.z, e.ballId, 1);
+          continue;
+        }
         if(typeof PokeMan !== 'undefined' && PokeMan.enabled){
           if(typeof Net !== 'undefined' && Net.mode === 'guest'){
             // 게스트: 야생 퍼펫 명중 → 호스트와 협의 후 포획 시도
