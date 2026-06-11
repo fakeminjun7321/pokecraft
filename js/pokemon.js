@@ -862,7 +862,7 @@ function startNPCBattle(npc){
   for(let i = 0; i < n; i++){
     let sp = 1 + Math.floor(Math.random() * (SPECIES.length - 1));
     while(LEGENDARIES.includes(sp) || !SPECIES[sp]) sp = 1 + Math.floor(Math.random() * (SPECIES.length - 1));
-    team.push([sp, clamp(maxLv - 2 + Math.floor(Math.random() * 5), 3, 60)]);
+    team.push([sp, clamp(maxLv + Math.floor(Math.random() * 6), 5, 75)]);
   }
   const names = ['짧은바지 영수', '벌레잡이 민호', '아가씨 수진', '등산가 강철', '낚시꾼 태공', '사이킥 유리'];
   Battle.startTrainer({ name: names[Math.floor(Math.random() * names.length)], team, mob: npc }, null);
@@ -883,7 +883,7 @@ function startRocketBattle(npc){
   const n = boss ? 3 : (Math.random() < 0.5 ? 2 : 3);
   const team = [];
   for(let i = 0; i < n; i++){
-    team.push([pool[(Math.random() * pool.length) | 0], clamp(maxLv - 1 + Math.floor(Math.random() * (boss ? 6 : 4)), 3, 60)]);
+    team.push([pool[(Math.random() * pool.length) | 0], clamp(maxLv + 1 + Math.floor(Math.random() * (boss ? 8 : 5)), 5, 78)]);
   }
   SFX.play('fuse');
   Battle.startTrainer({
@@ -1382,7 +1382,9 @@ const PokeMan = {
     const fl = Math.hypot(d0.x, d0.z) || 1;
     const x = pb.x + d0.x / fl * 2.8, z = pb.z + d0.z / fl * 2.8;
     const spawnP = world.spawnPoint || { x: 0, z: 0 };
-    const lv = clamp(Math.floor(2 + Math.hypot(x - spawnP.x, z - spawnP.z) / 60 + Math.random() * 5 - 2), 2, 42);
+    const pmax = this.party.length ? Math.max(...this.party.map(q => q.level)) : 5;
+    let lv = Math.floor(4 + Math.hypot(x - spawnP.x, z - spawnP.z) / 45 + Math.random() * 8 - 3);
+    lv = clamp(Math.max(lv, pmax - 5 + Math.floor(Math.random() * 10)), 3, 70);
     const w2 = new WildPoke(sp, lv, x, world.colTop(x, z) + 1, z);
     w2.update(0.05, world, pl);
     this.wilds.push(w2);
@@ -1433,12 +1435,16 @@ const PokeMan = {
       if(!onWater && WATER_ONLY.has(sp)) continue;
       const spawnP = world.spawnPoint || { x:0, z:0 };
       const d = Math.hypot(x - spawnP.x, z - spawnP.z);
-      let lv = clamp(Math.floor(2 + d / 60 + Math.random() * 5 - 2), 2, 42);
-      if(world.dim === 'nether') lv = clamp(lv + 8, 10, 48); // 네더는 강한 개체
-      if(world.dim === 'end') lv = clamp(lv + 15, 20, 55);    // 엔드는 최상위 개체
+      // 야생 레벨 = max(거리 기반, 내 파티 최고레벨 ±5) — 강해질수록 야생도 강해진다!
+      const pmax = this.party.length ? Math.max(...this.party.map(q => q.level)) : 5;
+      let lv = Math.floor(4 + d / 45 + Math.random() * 8 - 3);
+      lv = Math.max(lv, pmax - 5 + Math.floor(Math.random() * 10));
+      lv = clamp(lv, 3, 70);
+      if(world.dim === 'nether') lv = clamp(lv + 10, 12, 75); // 네더는 강한 개체
+      if(world.dim === 'end') lv = clamp(lv + 15, 25, 80);    // 엔드는 최상위 개체
       // 밤에는 아주 낮은 확률로 뮤츠 출현
       if(game.isNight() && world.dim === 'over' && Math.random() < 0.012) sp = 150;
-      if(LEGENDARIES.includes(sp)) lv = 35 + Math.floor(Math.random() * 10);
+      if(LEGENDARIES.includes(sp)) lv = Math.max(lv, 50 + Math.floor(Math.random() * 15));
       const wp = new WildPoke(sp, lv, x, y + 0.1, z);
       this.wilds.push(wp);
       this.seen.add(sp);
@@ -1964,7 +1970,8 @@ const Battle = {
     game.inBattle = true;
     if(document.exitPointerLock) document.exitPointerLock();
     this.trainer = custom ? { custom: true, ...G } : { type: gymType, gymKey, ...G };
-    this.enemyTeam = G.insts ? G.insts : G.team.map(([sp, lv]) => new PokeInst(sp, lv));
+    const _pmax = PokeMan.party.length ? Math.max(...PokeMan.party.map(q => q.level)) : 5;
+    this.enemyTeam = G.insts ? G.insts : G.team.map(([sp, lv]) => new PokeInst(sp, custom ? lv : Math.max(lv, _pmax - 1)));
     this._firstTurn = !this.pvp; // PvP는 공정하게 스피드 순
     this.enemyIdx = 0;
     this.wild = this.enemyTeam[0];
@@ -2170,7 +2177,15 @@ const Battle = {
     this.busy = true;
     this.hideSub();
     this.menuEnabled(false);
-    let enemyMove = this.wild.moves[Math.floor(Math.random() * this.wild.moves.length)];
+    // 🧠 Lv.20+ 적은 75% 확률로 상성·위력이 가장 좋은 기술을 고른다
+    let enemyMove;
+    if(!this.pvp && this.wild.level >= 20 && Math.random() < 0.75){
+      enemyMove = this.wild.moves.slice().sort((a, b2) =>
+        (MOVES[b2].p * typeMult(MOVES[b2].t, this.ally.spec.types)) -
+        (MOVES[a].p * typeMult(MOVES[a].t, this.ally.spec.types)))[0];
+    } else {
+      enemyMove = this.wild.moves[Math.floor(Math.random() * this.wild.moves.length)];
+    }
     let enemySwitched = false;
     if(this.pvp){
       // 상대 플레이어의 행동을 기다린다
