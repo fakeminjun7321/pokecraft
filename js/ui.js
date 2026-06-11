@@ -760,8 +760,9 @@ const UI = {
       const rel = document.createElement('button');
       rel.textContent = '놓아주기';
       rel.onclick = () => {
-        if(confirm(p.name + '을(를) 정말 놓아줄까요?')){
+        if(confirm(p.name + '을(를) 정말 놓아줄까요? (고마움의 선물을 줘요)')){
           PokeMan.party.splice(i, 1);
+          PokeMan.releaseReward(p);
           this.openParty();
         }
       };
@@ -787,6 +788,16 @@ const UI = {
           };
           row.querySelector('.party-btns').appendChild(b);
         }
+        const rel2 = document.createElement('button');
+        rel2.textContent = '놓아주기';
+        rel2.onclick = () => {
+          if(confirm(p.name + '을(를) 정말 놓아줄까요? (고마움의 선물을 줘요)')){
+            PokeMan.box.splice(i, 1);
+            PokeMan.releaseReward(p);
+            this.openParty();
+          }
+        };
+        row.querySelector('.party-btns').appendChild(rel2);
         list.appendChild(row);
       });
     }

@@ -776,8 +776,11 @@ class WildPoke {
     }
     b.vx = lerp(b.vx, Math.sin(this.dir) * speed, Math.min(1, dt * 8));
     b.vz = lerp(b.vz, Math.cos(this.dir) * speed, Math.min(1, dt * 8));
-    if(b.hitWall && b.onGround && speed > 0) b.vy = 7;
-    if(b.inWater) b.vy = Math.max(b.vy, 1.5);
+    if(b.hitWall && b.onGround && speed > 0){
+      b.vy = 8.8; // 1칸 턱을 확실히 넘는 점프 (중력 26 기준 ~1.5칸)
+      b.vx = Math.sin(this.dir) * Math.max(speed, 3);
+      b.vz = Math.cos(this.dir) * Math.max(speed, 3);
+    }
     if(b.inWater) b.vy = Math.max(b.vy, Math.min(2.2, (SEA + 0.75 - b.y) * 2)); // 수면 부유
     b.update(dt, world);
     // 애니메이션
@@ -1004,6 +1007,17 @@ const PokeMan = {
     if(typeof Ach !== 'undefined') Ach.unlock('fossil');
     return true;
   },
+  // 놓아주기 보상: 떠나는 포켓몬이 고마움의 선물을 남긴다
+  releaseReward(p){
+    const em = 1 + Math.floor(p.level / 8);
+    player.addItem(I.EMERALD, em);
+    let msg = '👋 ' + p.name + '을(를) 자연으로 보내줬다... 선물로 에메랄드 ' + em + '개';
+    if(p.level >= 20 && Math.random() < 0.7){ player.addItem(I.RARECANDY, 1); msg += ' + 이상한 사탕'; }
+    if(p.level >= 40){ player.addItem(I.ENDERPEARL, 1); msg += ' + 엔더 진주'; }
+    if(p.shiny){ player.addItem(I.DIAMOND, 2); msg += ' + ✨다이아 2개'; }
+    SFX.play('pop');
+    UI.toast(msg + '를 받았다!', 5500);
+  },
   applyCandy(p){
     const need = expForLevel(p.level + 1) - p.exp;
     const evs = p.gainExp(Math.max(1, need));
@@ -1155,7 +1169,11 @@ const Follower = {
     }
     b.vx = lerp(b.vx, Math.sin(e.dir) * speed, Math.min(1, dt * 8));
     b.vz = lerp(b.vz, Math.cos(e.dir) * speed, Math.min(1, dt * 8));
-    if(b.hitWall && b.onGround && speed > 0) b.vy = 7;
+    if(b.hitWall && b.onGround && speed > 0){
+      b.vy = 8.8;
+      b.vx = Math.sin(e.dir) * Math.max(speed, 3);
+      b.vz = Math.cos(e.dir) * Math.max(speed, 3);
+    }
     if(b.inWater) b.vy = Math.max(b.vy, 2);
     b.update(dt, world);
     e.bob += dt;

@@ -617,7 +617,14 @@ function saveGame(){
 function loadGame(seedArg){
   try {
     const seed = seedArg !== undefined ? seedArg : localStorage.getItem(storeKey('last'));
-    const data = migrateSave(JSON.parse(localStorage.getItem(storeKey('save_' + seed))));
+    const raw = seed !== null && seed !== undefined ? localStorage.getItem(storeKey('save_' + seed)) : null;
+    if(!raw){
+      UI.toast('저장 데이터가 없어요');
+      document.getElementById('loading-screen').classList.add('hidden');
+      document.getElementById('start-screen').classList.remove('hidden');
+      return;
+    }
+    const data = migrateSave(JSON.parse(raw));
     game.seed = data.seed;
     game.seedStr = data.seedStr || ('세계 ' + data.seed);
     game.mode = data.mode || 'survival';
@@ -697,12 +704,24 @@ function loadAccountPoke(worldPoke, migrated){
   return false;
 }
 function saveAccountPoke(){
-  try { localStorage.setItem(storeKey('pokemon'), JSON.stringify(PokeMan.serialize())); } catch(e){}
+  try {
+    if(!PokeMan.party.length && !PokeMan.box.length){
+      // 빈 파티/박스로 계정의 포켓몬을 덮어쓰지 않는다 (깨진 세션 보호)
+      const ex = JSON.parse(localStorage.getItem(storeKey('pokemon')) || 'null');
+      if(ex && ((ex.party || []).length || (ex.box || []).length)) return;
+    }
+    localStorage.setItem(storeKey('pokemon'), JSON.stringify(PokeMan.serialize()));
+  } catch(e){}
 }
 // 인벤토리/갑옷도 계정 귀속 (서바이벌만 — 크리에이티브 아이템 반입 방지)
 function saveAccountInv(){
   if(game.mode !== 'survival' || !player) return;
   try {
+    const empty = !player.inventory.some(Boolean) && !player.armor.some(Boolean);
+    if(empty){
+      const ex = JSON.parse(localStorage.getItem(storeKey('inv')) || 'null');
+      if(ex && (ex.inv || []).some(Boolean)) return; // 빈 가방으로 덮어쓰기 방지
+    }
     localStorage.setItem(storeKey('inv'), JSON.stringify({
       inv: player.inventory, armor: player.armor, health: player.health
     }));

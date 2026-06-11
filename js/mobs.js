@@ -324,7 +324,11 @@ class Mob {
       if(d2 > 3){ this.dir = Math.atan2(player.body.x - b.x, player.body.z - b.z); sp2 = clamp((d2 - 2) * 1.3, 1, 6); }
       b.vx = lerp(b.vx, Math.sin(this.dir) * sp2, Math.min(1, dt * 8));
       b.vz = lerp(b.vz, Math.cos(this.dir) * sp2, Math.min(1, dt * 8));
-      if(b.hitWall && b.onGround && sp2 > 0) b.vy = 7.5;
+      if(b.hitWall && b.onGround && sp2 > 0){
+        b.vy = 8.8;
+        b.vx = Math.sin(this.dir) * Math.max(sp2, 3);
+        b.vz = Math.cos(this.dir) * Math.max(sp2, 3);
+      }
       if(b.inWater) b.vy = Math.max(b.vy, 1.5);
       b.update(dt, world);
       const spd = Math.hypot(b.vx, b.vz);
@@ -432,7 +436,11 @@ class Mob {
         b.vy = lerp(b.vy, clamp(ty - b.y, -2.2, 2.2), Math.min(1, dt * 4));
       }
     }
-    if(!def.bounce && b.hitWall && b.onGround && speed > 0) b.vy = 7.5;
+    if(!def.bounce && b.hitWall && b.onGround && speed > 0){
+      b.vy = 8.8;
+      b.vx = Math.sin(this.dir) * Math.max(speed, 3);
+      b.vz = Math.cos(this.dir) * Math.max(speed, 3);
+    }
     if(b.inWater && !def.aquatic) b.vy = Math.max(b.vy, 1.5);
     b.update(dt, world);
     // 엔더맨: 주기적/전투 중 순간이동
