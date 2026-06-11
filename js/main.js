@@ -662,7 +662,7 @@ function startSleep(){
 }
 
 // ---------- 배틀 시작 ----------
-function tryBattle(){
+function tryBattle(classic){
   if(!PokeMan.enabled){ UI.toast('포켓몬 모드가 꺼져 있어요'); return; }
   if(game.inBattle || UI.isOpen() || player.dead) return;
   if(!PokeMan.party.length){ UI.toast('포켓몬이 없어요! 포켓볼을 야생 포켓몬에게 던져 잡아보세요'); return; }
@@ -678,6 +678,11 @@ function tryBattle(){
     if(w.catching || w.fainted) continue; // 포획 연출/기절 상태 제외
     const d = dist3(w.body.x, w.body.y, w.body.z, player.body.x, player.body.y, player.body.z);
     if(d < bd){ bd = d; best = w; }
+  }
+  if(best && !classic && Net.mode !== 'guest'){
+    // ⚔ 기본: 실시간 자율 배틀 (Shift+R = 클래식 배틀 화면)
+    FieldBattle.start(best);
+    return;
   }
   if(!best){
     // 야생이 없으면 근처 친구에게 PvP 대전 신청!
@@ -1070,7 +1075,7 @@ function bindInput(){
         if(document.exitPointerLock) document.exitPointerLock();
       }
     }
-    if(e.code === 'KeyR') tryBattle();
+    if(e.code === 'KeyR') tryBattle(e.shiftKey);
     if(e.code === 'KeyG') toggleRide();
     if(e.code === 'KeyM'){
       Minimap.visible = !Minimap.visible;

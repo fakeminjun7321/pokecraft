@@ -1203,6 +1203,17 @@ class WildPoke {
     this.walkPhase = 0; this.bob = Math.random() * 10;
     this.catching = false; this.fleeTimer = 0;
   }
+  setTag(text){
+    if(this.tag){ this.group.remove(this.tag); disposeObject(this.tag); }
+    this.tag = makeNameTag(text);
+    this.tag.position.y = this.body.h + 0.45;
+    this.group.add(this.tag);
+  }
+  updateHpTag(){
+    const i = this.inst;
+    const bars = Math.round(i.hp / i.maxHp * 8);
+    this.setTag('⚔ ' + (i.shiny ? '✨' : '') + i.name + ' ' + '█'.repeat(Math.max(0, bars)) + '░'.repeat(8 - Math.max(0, bars)));
+  }
   update(dt, world, player){
     if(this.fainted){
       // 기절: 누워서 카운트다운, 시간 지나면 사라짐
@@ -1215,6 +1226,45 @@ class WildPoke {
       return;
     }
     if(this.catching) return;
+    // ⚔ 실시간 자율 배틀: 파트너와 맞붙는 중
+    if(this.battling){
+      const fent = (typeof Follower !== 'undefined') ? Follower.ent : null;
+      const par = PokeMan.party[0];
+      if(!fent || !par || par.hp <= 0 || this.inst.hp <= 0 ||
+         dist3(this.body.x, this.body.y, this.body.z, player.body.x, player.body.y, player.body.z) > 40){
+        FieldBattle.stop(this, !fent || (par && par.hp <= 0)); // 파트너 기절/이탈 시 야생 승리
+        return;
+      }
+      const b = this.body;
+      const dF = dist3(b.x, b.y, b.z, fent.body.x, fent.body.y, fent.body.z);
+      this.dir = Math.atan2(fent.body.x - b.x, fent.body.z - b.z);
+      const sp3 = dF > 1.6 ? this.inst.spec.bs[3] / 130 * 4 + 2 : 0;
+      b.vx = lerp(b.vx, Math.sin(this.dir) * sp3, Math.min(1, dt * 8));
+      b.vz = lerp(b.vz, Math.cos(this.dir) * sp3, Math.min(1, dt * 8));
+      if(b.hitWall && b.onGround && sp3 > 0){ b.vy = 8.8; }
+      if(b.inWater) b.vy = Math.max(b.vy, Math.min(2.2, (SEA + 0.75 - b.y) * 2));
+      this._fAtkCd = (this._fAtkCd || 1) - dt;
+      if(dF < 1.9 && this._fAtkCd <= 0){
+        this._fAtkCd = 1.5;
+        const dmg = fieldDmg(this.inst, par);
+        par.hp = Math.max(0, par.hp - dmg);
+        Particles.spawn(fent.body.x, fent.body.y + 0.7, fent.body.z, 0xff8888, 8, 1.6, 0.5, 1.3);
+        SFX.play('hit');
+        if(par.hp <= 0){
+          SFX.play('faint');
+          UI.toast('😵 ' + par.name + '은(는) 쓰러졌다! ' + this.inst.name + '의 승리...', 5000);
+          FieldBattle.stop(this, true);
+        }
+      }
+      b.update(dt, world);
+      const spd2 = Math.hypot(b.vx, b.vz);
+      this.walkPhase += spd2 * dt * 4;
+      const sw3 = Math.sin(this.walkPhase) * Math.min(1, spd2) * 0.7;
+      (this.built.legs || []).forEach((l, i) => { l.rotation.x = (i % 2 === 0 ? sw3 : -sw3); });
+      this.group.position.set(b.x, b.y, b.z);
+      this.group.rotation.y = this.dir;
+      return;
+    }
     if(this.inst.shiny && Math.random() < dt * 2.5)
       Particles.spawn(this.body.x, this.body.y + this.body.h * 0.7, this.body.z, 0xffe97a, 2, 1.2, 0.5, 1.2);
     const b = this.body;
@@ -1632,6 +1682,27 @@ const Follower = {
         const dp = dist3(mb.body.x, mb.body.y, mb.body.z, player.body.x, player.body.y, player.body.z);
         if(dp > 10 && dm > 7) continue; // 내 주변 위협만
         if(dm < cbd){ cbd = dm; ctgt = mb; }
+      }
+    }
+    // ⚔ 자율 배틀 타깃이 있으면 그 야생부터!
+    const fbT = (typeof FieldBattle !== 'undefined' && FieldBattle.target && !FieldBattle.target.fainted) ? FieldBattle.target : null;
+    if(fbT){
+      const dW = dist3(fbT.body.x, fbT.body.y, fbT.body.z, b.x, b.y, b.z);
+      if(dW < 1.9 && this._atkCd <= 0){
+        this._atkCd = 1.3;
+        const dmg = fieldDmg(par, fbT.inst);
+        fbT.inst.hp = Math.max(0, fbT.inst.hp - dmg);
+        fbT.updateHpTag();
+        Particles.spawn(fbT.body.x, fbT.body.y + 0.7, fbT.body.z, 0xffe97a, 8, 1.6, 0.5, 1.3);
+        SFX.play('hit');
+        if(fbT.inst.hp <= 0) FieldBattle.wildDefeated(fbT);
+      }
+      ctgt = null; // 몹보다 야생 우선
+      if(dW > 1.5){
+        e.dir = Math.atan2(fbT.body.x - b.x, fbT.body.z - b.z);
+        speed = clamp(dW * 1.5, 2.5, 8);
+        b.vx = lerp(b.vx, Math.sin(e.dir) * speed, Math.min(1, dt * 8));
+        b.vz = lerp(b.vz, Math.cos(e.dir) * speed, Math.min(1, dt * 8));
       }
     }
     if(ctgt && cbd < 1.8 && this._atkCd <= 0){
@@ -2606,6 +2677,58 @@ const Battle = {
   }
 };
 
+
+// ---------- ⚔ 실시간 자율 배틀 (파트너를 내보내고 나는 자유!) ----------
+function fieldDmg(att, def){
+  // 5~10회 공방에 끝나도록 조정된 간이 공식
+  const raw = (att.atk * 2.1 - def.def * 0.9) * (0.85 + Math.random() * 0.3) / 5.5;
+  return Math.max(1, Math.round(raw));
+}
+const FieldBattle = {
+  target: null,
+  start(wild){
+    if(this.target) this.stop(this.target, false);
+    const par = PokeMan.party[0];
+    if(!par || par.hp <= 0){ UI.toast('내 포켓몬이 지쳐 있다...'); return false; }
+    game.followerOn = true;
+    this.target = wild;
+    wild.battling = true;
+    wild.fleeTimer = 0;
+    wild.updateHpTag();
+    SFX.play('throw');
+    UI.toast('⚔ 가랏, ' + par.name + '! (자율 배틀 — 너는 다른 일을 해도 좋아!)', 4500);
+    return true;
+  },
+  stop(wild, wildWon){
+    if(this.target === wild) this.target = null;
+    if(!wild) return;
+    wild.battling = false;
+    if(wildWon && !wild.fainted){
+      wild.fleeTimer = 3;
+      wild.setTag((wild.inst.shiny ? '✨' : '') + wild.inst.name + ' Lv.' + wild.inst.level);
+    }
+  },
+  // 파트너가 야생을 쓰러뜨림 → 기절 포획 찬스 + 경험치
+  wildDefeated(wild){
+    this.target = null;
+    wild.battling = false;
+    wild.fainted = true; wild.faintT = 20; wild.catching = false;
+    wild.group.rotation.x = Math.PI / 2;
+    wild.setTag('😵 ' + wild.inst.name + ' — 볼을 던져 잡자!');
+    if(wild.tag) wild.tag.position.set(0, 0, -(wild.body.h + 0.5));
+    const par = PokeMan.party[0];
+    if(par){
+      const exp = Math.floor(wild.inst.spec.bx * wild.inst.level / 4) + 1;
+      const evs = par.gainExp(exp);
+      UI.toast('🏆 ' + wild.inst.name + '을(를) 쓰러뜨렸다! ' + par.name + ' 경험치 +' + exp + ' · 20초 안에 볼을 던지면 잡기 쉽다!', 5500);
+      for(const ev of evs){
+        if(ev.type === 'level'){ UI.toast(par.name + '은(는) 레벨 ' + ev.lv + '이(가) 되었다!'); SFX.play('level'); }
+        else if(ev.type === 'move') UI.toast(par.name + '은(는) ' + MOVES[ev.move].n + '을(를) 배웠다!');
+        else if(ev.type === 'evolve'){ if(confirmEvolve(par, ev.to)) evolveCeremony(par, ev.to); }
+      }
+    }
+  }
+};
 
 // ---------- 🎒 교환 상인 NPC ----------
 const TradeNPC = {
