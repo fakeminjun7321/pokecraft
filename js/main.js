@@ -333,6 +333,12 @@ function showStarterScreen(cb){
   scr.classList.remove('hidden');
 }
 
+// ---------- 저사양 모드 ----------
+function applyPerfMode(on){
+  game.perfMode = !!on;
+  if(renderer) renderer.setPixelRatio(on ? 1 : Math.min(window.devicePixelRatio, 1.5));
+}
+
 // ---------- three.js 환경 ----------
 function setupThree(){
   if(renderer) return;
@@ -340,6 +346,8 @@ function setupThree(){
   renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // 레티나 과부하 방지
   renderer.setSize(window.innerWidth, window.innerHeight);
+  const _opts = JSON.parse(localStorage.getItem('pokecraft_opts') || '{}');
+  if(_opts.perf) applyPerfMode(true);
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 1000);
   scene.add(camera);

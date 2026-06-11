@@ -1364,8 +1364,8 @@ const PokeMan = {
     }
     this.spawnTimer -= dt;
     if(this.spawnTimer <= 0){
-      this.spawnTimer = 2.5;
-      if(this.wilds.length < 10) this.trySpawn(world, player);
+      this.spawnTimer = game.perfMode ? 4 : 2.5;
+      if(this.wilds.length < (game.perfMode ? 6 : 10)) this.trySpawn(world, player);
     }
     this.regenTimer += dt;
     if(this.regenTimer > 8){

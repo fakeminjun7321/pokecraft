@@ -661,12 +661,12 @@ const MobManager = {
     this.passiveTimer -= dt;
     if(this.passiveTimer <= 0){
       this.passiveTimer = 5;
-      if(this.count(false) < 10) this.trySpawn(false, world, player);
+      if(this.count(false) < (game.perfMode ? 6 : 10)) this.trySpawn(false, world, player);
     }
     this.hostileTimer -= dt;
     if(this.hostileTimer <= 0){
       this.hostileTimer = 3;
-      if((game.isNight() || world.dim !== 'over') && this.count(true) < 12) this.trySpawn(true, world, player);
+      if((game.isNight() || world.dim !== 'over') && this.count(true) < (game.perfMode ? 7 : 12)) this.trySpawn(true, world, player);
     }
     // 구조물 NPC 유지 (주민/관장/가디언)
     this.npcTimer = (this.npcTimer === undefined ? 1 : this.npcTimer) - dt;

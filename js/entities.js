@@ -206,6 +206,7 @@ const Particles = {
     scene.add(this.points);
   },
   spawn(x, y, z, hex, n, spread, life, up){
+    if(typeof game !== 'undefined' && game.perfMode) n = Math.max(1, Math.ceil(n * 0.4));
     const r = ((hex >> 16) & 255) / 255, g = ((hex >> 8) & 255) / 255, b = (hex & 255) / 255;
     for(let i = 0; i < n; i++){
       if(this.list.length >= this.MAX) this.list.shift();

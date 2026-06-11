@@ -88,6 +88,11 @@ const UI = {
       bb.onchange = () => Music.setOn(bb.checked);
     }
     // 렌더 거리 설정
+    const saveOpt = (k, v) => {
+      const o = JSON.parse(localStorage.getItem('pokecraft_opts') || '{}');
+      o[k] = v;
+      localStorage.setItem('pokecraft_opts', JSON.stringify(o));
+    };
     const rd = $id('render-dist');
     if(rd){
       const opts = JSON.parse(localStorage.getItem('pokecraft_opts') || '{}');
@@ -95,7 +100,18 @@ const UI = {
       rd.onchange = () => {
         const v = clamp(+rd.value || 4, 3, 6);
         if(typeof world !== 'undefined' && world) world.renderDist = v;
-        localStorage.setItem('pokecraft_opts', JSON.stringify({ renderDist: v }));
+        saveOpt('renderDist', v);
+      };
+    }
+    // 저사양 모드
+    const pf = $id('perf-toggle');
+    if(pf){
+      const opts = JSON.parse(localStorage.getItem('pokecraft_opts') || '{}');
+      pf.checked = !!opts.perf;
+      pf.onchange = () => {
+        saveOpt('perf', pf.checked);
+        if(typeof applyPerfMode === 'function') applyPerfMode(pf.checked);
+        this.toast(pf.checked ? '저사양 모드 ON — 해상도·파티클·스폰을 줄입니다' : '저사양 모드 OFF');
       };
     }
   },
