@@ -974,6 +974,20 @@ const PokeMan = {
 // ---------- 파트너 포켓몬 (파티 1번이 따라다님) ----------
 const Follower = {
   ent: null, sp: 0,
+  // 몬스터볼을 빈 곳에 던지면 파트너가 그 자리로 소환!
+  summonAt(x, y, z){
+    const par = PokeMan.party[0];
+    if(!par || par.hp <= 0){
+      if(par) UI.toast(par.name + '은(는) 지쳐 있다... 회복시키자');
+      return false;
+    }
+    game.followerOn = true;
+    this._pendingSummon = { x, y, z };
+    Particles.spawn(x, y + 0.7, z, 0xffe97a, 18, 2.2, 0.8, 1.6);
+    SFX.play('pop');
+    UI.toast('가랏! ' + par.name + '!');
+    return true;
+  },
   clear(){
     if(this.ent){
       scene.remove(this.ent.group);
@@ -986,6 +1000,8 @@ const Follower = {
       this.clear();
       return;
     }
+    // 기절한 파트너는 볼 안에서 쉰다
+    if(PokeMan.party[0].hp <= 0){ this.clear(); return; }
     const want = PokeMan.party[0].sp;
     const wantShiny = !!PokeMan.party[0].shiny;
     if(!this.ent || this.sp !== want || this._shiny !== wantShiny){
@@ -1003,6 +1019,11 @@ const Follower = {
       this.sp = want;
     }
     const e = this.ent, b = e.body;
+    if(this._pendingSummon){
+      b.x = this._pendingSummon.x; b.y = this._pendingSummon.y + 0.6; b.z = this._pendingSummon.z;
+      b.vx = b.vy = b.vz = 0;
+      this._pendingSummon = null;
+    }
     // 라이딩 중: 플레이어 발 밑에 고정
     if(game.riding){
       const pb = player.body;
@@ -1020,8 +1041,41 @@ const Follower = {
       b.x = player.body.x - 1; b.y = player.body.y + 1; b.z = player.body.z - 1;
       b.vx = b.vz = 0;
     }
+    // ---- 파트너 전투: 근처 적대 몬스터를 공격한다! ----
+    const par = PokeMan.party[0];
+    this._atkCd = (this._atkCd || 0) - dt;
+    let ctgt = null, cbd = 1e9;
+    if(!game.inBattle && !game.riding && typeof MobManager !== 'undefined'){
+      for(const mb of MobManager.list){
+        if(mb.dead || mb.def.npc || mb.def.boss || mb.tamed) continue;
+        if(!(mb.def.hostile || (mb.def.neutral && mb.angry))) continue;
+        const dm = dist3(mb.body.x, mb.body.y, mb.body.z, b.x, b.y, b.z);
+        const dp = dist3(mb.body.x, mb.body.y, mb.body.z, player.body.x, player.body.y, player.body.z);
+        if(dp > 10 && dm > 7) continue; // 내 주변 위협만
+        if(dm < cbd){ cbd = dm; ctgt = mb; }
+      }
+    }
+    if(ctgt && cbd < 1.8 && this._atkCd <= 0){
+      this._atkCd = 1.1;
+      const dmg = Math.round(3 + par.level * 0.4 + par.atk * 0.08);
+      ctgt.hurt(dmg, (ctgt.body.x - b.x) * 0.4, (ctgt.body.z - b.z) * 0.4);
+      Particles.spawn(ctgt.body.x, ctgt.body.y + 0.8, ctgt.body.z, 0xffe97a, 8, 1.6, 0.5, 1.5);
+      if(ctgt.dead){
+        // 몬스터 사냥 경험치!
+        const evs = par.gainExp(10 + (ctgt.def.hp | 0));
+        for(const ev of evs){
+          if(ev.type === 'level'){ UI.toast(par.name + '은(는) 레벨 ' + ev.lv + '이(가) 되었다!'); SFX.play('level'); }
+          else if(ev.type === 'move') UI.toast(par.name + '은(는) ' + MOVES[ev.move].n + '을(를) 배웠다!');
+          else if(ev.type === 'evolve'){ par.doEvolve(ev.to); UI.toast('🌟 ' + SPECIES[ev.to].name + '(으)로 진화했다!'); SFX.play('evolve'); this.sp = 0; }
+        }
+      }
+    }
     let speed = 0;
-    if(d > 2.6){
+    if(ctgt && cbd > 1.5){
+      // 전투 타깃에게 돌진
+      e.dir = Math.atan2(ctgt.body.x - b.x, ctgt.body.z - b.z);
+      speed = clamp(cbd * 1.4, 2, 7);
+    } else if(!ctgt && d > 2.6){
       e.dir = Math.atan2(player.body.x - b.x, player.body.z - b.z);
       speed = clamp((d - 2) * 1.2, 0.8, 6);
     }
@@ -1113,18 +1167,71 @@ const Battle = {
     this.camE = new THREE.PerspectiveCamera(42, 260/200, 0.1, 50);
     this.camA = new THREE.PerspectiveCamera(42, 260/200, 0.1, 50);
   },
+  // 인월드 배틀: 모델은 화면 속 캔버스가 아니라 월드에 직접 세운다
   setModel(side, sp, shiny){
-    const sc = side === 'E' ? this.scE : this.scA;
     const old = side === 'E' ? this.mE : this.mA;
-    if(old){ sc.remove(old.root); disposeObject(old.root); }
-    const built = buildPokeModel(sp, shiny);
-    sc.add(built.root);
-    built.root.rotation.y = side === 'E' ? 0.3 : Math.PI - 0.3;
-    const s = built.scaleVal;
-    const cam = side === 'E' ? this.camE : this.camA;
-    cam.position.set(0, s * 0.8 + 0.35, s * 1.5 + 0.85);
-    cam.lookAt(0, s * 0.55 + 0.08, 0);
-    if(side === 'E') this.mE = built; else this.mA = built;
+    if(old && old._temp){ scene.remove(old.root); disposeObject(old.root); }
+    let root, temp = false;
+    if(side === 'E' && this.wildEnt && this.wildEnt.inst && this.wildEnt.inst.sp === sp){
+      root = this.wildEnt.group; // 야생은 원래 그 자리 엔티티 그대로
+    } else {
+      const built = buildPokeModel(sp, shiny);
+      root = built.root; temp = true;
+      const spot = side === 'E' ? this._spotE : this._spotA;
+      if(spot) root.position.set(spot.x, spot.y, spot.z);
+      scene.add(root);
+    }
+    const face = side === 'E' ? this._faceE : this._faceA;
+    root.rotation.y = face || 0;
+    root.rotation.x = 0;
+    const mm = { root, _temp: temp, _face: face || 0 };
+    if(side === 'E') this.mE = mm; else this.mA = mm;
+  },
+  // 배틀 무대 셋업: 적/아군 자리, 서로 마주보기, 카메라 조준
+  _setupField(){
+    this.$('battle-overlay').classList.add('field');
+    const pb = player.body;
+    let ex, ey, ez;
+    if(this.wildEnt && this.wildEnt.body){
+      ex = this.wildEnt.body.x; ey = this.wildEnt.body.y; ez = this.wildEnt.body.z;
+    } else {
+      const dd = player.dir();
+      const fl = Math.hypot(dd.x, dd.z) || 1;
+      ex = pb.x + dd.x / fl * 5; ez = pb.z + dd.z / fl * 5;
+      ey = world.colTop(ex, ez) + 1.02;
+    }
+    let vx = pb.x - ex, vz = pb.z - ez;
+    const vl = Math.hypot(vx, vz) || 1; vx /= vl; vz /= vl;
+    const ax = ex + vx * 2.6, az = ez + vz * 2.6;
+    const ay = world.colTop(ax, az) + 1.02;
+    this._spotE = { x: ex, y: ey, z: ez };
+    this._spotA = { x: ax, y: ay, z: az };
+    this._faceA = Math.atan2(ex - ax, ez - az);
+    this._faceE = Math.atan2(ax - ex, az - ez);
+    if(this.wildEnt && this.wildEnt.group){
+      // catching 동결로 update가 위치를 못 잡았을 수 있음 — 명시적으로 배치
+      this.wildEnt.group.position.set(ex, ey, ez);
+      this.wildEnt.group.rotation.y = this._faceE;
+    }
+    if(typeof Follower !== 'undefined' && Follower.ent) Follower.ent.group.visible = false; // 임시 배틀 모델과 겹침 방지
+    this._camAim();
+  },
+  _camAim(){
+    if(!this._spotE || !this._spotA) return;
+    // 정식 포켓몬식 어깨너머 카메라: 내 포켓몬 등 뒤에서 적을 바라본다
+    const dirX = this._spotE.x - this._spotA.x, dirZ = this._spotE.z - this._spotA.z;
+    const dl = Math.hypot(dirX, dirZ) || 1;
+    // 살짝 오른쪽으로 비껴서 (적과 아군이 겹치지 않게)
+    const px2 = -dirZ / dl, pz2 = dirX / dl;
+    const cx = this._spotA.x - dirX / dl * 3.4 + px2 * 1.2;
+    const cz = this._spotA.z - dirZ / dl * 3.4 + pz2 * 1.2;
+    let cy = Math.max(this._spotA.y, this._spotE.y) + 1.3;
+    cy = Math.max(cy, world.colTop(cx, cz) + 1.3);
+    const tx = this._spotE.x, ty = this._spotE.y + 0.4, tz = this._spotE.z;
+    const ddx = tx - cx, ddy = ty - cy, ddz = tz - cz;
+    camera.position.set(cx, cy, cz);
+    camera.rotation.order = 'YXZ';
+    camera.rotation.set(clamp(Math.atan2(ddy, Math.hypot(ddx, ddz)), -1.2, 1.2), Math.atan2(-ddx, -ddz), 0);
   },
   // 체육관 관장 배틀: 3마리 연속, 포획 불가
   async startTrainer(gymType, gymKey){
@@ -1148,12 +1255,9 @@ const Battle = {
                   water:'linear-gradient(#7ec8ff 0%, #5a9fd8 60%, #3a76c0 100%)',
                   electric:'linear-gradient(#f5e8a8 0%, #e8d868 60%, #c8b848 100%)',
                   fire:'linear-gradient(#f5b8a8 0%, #e88868 60%, #c85838 100%)' };
-    this.$('battle-stage').style.background = custom
-      ? 'linear-gradient(#8fc8e8 0%, #b8e08a 60%, #7ab85a 100%)'
-      : bgs[gymType];
+    this._setupField();
     this.setModel('E', this.wild.sp, this.wild.shiny);
     this.setModel('A', this.ally.sp, this.ally.shiny);
-    this.$('b-enemy-canvas').style.visibility = 'visible';
     this.$('battle-overlay').classList.remove('hidden');
     this.hideSub();
     this.updateBars();
@@ -1185,10 +1289,9 @@ const Battle = {
       mountain: 'linear-gradient(#88b8d8 0%, #a8a8a0 65%, #888880 100%)',
       ocean: 'linear-gradient(#7ec8ff 0%, #5a9fd8 60%, #3a76c0 100%)',
     };
-    this.$('battle-stage').style.background = bgs[biome] || 'linear-gradient(#7ec8ff 0%, #b9e48f 70%, #6da34d 100%)';
+    this._setupField();
     this.setModel('E', this.wild.sp, this.wild.shiny);
     this.setModel('A', this.ally.sp, this.ally.shiny);
-    this.$('b-enemy-canvas').style.visibility = 'visible';
     this.$('battle-overlay').classList.remove('hidden');
     this.hideSub();
     this.updateBars();
@@ -1235,9 +1338,12 @@ const Battle = {
     this.$('b-ally-expfill').style.width = (a.expPct() * 100) + '%';
   },
   flashSide(side){
-    const cv = this.$(side === 'E' ? 'b-enemy-canvas' : 'b-ally-canvas');
-    cv.style.filter = 'brightness(3)';
-    setTimeout(() => { cv.style.filter = ''; }, 120);
+    const mm = side === 'E' ? this.mE : this.mA;
+    if(!mm) return;
+    const pos = mm.root.position;
+    Particles.spawn(pos.x, pos.y + 0.8, pos.z, 0xffffff, 10, 1.6, 0.6, 1.5);
+    mm.root.scale.setScalar(0.85);
+    setTimeout(() => { if(mm.root) mm.root.scale.setScalar(1); }, 130);
   },
   menuAction(act){
     if(this.busy || !this.active) return;
@@ -1355,6 +1461,14 @@ const Battle = {
     if(Math.random() * 100 > mv.a){
       await this.say('하지만 빗나갔다!');
       return;
+    }
+    // 돌진 연출
+    const am = isAlly ? this.mA : this.mE, tm = isAlly ? this.mE : this.mA;
+    if(am && tm){
+      const ox = am.root.position.x, oz = am.root.position.z;
+      am.root.position.x += (tm.root.position.x - ox) * 0.4;
+      am.root.position.z += (tm.root.position.z - oz) * 0.4;
+      setTimeout(() => { if(am.root){ am.root.position.x = ox; am.root.position.z = oz; } }, 200);
     }
     // 배지 1개당 내 포켓몬 공격 +5%
     const r = calcDamage(user, target, mk, isAlly ? 1 + 0.05 * PokeMan.badges.size : 1);
@@ -1481,7 +1595,10 @@ const Battle = {
     }
     player.removeItem(ballId, 1);
     await this.say(itemName(ballId) + '을(를) 던졌다!');
-    this.$('b-enemy-canvas').style.visibility = 'hidden';
+    if(this.mE){
+      Particles.spawn(this.mE.root.position.x, this.mE.root.position.y + 0.8, this.mE.root.position.z, 0xff5a5a, 14, 2, 0.7, 1.5);
+      this.mE.root.visible = false;
+    }
     const success = Math.random() < catchChance(this.wild, ballBonus(ballId));
     const shakes = success ? 3 : 1 + Math.floor(Math.random() * 2);
     for(let i = 0; i < shakes; i++){
@@ -1497,7 +1614,7 @@ const Battle = {
       return true;
     }
     SFX.play('fail');
-    this.$('b-enemy-canvas').style.visibility = 'visible';
+    if(this.mE) this.mE.root.visible = true;
     await this.say('앗! 나와버렸다!');
     return false;
   },
@@ -1506,8 +1623,12 @@ const Battle = {
     this.busy = false;
     this.trainer = null;
     this.enemyTeam = [];
-    if(this.mE){ this.mE.root.rotation.x = 0; }
-    if(this.mA){ this.mA.root.rotation.x = 0; }
+    if(this.mE){ this.mE.root.rotation.x = 0; this.mE.root.visible = true; if(this.mE._temp){ scene.remove(this.mE.root); disposeObject(this.mE.root); } }
+    if(this.mA){ this.mA.root.rotation.x = 0; if(this.mA._temp){ scene.remove(this.mA.root); disposeObject(this.mA.root); } }
+    this.mE = this.mA = null;
+    this._spotE = this._spotA = null;
+    this.$('battle-overlay').classList.remove('field');
+    if(typeof Follower !== 'undefined' && Follower.ent) Follower.ent.group.visible = true;
     if(this.wildEnt){
       if(this.wildEnt.isNet){
         // 멀티플레이 게스트: 호스트에게 결과 통보
@@ -1528,9 +1649,9 @@ const Battle = {
     }, 900);
   },
   renderTick(t){
-    if(!this.active && this.$ === undefined) return;
     if(!this.active) return;
-    if(this.mE){ this.mE.root.rotation.y = 0.3 + Math.sin(t * 0.0006) * 0.15; this.rE.render(this.scE, this.camE); }
-    if(this.mA){ this.mA.root.rotation.y = Math.PI - 0.3 + Math.sin(t * 0.0007) * 0.15; this.rA.render(this.scA, this.camA); }
+    if(this.mE && this.mE.root.rotation.x === 0) this.mE.root.rotation.y = this.mE._face + Math.sin(t * 0.0008) * 0.08;
+    if(this.mA && this.mA.root.rotation.x === 0) this.mA.root.rotation.y = this.mA._face + Math.sin(t * 0.0009) * 0.08;
+    this._camAim();
   }
 };

@@ -375,7 +375,20 @@ class Mob {
       } else {
         speed = def.speed;
         this.attackCd -= dt;
-        if(dToP < 1.7 && this.attackCd <= 0){
+        // 파트너 포켓몬이 더 가까우면 그쪽을 공격 — 포켓몬도 다친다!
+        const fent = (typeof Follower !== 'undefined' && Follower.ent && PokeMan.party.length) ? Follower.ent : null;
+        const fpar = fent ? PokeMan.party[0] : null;
+        const dToF = fent ? dist3(b.x, b.y, b.z, fent.body.x, fent.body.y, fent.body.z) : 1e9;
+        if(fpar && fpar.hp > 0 && dToF < 1.7 && dToF <= dToP && this.attackCd <= 0){
+          this.attackCd = 1;
+          fpar.hp = Math.max(0, fpar.hp - def.dmg);
+          Particles.spawn(fent.body.x, fent.body.y + 0.8, fent.body.z, 0xc83a3a, 8, 1.6, 0.5, 1.5);
+          SFX.play('hit');
+          if(fpar.hp <= 0){
+            SFX.play('faint');
+            UI.toast('😵 ' + fpar.name + '은(는) 쓰러졌다! 상처약이나 회복 머신으로 회복시키자', 5000);
+          }
+        } else if(dToP < 1.7 && this.attackCd <= 0){
           this.attackCd = 1;
           tgt.hurt(def.dmg, (tgt.x - b.x) * 0.5, (tgt.z - b.z) * 0.5);
         }

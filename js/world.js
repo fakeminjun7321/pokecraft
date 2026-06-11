@@ -191,14 +191,14 @@ class World {
           // 광물
           if(id === B.STONE){
             const r = rand3(wx, y, wz, seed ^ 0xabc1);
-            if(r < 0.013 && y < 52) id = B.COAL_ORE;
-            else if(r < 0.021 && y < 36) id = B.IRON_ORE;
-            else if(r < 0.0245 && y < 22) id = B.GOLD_ORE;
-            else if(r < 0.028 && y < 18) id = B.REDSTONE_ORE;
-            else if(r < 0.0305 && y < 14) id = B.DIAMOND_ORE;
+            if(r < 0.018 && y < 52) id = B.COAL_ORE;
+            else if(r < 0.029 && y < 36) id = B.IRON_ORE;
+            else if(r < 0.0345 && y < 22) id = B.GOLD_ORE;
+            else if(r < 0.039 && y < 18) id = B.REDSTONE_ORE;
+            else if(r < 0.0435 && y < 14) id = B.DIAMOND_ORE;
             // r 상위 구간 사용 — else-if 체인의 y 조건 낙수 효과 방지 (위 광석들과 독립)
-            else if(r >= 0.9990 && y < 28) id = B.MYSTIC_ORE;
-            else if(r >= 0.9975 && y < 20) id = B.FOSSIL_ORE;
+            else if(r >= 0.9985 && y < 28) id = B.MYSTIC_ORE;
+            else if(r >= 0.9962 && y < 20) id = B.FOSSIL_ORE;
           }
           // 동굴
           if(id !== B.BEDROCK && y >= 6 && y <= h - 3 && h >= SEA){
@@ -743,7 +743,7 @@ class World {
           else if(y <= floorH || y >= ceilH){
             id = B.NETHERRACK;
             const r = rand3(wx, y, wz, seed ^ 0xE71);
-            if(r < 0.015) id = B.QUARTZ_ORE;
+            if(r < 0.022) id = B.QUARTZ_ORE;
             if(y === floorH && rand2(wx, wz, seed ^ 0xE72) < 0.12) id = B.SOULSAND;
           }
           else if(y <= 12) id = B.LAVA; // 용암 바다

@@ -502,7 +502,7 @@ function startGame(opts){
     if(!world.spawnPoint) world.spawnPoint = world.findSpawn();
     if(opts.guestSave){
       player.deserialize(opts.guestSave.player);
-      PokeMan.deserialize(opts.guestSave.poke);
+      loadAccountPoke(opts.guestSave.poke, opts.guestSave.pokeMigrated);
     } else {
       const sp = world.spawnPoint;
       player.spawnAt({ x: sp.x, y: sp.y + 2, z: sp.z });
@@ -510,18 +510,21 @@ function startGame(opts){
         player.addItem(I.APPLE, 5);
         if(PokeMan.enabled) player.addItem(I.POKEBALL, 5);
       }
-      if(opts.starterId){
+      loadAccountPoke(null, true);
+      if(opts.starterId && !PokeMan.party.length){
         const starter = new PokeInst(opts.starterId, 5);
         PokeMan.party.push(starter);
         PokeMan.seen.add(opts.starterId);
         PokeMan.caught.add(opts.starterId);
+      } else if(PokeMan.party.length){
+        setTimeout(() => UI.toast('👤 계정에 보관된 내 포켓몬과 함께 시작!', 4000), 1200);
       }
     }
   } else if(opts.loadData){
     const d = opts.loadData;
     if(game.dim === 'over') world.deserialize(d.world);
     else pendingWorldSaves.over = d.world; // 네더에서 저장했으면 오버월드는 지연 로드
-    PokeMan.deserialize(d.poke);
+    loadAccountPoke(d.poke, d.pokeMigrated);
     game.time = d.time !== undefined ? d.time : 0.06;
     player.deserialize(d.player);
   } else {
@@ -534,11 +537,14 @@ function startGame(opts){
       player.addItem(I.APPLE, 5);
       if(opts.pokeOn) player.addItem(I.POKEBALL, 5);
     }
-    if(opts.starterId){
+    loadAccountPoke(null, true);
+    if(opts.starterId && !PokeMan.party.length){
       const starter = new PokeInst(opts.starterId, 5);
       PokeMan.party.push(starter);
       PokeMan.seen.add(opts.starterId);
       PokeMan.caught.add(opts.starterId);
+    } else if(PokeMan.party.length){
+      setTimeout(() => UI.toast('👤 계정에 보관된 내 포켓몬과 함께 시작!', 4000), 1200);
     }
   }
 
@@ -580,16 +586,17 @@ function saveGame(){
     const overW = worlds.over || world;
     // 커서/제작칸에 들고 있던 아이템도 저장 (소실 방지)
     pdata.extra = [UI.cursor, ...(UI.craftCells || [])].filter(Boolean);
+    saveAccountPoke(); // 포켓몬은 계정 귀속
     if(Net.mode === 'guest'){
-      // 게스트: 자기 캐릭터/포켓몬만 저장 (세계는 호스트 것)
+      // 게스트: 자기 캐릭터만 저장 (세계는 호스트 것, 포켓몬은 계정)
       localStorage.setItem(storeKey('guest_' + game.seed),
-        JSON.stringify({ v: SAVE_VERSION, savedAt: Date.now(), player: pdata, poke: PokeMan.serialize() }));
+        JSON.stringify({ v: SAVE_VERSION, savedAt: Date.now(), player: pdata, poke: PokeMan.serialize(), pokeMigrated: true }));
       return;
     }
     const data = {
       v: SAVE_VERSION, savedAt: Date.now(),
       seed: game.seed, seedStr: game.seedStr || ('세계 ' + game.seed),
-      mode: game.mode, time: game.time, dim: game.dim,
+      mode: game.mode, time: game.time, dim: game.dim, pokeMigrated: true,
       world: worlds.over ? worlds.over.serialize() : (pendingWorldSaves.over || overW.serialize()),
       netherWorld: worlds.nether ? worlds.nether.serialize() : (pendingWorldSaves.nether || null),
       endWorld: worlds.end ? worlds.end.serialize() : (pendingWorldSaves.end || null),
@@ -655,6 +662,31 @@ function tryBattle(){
   }
   if(!best){ UI.toast('근처에 야생 포켓몬이 없어요 (9블록 이내)'); return; }
   Battle.start(best);
+}
+
+// ---------- 계정 귀속 포켓몬 ----------
+// 포켓몬(파티/박스/도감/배지)은 세계가 아니라 로그인 계정에 저장된다.
+function loadAccountPoke(worldPoke, migrated){
+  let acct = null;
+  try { acct = JSON.parse(localStorage.getItem(storeKey('pokemon')) || 'null'); } catch(e){}
+  if(acct){
+    PokeMan.deserialize(acct);
+    if(worldPoke && !migrated){
+      // 업데이트 전 세계별 포켓몬 1회 병합 (계정 박스로)
+      const old = [...(worldPoke.party || []), ...(worldPoke.box || [])];
+      old.forEach(dd => PokeMan.box.push(PokeInst.from(dd)));
+      (worldPoke.seen || []).forEach(s => PokeMan.seen.add(s));
+      (worldPoke.caught || []).forEach(s => PokeMan.caught.add(s));
+      (worldPoke.badges || []).forEach(s => PokeMan.badges.add(s));
+      if(old.length) setTimeout(() => UI.toast('🎒 이 세계의 포켓몬 ' + old.length + '마리를 계정 박스로 옮겼어요!', 5000), 1500);
+    }
+    return true;
+  }
+  if(worldPoke){ PokeMan.deserialize(worldPoke); return true; }
+  return false;
+}
+function saveAccountPoke(){
+  try { localStorage.setItem(storeKey('pokemon'), JSON.stringify(PokeMan.serialize())); } catch(e){}
 }
 
 // ---------- 차원 (오버월드 ↔ 네더) ----------

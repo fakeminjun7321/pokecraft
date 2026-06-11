@@ -357,7 +357,12 @@ const Projectiles = {
         }
         if(world.isSolid(e.x, e.y, e.z) || e.age > 6){
           this._remove(i);
-          ItemDrops.spawn(e.x - e.vx*dt*2, e.y - e.vy*dt*2 + 0.3, e.z - e.vz*dt*2, e.ballId, 1);
+          const lx = e.x - e.vx*dt*2, ly = e.y - e.vy*dt*2, lz = e.z - e.vz*dt*2;
+          // 빈 곳에 던지면 파트너 소환! (볼은 그 자리에 떨어져 회수)
+          if(typeof PokeMan !== 'undefined' && PokeMan.enabled && PokeMan.party.length && typeof Follower !== 'undefined' && !game.inBattle){
+            Follower.summonAt(lx, ly, lz);
+          }
+          ItemDrops.spawn(lx, ly + 0.3, lz, e.ballId, 1);
           continue;
         }
       } else if(e.type === 'fireball'){
