@@ -700,6 +700,7 @@ const UI = {
           <div>HP ${p.hp}/${p.maxHp} · 공격 ${p.atk} · 방어 ${p.def} · 스피드 ${p.spd} · EXP ${Math.floor(p.expPct() * 100)}%</div>
           <div class="p-moves">기술: ${p.moves.map(k => MOVES[k].n).join(', ')}</div>
           <div class="p-moves" style="opacity:.8">${evoInfoText(p)}</div>
+          <div class="p-moves" style="opacity:.85">✨ 특성: ${ABILITY_DEFS[abilityOf(p.sp)].n} — ${ABILITY_DEFS[abilityOf(p.sp)].d}${i === 0 && COMPANION_FX[p.spec.types[0]] ? '<br>🐾 동행 효과: ' + COMPANION_FX[p.spec.types[0]] : ''}</div>
         </div>
         <div class="party-btns"></div>`;
       const btns = row.querySelector('.party-btns');

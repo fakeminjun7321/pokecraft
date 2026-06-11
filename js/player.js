@@ -78,6 +78,10 @@ class Player {
     else if(b.inWater) speed = 2.6;
     else speed = sprint ? 5.8 : 4.3;
     if(this.effects.speed > 0) speed *= 1.4;
+    // 🐾 동행 효과: 전기=이속, 물=수영
+    const cType = typeof companionType === 'function' ? companionType() : null;
+    if(cType === 'electric') speed *= 1.1;
+    if(cType === 'water' && b.inWater) speed *= 1.5;
 
     const accel = b.onGround || this.fly || b.inWater ? 10 : 3;
     b.vx = lerp(b.vx, mx * speed, Math.min(1, dt * accel));
@@ -107,9 +111,13 @@ class Player {
     if(b.inWater && jump && b.hitWall && (fw || rt)) b.vy = Math.max(b.vy, 5.2);
     if(this.fly && b.onGround) this.fly = false;
 
-    // 낙하 데미지
+    // 낙하 데미지 (🪂 비행 타입 동행 시 무효)
     if(b.onGround && prevVy < -13 && !b.inWater && !this.fly){
-      this.hurt(Math.floor((-prevVy - 13) * 0.7), 0, 0, true);
+      if((typeof companionType === 'function' ? companionType() : null) === 'flying'){
+        Particles.spawn(b.x, b.y + 0.3, b.z, 0xa890f0, 10, 1.5, 0.5, 1);
+      } else {
+        this.hurt(Math.floor((-prevVy - 13) * 0.7), 0, 0, true);
+      }
     }
 
     // 공허 추락 (엔드)

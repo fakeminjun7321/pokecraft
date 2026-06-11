@@ -185,35 +185,119 @@ function autoLearn(types){
 }
 
 // 폼 코드: q=네발 b=이족 B=새 o=덩어리 f=부유 s=뱀
-function autoModel(form, s, c1, c2, types){
+// 색 밝기 조절 헬퍼
+function shadeHex(hex, amt){
+  const n = parseInt(hex.slice(1), 16);
+  const r = clamp(((n >> 16) & 255) + amt, 0, 255), g = clamp(((n >> 8) & 255) + amt, 0, 255), b = clamp((n & 255) + amt, 0, 255);
+  return '#' + ((r << 16) | (g << 8) | b).toString(16).padStart(6, '0');
+}
+function autoModel(form, s, c1, c2, types, id){
+  // 종별 결정론적 체형 변형 — 같은 종은 항상 같은 모습, 종끼리는 다르게
+  const rng = mulberry32((id || 0) * 7919 + 13);
+  const headS = 0.85 + rng() * 0.45;   // 머리 크기
+  const bodyW = 0.85 + rng() * 0.4;    // 몸 너비
+  const legL = 0.8 + rng() * 0.5;      // 다리 길이
   const F = { q:'quad', b:'biped', B:'bird', o:'blob', f:'float', s:'serpent' };
   const o = { body: c1 };
-  if(form === 'q'){ Object.assign(o, { hs:0.5, bh:0.45, bd:0.75, legH:0.24, ears:c2 }); }
-  else if(form === 'b'){ Object.assign(o, { headC:c1, legH:0.32, bh:0.55, bw:0.46, armW:0.13 }); }
-  else if(form === 'B'){ Object.assign(o, { headC:c1, wingC:c2, bh:0.42, bd:0.55 }); }
-  else if(form === 'o'){ Object.assign(o, { s:0.75 }); }
-  else if(form === 'f'){ Object.assign(o, { s:0.5 }); }
-  else if(form === 's'){ Object.assign(o, { headC:c1, segs:4, segSize:0.4 }); }
+  if(form === 'q'){ Object.assign(o, { hs: 0.5 * headS, bh: 0.45, bd: 0.75 * bodyW, legH: 0.24 * legL, ears: c2 }); }
+  else if(form === 'b'){ Object.assign(o, { headC: c1, legH: 0.32 * legL, bh: 0.55, bw: 0.46 * bodyW, armW: 0.13 }); }
+  else if(form === 'B'){ Object.assign(o, { headC: c1, wingC: c2, bh: 0.42, bd: 0.55 * bodyW }); }
+  else if(form === 'o'){ Object.assign(o, { s: 0.75 * bodyW }); }
+  else if(form === 'f'){ Object.assign(o, { s: 0.5 * bodyW }); }
+  else if(form === 's'){ Object.assign(o, { headC: c1, segs: 3 + Math.floor(rng() * 3), segSize: 0.4 }); }
   const deco = m => {
     const g = m.group;
-    // 타입별 자동 장식 (보조색 c2 사용)
-    if(types.includes('fire')) makeBox(g, 0.16, 0.24, 0.16, '#ffce3d', 0, 0.7, -0.45);
-    if(types.includes('water') && form !== 's') makeBox(g, 0.08, 0.22, 0.3, c2, 0, 0.6, -0.4);
-    if(types.includes('grass')) makeBox(m.head || g, 0.3, 0.1, 0.3, '#3e8a2e', 0, (m.head ? 0.3 : 0.9), 0);
-    if(types.includes('electric')) makeBox(g, 0.2, 0.2, 0.07, '#f5d327', 0.1, 0.55, -0.4);
-    if(types.includes('ice')) makeBox(m.head || g, 0.12, 0.22, 0.12, '#bfeaf5', 0, (m.head ? 0.32 : 0.95), 0);
-    if(types.includes('rock') || types.includes('ground')) makeBox(g, 0.34, 0.18, 0.34, '#8d9296', 0, 0.78, -0.1);
-    if(types.includes('poison')){ makeBox(g, 0.12, 0.12, 0.05, c2, -0.15, 0.55, 0.3); makeBox(g, 0.1, 0.1, 0.05, c2, 0.18, 0.42, 0.3); }
-    if(types.includes('psychic')) makeBox(m.head || g, 0.1, 0.1, 0.06, '#f85888', 0, (m.head ? 0.18 : 0.8), (m.head ? 0.28 : 0.3));
-    if(types.includes('bug') && m.head){ makeBox(m.head, 0.05, 0.22, 0.05, c2, -0.12, 0.32, 0); makeBox(m.head, 0.05, 0.22, 0.05, c2, 0.12, 0.32, 0); }
-    if(types.includes('ghost')) { /* 부유감은 폼으로 충분 */ }
-    if(types.includes('dragon') && m.head){ makeBox(m.head, 0.08, 0.2, 0.08, c2, -0.16, 0.3, -0.05); makeBox(m.head, 0.08, 0.2, 0.08, c2, 0.16, 0.3, -0.05); }
-    if(types.includes('flying') && form !== 'B'){
-      makeBox(g, 0.06, 0.3, 0.45, c2, -0.35, 0.7, -0.1);
-      makeBox(g, 0.06, 0.3, 0.45, c2, 0.35, 0.7, -0.1);
+    const r2 = mulberry32((id || 0) * 104729 + 7);
+    const lite = shadeHex(c1, 42), dark = shadeHex(c1, -38);
+    // 👀 또렷한 눈 (흰자+눈동자) — 머리가 있으면 머리에, 없으면 몸 앞면에
+    const face = m.head || g;
+    const fy = m.head ? 0.08 : 0.55, fz = m.head ? 0.26 : 0.38;
+    [-0.13, 0.13].forEach(ex => {
+      makeBox(face, 0.11, 0.13, 0.04, '#ffffff', ex, fy, fz);
+      makeBox(face, 0.06, 0.08, 0.05, '#1a1a22', ex + (r2() < 0.5 ? 0.015 : -0.015), fy, fz + 0.005);
+    });
+    // 🎨 배/가슴 밝은 패치
+    makeBox(g, form === 'q' ? 0.42 * bodyW : 0.3 * bodyW, form === 'q' ? 0.22 : 0.34, 0.06, lite, 0, form === 'q' ? 0.34 : 0.5, form === 'q' ? 0.36 : 0.26);
+    // 🎨 종별 무늬: 점/줄/등판 중 하나
+    const pat = Math.floor(r2() * 3);
+    if(pat === 0){ // 점박이
+      for(let i = 0; i < 3; i++) makeBox(g, 0.09, 0.09, 0.04, c2, (r2() - 0.5) * 0.5, 0.45 + r2() * 0.35, -0.3 - r2() * 0.1);
+    } else if(pat === 1){ // 등줄무늬
+      makeBox(g, 0.08, 0.3, 0.5, c2, 0, form === 'q' ? 0.62 : 0.75, -0.15);
+    } else { // 등판 (거북등/갑각 느낌)
+      makeBox(g, 0.34 * bodyW, 0.12, 0.45, dark, 0, form === 'q' ? 0.62 : 0.8, -0.12);
     }
-    if(types.includes('fighting') && m.head) makeBox(m.head, 0.26, 0.08, 0.26, c2, 0, 0.3, 0);
-    if(types.includes('fairy') && m.head) makeBox(m.head, 0.1, 0.16, 0.1, '#ffffff', 0.2, 0.3, 0);
+    // 🦊 네발짐승 꼬리
+    if(form === 'q'){
+      const tl = 0.25 + r2() * 0.3;
+      makeBox(g, 0.1, 0.1, tl, r2() < 0.5 ? c2 : c1, 0, 0.5 + r2() * 0.15, -0.55 - tl / 2);
+    }
+    // ===== 타입별 장식 (양쪽 타입 모두 반영) =====
+    if(types.includes('fire')){ // 불꽃 갈기/꼬리불
+      makeBox(g, 0.16, 0.26, 0.16, '#ffce3d', 0, 0.78, -0.42);
+      makeBox(g, 0.1, 0.16, 0.1, '#f08020', 0, 0.95, -0.45);
+    }
+    if(types.includes('water') && form !== 's'){ // 등지느러미+옆지느러미
+      makeBox(g, 0.06, 0.26, 0.3, c2, 0, 0.72, -0.32);
+      makeBox(g, 0.2, 0.05, 0.14, c2, -0.34, 0.45, 0); makeBox(g, 0.2, 0.05, 0.14, c2, 0.34, 0.45, 0);
+    }
+    if(types.includes('grass')){ // 잎사귀 (머리 위 + 등)
+      const lf = m.head || g;
+      makeBox(lf, 0.26, 0.05, 0.4, '#3e8a2e', 0, m.head ? 0.32 : 0.92, -0.05);
+      makeBox(lf, 0.05, 0.14, 0.05, '#2e6a22', 0, m.head ? 0.26 : 0.84, 0);
+    }
+    if(types.includes('electric')){ // 번개꼬리 + 볼따구
+      makeBox(g, 0.18, 0.18, 0.06, '#f5d327', 0.12, 0.62, -0.42);
+      makeBox(g, 0.12, 0.22, 0.06, '#f5d327', 0.2, 0.82, -0.46);
+      if(m.head){ makeBox(m.head, 0.07, 0.07, 0.04, '#e85f3a', -0.2, -0.02, 0.24); makeBox(m.head, 0.07, 0.07, 0.04, '#e85f3a', 0.2, -0.02, 0.24); }
+    }
+    if(types.includes('ice')){ // 얼음 결정
+      makeBox(m.head || g, 0.1, 0.24, 0.1, '#bfeaf5', -0.12, m.head ? 0.34 : 0.95, 0);
+      makeBox(m.head || g, 0.08, 0.18, 0.08, '#e8f8ff', 0.14, m.head ? 0.3 : 0.9, 0);
+    }
+    if(types.includes('rock') || types.includes('ground')){ // 바위 혹들
+      makeBox(g, 0.2, 0.14, 0.2, '#8d9296', -0.15, 0.74, -0.1);
+      makeBox(g, 0.16, 0.12, 0.16, '#767b80', 0.18, 0.68, -0.18);
+    }
+    if(types.includes('poison')){ // 보라 반점
+      makeBox(g, 0.12, 0.12, 0.05, c2, -0.15, 0.55, 0.3);
+      makeBox(g, 0.1, 0.1, 0.05, c2, 0.18, 0.42, 0.3);
+      makeBox(g, 0.08, 0.08, 0.04, c2, 0.02, 0.68, -0.34);
+    }
+    if(types.includes('psychic')){ // 이마 보석
+      makeBox(m.head || g, 0.11, 0.11, 0.07, '#f85888', 0, m.head ? 0.2 : 0.82, m.head ? 0.26 : 0.32);
+    }
+    if(types.includes('bug') && m.head){ // 더듬이 한 쌍
+      makeBox(m.head, 0.04, 0.26, 0.04, c2, -0.12, 0.36, 0.04);
+      makeBox(m.head, 0.04, 0.26, 0.04, c2, 0.12, 0.36, 0.04);
+    }
+    if(types.includes('dragon') && m.head){ // 뿔 + 꼬리가시
+      makeBox(m.head, 0.08, 0.24, 0.08, c2, -0.16, 0.32, -0.05);
+      makeBox(m.head, 0.08, 0.24, 0.08, c2, 0.16, 0.32, -0.05);
+      makeBox(g, 0.07, 0.16, 0.07, c2, 0, 0.6, -0.62);
+    }
+    if(types.includes('flying') && form !== 'B'){ // 작은 날개
+      makeBox(g, 0.06, 0.34, 0.5, c2, -0.36, 0.72, -0.1);
+      makeBox(g, 0.06, 0.34, 0.5, c2, 0.36, 0.72, -0.1);
+    }
+    if(types.includes('fighting') && m.head){ makeBox(m.head, 0.28, 0.08, 0.28, c2, 0, 0.3, 0); } // 머리띠
+    if(types.includes('fairy')){ // 흰 반짝이
+      makeBox(m.head || g, 0.07, 0.12, 0.07, '#ffffff', 0.18, m.head ? 0.3 : 0.9, 0);
+      makeBox(g, 0.06, 0.06, 0.04, '#fff0fd', -0.2, 0.6, 0.3);
+    }
+    if(types.includes('dark')){ // 뾰족 귀그림자 + 붉은 눈빛
+      if(m.head){ makeBox(m.head, 0.07, 0.2, 0.07, '#1a1a22', -0.18, 0.36, -0.02); makeBox(m.head, 0.07, 0.2, 0.07, '#1a1a22', 0.18, 0.36, -0.02); }
+      [-0.13, 0.13].forEach(ex => makeBox(face, 0.05, 0.04, 0.05, '#e23b3b', ex, fy + 0.02, fz + 0.01));
+    }
+    if(types.includes('steel')){ // 금속 장갑판
+      makeBox(g, 0.3 * bodyW, 0.1, 0.36, '#c8c8d8', 0, form === 'q' ? 0.66 : 0.82, -0.1);
+      makeBox(g, 0.14, 0.14, 0.05, '#a8a8b8', 0, 0.5, 0.3);
+    }
+    if(types.includes('ghost')){ // 반투명 + 떠다니는 도깨비불
+      g.traverse(ch => { if(ch.isMesh && ch.material){ ch.material.transparent = true; ch.material.opacity = 0.82; } });
+      makeBox(g, 0.08, 0.08, 0.08, '#b8a8ff', -0.4, 0.85, 0);
+      makeBox(g, 0.06, 0.06, 0.06, '#d8c8ff', 0.42, 0.65, -0.1);
+    }
   };
   return { form: F[form], s, o, deco };
 }
@@ -750,7 +834,7 @@ for(const idStr in DEX){
     bx: Math.max(20, Math.round((hp + atk + def + spd) * 0.65)),
     evo,
     learn: autoLearn(types),
-    model: DETAIL[id] || autoModel(form, scale, c1, c2, types),
+    model: DETAIL[id] || autoModel(form, scale, c1, c2, types, id),
     spawn: { biomes: biomeStr ? biomeStr.split(',').map(b => BIOME_MAP[b] || b) : [], rare }
   };
 }
@@ -823,6 +907,45 @@ const STONE_EVOS = {
   [I.MOON_STONE]:    { 30:31, 33:34, 35:36, 39:40 },
 };
 const FOSSIL_POKES = { [I.FOSSIL_HELIX]: 138, [I.FOSSIL_DOME]: 140, [I.FOSSIL_AMBER]: 142 };
+// ✨ 특성: 종마다 하나씩 (타입 기반 자동 배정)
+const ABILITY_DEFS = {
+  pinch:      { n:'근성',   d:'위기(HP 1/3↓)에서 같은 타입 기술 위력 +35%' },
+  sturdy:     { n:'옹골참', d:'체력이 가득할 때 쓰러질 공격을 1로 버틴다' },
+  regen:      { n:'재생력', d:'배틀에서 매 턴 체력을 6% 회복' },
+  intimidate: { n:'위협',   d:'배틀 시작 시 상대의 공격을 낮춘다' },
+  levitate:   { n:'부유',   d:'땅 타입 기술을 받지 않는다' },
+  static:     { n:'정전기', d:'공격당하면 상대에게 찌릿 반격 데미지' },
+  pickup:     { n:'픽업',   d:'함께 걸으면 가끔 아이템을 주워 온다' },
+};
+function abilityOf(sp){
+  const spec = SPECIES[sp];
+  if(!spec) return 'pickup';
+  const t = spec.types;
+  if(t.includes('rock') || t.includes('steel')) return 'sturdy';
+  if(t.includes('ghost') || (t.includes('psychic') && t.includes('flying'))) return 'levitate';
+  if(t.includes('electric')) return 'static';
+  if(t.includes('grass') || t.includes('fairy')) return 'regen';
+  if(t.includes('dark') || t.includes('poison') || t.includes('ice') || t.includes('bug')) return 'intimidate';
+  if(t.includes('fire') || t.includes('water') || t.includes('fighting') || t.includes('dragon') || t.includes('ground')) return 'pinch';
+  return 'pickup';
+}
+// 🐾 동행 효과: 파트너(1번)가 나와 있을 때 타입별 보너스
+const COMPANION_FX = {
+  fire:     '⚔ 파트너의 몬스터 사냥 데미지 +30%',
+  water:    '🏊 물에서 수영 속도 UP',
+  electric: '👟 내 이동 속도 +10%',
+  grass:    '🌱 함께 걷기 경험치 2배',
+  flying:   '🪂 낙하 데미지 무효',
+  psychic:  '🎯 포획 확률 +15%',
+  normal:   '🍀 픽업 확률 UP',
+};
+function companionType(){
+  if(typeof Follower === 'undefined' || !Follower.ent || !game.followerOn) return null;
+  const par = PokeMan.party[0];
+  if(!par || par.hp <= 0) return null;
+  return par.spec.types[0];
+}
+
 // 🔮 메가진화 가능 종 (배틀 한정 강화)
 const MEGA_FORMS = new Set([3, 6, 9, 65, 80, 94, 115, 127, 130, 142, 150, 181, 212, 229, 248,
   254, 257, 260, 282, 302, 303, 306, 308, 310, 319, 323, 334, 354, 359, 362, 373, 376, 380, 381, 384]);
@@ -1315,6 +1438,7 @@ const PokeMan = {
     scene.add(ball);
     const inst = wild.inst;
     let chance = catchChance(inst, ballBonus(ballId));
+    if(companionType() === 'psychic') chance = Math.min(1, chance * 1.15); // 🎯 에스퍼 동행
     if(wild.fainted) chance = clamp(chance * 3, 0.5, 0.95); // 쓰러진 포켓몬은 거의 잡힌다!
     const success = Math.random() < chance;
     const shakes = success ? 3 : 1 + Math.floor(Math.random() * 2);
@@ -1501,7 +1625,8 @@ const Follower = {
     }
     if(ctgt && cbd < 1.8 && this._atkCd <= 0){
       this._atkCd = 1.1;
-      const dmg = Math.round(3 + par.level * 0.4 + par.atk * 0.08);
+      let dmg = Math.round(3 + par.level * 0.4 + par.atk * 0.08);
+      if(par.spec.types[0] === 'fire') dmg = Math.round(dmg * 1.3); // 🔥 불꽃 동행 보너스
       ctgt.hurt(dmg, (ctgt.body.x - b.x) * 0.4, (ctgt.body.z - b.z) * 0.4);
       Particles.spawn(ctgt.body.x, ctgt.body.y + 0.8, ctgt.body.z, 0xffe97a, 8, 1.6, 0.5, 1.5);
       if(ctgt.dead){
@@ -1552,7 +1677,17 @@ const Follower = {
         this._walkAcc = (this._walkAcc || 0) + moved;
         if(this._walkAcc >= 24){
           this._walkAcc = 0;
-          const evs = par.gainExp(6 + Math.round(par.level * 0.6));
+          // 🍀 특성 픽업 / 동행 노말: 아이템 줍기
+          const pickRate = abilityOf(par.sp) === 'pickup' ? 0.22 : (par.spec.types[0] === 'normal' ? 0.12 : 0);
+          if(pickRate && Math.random() < pickRate){
+            const loot = [[I.APPLE, 1], [I.POKEBALL, 1], [I.EMERALD, 1], [I.FLINT, 1]][Math.floor(Math.random() * 4)];
+            player.addItem(loot[0], loot[1]);
+            SFX.play('pop');
+            UI.toast('🍀 ' + par.name + '이(가) ' + itemName(loot[0]) + '을(를) 주워왔다!');
+          }
+          // 🌱 풀 타입 동행: 걷기 경험치 2배
+          const grassBoost = par.spec.types[0] === 'grass' ? 2 : 1;
+          const evs = par.gainExp((6 + Math.round(par.level * 0.6)) * grassBoost);
           for(const ev of evs){
             if(ev.type === 'level'){ UI.toast('🚶 함께 걸어서 ' + par.name + '이(가) 레벨 ' + ev.lv + '이(가) 되었다!'); SFX.play('level'); }
             else if(ev.type === 'move') UI.toast(par.name + '은(는) ' + MOVES[ev.move].n + '을(를) 배웠다!');
@@ -1752,6 +1887,7 @@ const Battle = {
     this.setModel('A', this.ally.sp, this.ally.shiny);
     this.$('battle-overlay').classList.remove('hidden');
     this.hideSub();
+    this._applyIntimidate();
     this.updateBars();
     this.menuEnabled(false);
     await this.say(custom ? (G.introLine || (G.name + '이(가) 승부를 걸어왔다!')) : ('체육관 관장 ' + G.name + '이(가) 승부를 걸어왔다!'));
@@ -1788,6 +1924,7 @@ const Battle = {
     this.setModel('A', this.ally.sp, this.ally.shiny);
     this.$('battle-overlay').classList.remove('hidden');
     this.hideSub();
+    this._applyIntimidate();
     this.updateBars();
     this.menuEnabled(false);
     await this.say('앗! 야생의 ' + this.wild.name + ' Lv.' + this.wild.level + '이(가) 나타났다!');
@@ -2034,11 +2171,26 @@ const Battle = {
         }
       }
     } finally {
+      // 특성: 재생력 — 턴이 끝날 때 회복
+      for(const u of [this.ally, this.wild]){
+        if(u && u.hp > 0 && abilityOf(u.sp) === 'regen' && u.hp < u.maxHp){
+          u.hp = Math.min(u.maxHp, u.hp + Math.max(1, Math.round(u.maxHp * 0.06)));
+        }
+      }
+      this.updateBars();
       if(this.active){
         this.busy = false;
         this.menuEnabled(true);
       }
     }
+  },
+  _applyIntimidate(){
+    this._allyAtkMod = 1; this._enemyAtkMod = 1;
+    if(this.ally && abilityOf(this.ally.sp) === 'intimidate'){
+      this._enemyAtkMod = 0.85;
+      setTimeout(() => UI.toast(this.ally.spec.name + '의 위협! 상대의 공격이 떨어졌다'), 800);
+    }
+    if(this.wild && abilityOf(this.wild.sp) === 'intimidate') this._allyAtkMod = 0.85;
   },
   async useMove(user, target, mk, isAlly){
     const mv = MOVES[mk];
@@ -2051,6 +2203,11 @@ const Battle = {
       await this.say('하지만 빗나갔다!');
       return;
     }
+    // 특성: 부유 — 땅 기술 무효
+    if(mv.t === 'ground' && abilityOf(target.sp) === 'levitate'){
+      await this.say(target.name + '은(는) 부유로 공격을 피했다!');
+      return;
+    }
     // 돌진 연출
     const am = isAlly ? this.mA : this.mE, tm = isAlly ? this.mE : this.mA;
     if(am && tm){
@@ -2060,12 +2217,30 @@ const Battle = {
       setTimeout(() => { if(am.root){ am.root.position.x = ox; am.root.position.z = oz; } }, 200);
     }
     // 배지 1개당 내 포켓몬 공격 +5%
-    const r = calcDamage(user, target, mk, isAlly ? 1 + 0.05 * PokeMan.badges.size : 1);
+    let mult = isAlly ? 1 + 0.05 * PokeMan.badges.size : 1;
+    if(isAlly) mult *= this._allyAtkMod || 1; else mult *= this._enemyAtkMod || 1;
+    // 특성: 근성 — 위기에서 같은 타입 기술 강화
+    if(abilityOf(user.sp) === 'pinch' && user.hp < user.maxHp / 3 && user.spec.types.includes(mv.t)) mult *= 1.35;
+    const r = calcDamage(user, target, mk, mult);
     if(r.eff === 0){
       await this.say('효과가 없는 것 같다...');
       return;
     }
+    // 특성: 옹골참 — 풀피에서 한 방에 안 쓰러진다
+    if(target.hp >= target.maxHp && r.dmg >= target.hp && abilityOf(target.sp) === 'sturdy'){
+      target.hp = 1;
+      SFX.play('hit');
+      this.flashSide(isAlly ? 'E' : 'A');
+      this.updateBars();
+      await this.say(target.name + '은(는) 옹골참으로 버텼다!!');
+      return;
+    }
     target.hp = Math.max(0, target.hp - r.dmg);
+    // 특성: 정전기 — 맞으면 공격자에게 반격
+    if(abilityOf(target.sp) === 'static' && target.hp > 0 && Math.random() < 0.5){
+      user.hp = Math.max(1, user.hp - Math.max(1, Math.round(user.maxHp * 0.06)));
+      setTimeout(() => Particles.spawn((isAlly ? this.mA : this.mE)?.root.position.x || 0, ((isAlly ? this.mA : this.mE)?.root.position.y || 0) + 0.8, (isAlly ? this.mA : this.mE)?.root.position.z || 0, 0xf5d327, 8, 1.5, 0.5, 1), 250);
+    }
     SFX.play('hit');
     this.flashSide(isAlly ? 'E' : 'A');
     this.updateBars();
@@ -2207,7 +2382,9 @@ const Battle = {
       Particles.spawn(this.mE.root.position.x, this.mE.root.position.y + 0.8, this.mE.root.position.z, 0xff5a5a, 14, 2, 0.7, 1.5);
       this.mE.root.visible = false;
     }
-    const success = Math.random() < catchChance(this.wild, ballBonus(ballId));
+    let bchance = catchChance(this.wild, ballBonus(ballId));
+    if(companionType() === 'psychic') bchance = Math.min(1, bchance * 1.15);
+    const success = Math.random() < bchance;
     const shakes = success ? 3 : 1 + Math.floor(Math.random() * 2);
     for(let i = 0; i < shakes; i++){
       SFX.play('catch');
