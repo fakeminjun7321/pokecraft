@@ -10,6 +10,7 @@ function _randCode(n){
   return s;
 }
 // 네트워크 입력 검증 (악성/버전 불일치 피어로부터 월드 보호)
+const NET_VER = 27; // 프로토콜/버전 핸드셰이크 (?v= 와 함께 올릴 것)
 const MAX_PLAYERS = 20; // 호스트 포함 최대 인원
 const PEER_OPTS = { config: { iceServers: [
   { urls: 'stun:stun.l.google.com:19302' },
@@ -127,7 +128,7 @@ const Net = {
     for(const [k, c] of world.chests) chst[k] = c;
     const overW = worlds.over || world;
     this.send(conn, {
-      t: 'init', seed: game.seed, time: game.time, mode: game.mode,
+      t: 'init', ver: NET_VER, seed: game.seed, time: game.time, mode: game.mode,
       pokeOn: PokeMan.enabled, edits: overW.edits, furnaces: furn, chests: chst,
       spawn: overW.spawnPoint,
       nether: worlds.nether ? worlds.nether.serialize() : null,

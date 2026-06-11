@@ -283,20 +283,27 @@ window.addEventListener('load', () => {
     btn.disabled = true;
     btn.textContent = '접속 중...';
     Net.join(code, init => {
+      if(init.ver !== undefined && typeof NET_VER !== 'undefined' && init.ver !== NET_VER){
+        alert('⚠ 호스트와 게임 버전이 달라요! (나: ' + NET_VER + ' / 호스트: ' + init.ver + ')\n둘 다 Ctrl+Shift+R로 강력 새로고침한 뒤 다시 시도하세요.');
+      }
       document.getElementById('start-screen').classList.add('hidden');
       game.seed = init.seed;
       game.mode = init.mode || 'survival';
       game.time = init.time;
       const guestSave = localStorage.getItem(storeKey('guest_' + init.seed));
-      if(!guestSave && init.pokeOn){
+      const hasAcctPoke = !!localStorage.getItem(storeKey('pokemon'));
+      if(!guestSave && init.pokeOn && !hasAcctPoke){
         showStarterScreen(starterId => startGame({ netInit: init, starterId }));
       } else {
         startGame({ netInit: init, guestSave: guestSave ? migrateSave(JSON.parse(guestSave)) : null });
       }
-    }, () => {
+    }, (e) => {
       btn.disabled = false;
       btn.textContent = '참가하기';
-      alert('접속 실패 — 코드를 확인하거나 호스트가 방을 열었는지 확인하세요');
+      const t = e && e.type;
+      if(t === 'peer-unavailable') alert('❌ 방을 찾을 수 없어요!\n· 코드를 다시 확인하세요 (대소문자 무관)\n· 호스트가 방을 연 상태인지 확인하세요');
+      else if(t === 'network' || t === 'socket-error' || t === 'server-error') alert('❌ 연결 서버에 닿을 수 없어요!\n· 학교/회사 와이파이는 차단될 수 있어요\n· 휴대폰 핫스팟으로 시도해 보세요');
+      else alert('❌ 접속 실패 (' + (t || e) + ')\n· 둘 다 최신 버전인지 확인하세요 (Ctrl+Shift+R 새로고침)\n· 코드와 호스트 상태를 확인하세요');
     });
   });
 
