@@ -196,6 +196,9 @@ class World {
             else if(r < 0.0245 && y < 22) id = B.GOLD_ORE;
             else if(r < 0.028 && y < 18) id = B.REDSTONE_ORE;
             else if(r < 0.0305 && y < 14) id = B.DIAMOND_ORE;
+            // r 상위 구간 사용 — else-if 체인의 y 조건 낙수 효과 방지 (위 광석들과 독립)
+            else if(r >= 0.9990 && y < 28) id = B.MYSTIC_ORE;
+            else if(r >= 0.9975 && y < 20) id = B.FOSSIL_ORE;
           }
           // 동굴
           if(id !== B.BEDROCK && y >= 6 && y <= h - 3 && h >= SEA){
@@ -1073,6 +1076,7 @@ class World {
       for(const s of this.strongholdsNear(x0 + 8, z0 + 8)) this._stampStronghold(wput, s, loot);
       for(const v of this.villagesNear(x0 + 8, z0 + 8)){
         for(const hs of this.villageHouses(v)) this._stampHouse(wput, hs, loot);
+        wput(v.x, v.y + 1, v.z, B.HEAL_MACHINE); // 마을 중앙 = 미니 포켓몬센터
       }
       for(const g of this.gymsNear(x0 + 8, z0 + 8)) this._stampGym(wput, g);
       for(const m of this.monumentsNear(x0 + 8, z0 + 8)) this._stampMonument(wput, m, loot);

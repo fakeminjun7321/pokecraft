@@ -522,7 +522,33 @@ for(let id = 1; id < SPECIES.length; id++){
     if(b === 'water') SPAWN_TABLES.ocean.push([id, w]);
   });
 }
+function startNPCBattle(npc){
+  if(game.inBattle) return;
+  if(!PokeMan.enabled || !PokeMan.party.length){ UI.toast('트레이너: 포켓몬이 없네? 다음에 배틀하자!'); return; }
+  if(npc.battledT > 0){ UI.toast('트레이너: 멋진 승부였어! 재대결은 ' + Math.ceil(npc.battledT) + '초 후에!'); return; }
+  if(!PokeMan.partyAlive()){ UI.toast('내 포켓몬이 모두 지쳐 있다... 회복부터 하자'); return; }
+  const maxLv = Math.max(...PokeMan.party.map(q => q.level));
+  const n = 1 + Math.floor(Math.random() * clamp(1 + maxLv / 12, 1, 3));
+  const team = [];
+  for(let i = 0; i < n; i++){
+    let sp = 1 + Math.floor(Math.random() * 151);
+    while(LEGENDARIES.includes(sp)) sp = 1 + Math.floor(Math.random() * 151);
+    team.push([sp, clamp(maxLv - 2 + Math.floor(Math.random() * 5), 3, 60)]);
+  }
+  const names = ['짧은바지 영수', '벌레잡이 민호', '아가씨 수진', '등산가 강철', '낚시꾼 태공', '사이킥 유리'];
+  Battle.startTrainer({ name: names[Math.floor(Math.random() * names.length)], team, mob: npc }, null);
+}
+
 const LEGENDARIES = [144, 145, 146, 149, 150, 151];
+// 진화의 돌: 돌 아이템 → { 현재 도감번호: 진화 도감번호 }
+const STONE_EVOS = {
+  [I.FIRE_STONE]:    { 37:38, 58:59, 133:136 },
+  [I.WATER_STONE]:   { 61:62, 90:91, 120:121, 133:134 },
+  [I.THUNDER_STONE]: { 25:26, 133:135 },
+  [I.LEAF_STONE]:    { 44:45, 70:71, 102:103 },
+  [I.MOON_STONE]:    { 30:31, 33:34, 35:36, 39:40 },
+};
+const FOSSIL_POKES = { [I.FOSSIL_HELIX]: 138, [I.FOSSIL_DOME]: 140, [I.FOSSIL_AMBER]: 142 };
 // 네더: 불꽃 타입 천국 (파이어는 네더에서 더 잘 나옴)
 SPAWN_TABLES.nether = [[4, 10], [37, 10], [58, 10], [77, 8], [126, 7], [136, 5], [146, 0.5]];
 // 엔드: 에스퍼·고스트의 영역 — 케이시/윤겔라/후딘, 고오스 계열, 슬리퍼, 마임맨 + 뮤츠/뮤
@@ -537,7 +563,7 @@ const GYM_TEAMS = {
 };
 
 // ---------- 포켓몬 모델 ----------
-function buildPokeModel(spId){
+function buildPokeModel(spId, shiny){
   const sp = SPECIES[spId], M = sp.model;
   let m;
   switch(M.form){
@@ -549,6 +575,16 @@ function buildPokeModel(spId){
     case 'serpent': m = buildSerpent(Object.assign({}, M.o)); break;
   }
   if(M.deco) M.deco(m);
+  if(shiny){
+    // 색이 다른 포켓몬: 색상환을 돌려 전체 색 변형 (재질은 박스마다 새로 생성되므로 안전)
+    m.group.traverse(o => {
+      if(o.isMesh && o.material && o.material.color && !o.material.userData.shared){
+        const hsl = {};
+        o.material.color.getHSL(hsl);
+        o.material.color.setHSL((hsl.h + 0.45) % 1, clamp(hsl.s * 1.15 + 0.08, 0, 1), hsl.l);
+      }
+    });
+  }
   const s = M.s || 1;
   m.group.scale.setScalar(s);
   const root = new THREE.Group();
@@ -580,6 +616,7 @@ function expForLevel(lv){ return lv * lv * lv; }
 class PokeInst {
   constructor(sp, level){
     this.sp = sp;
+    this.shiny = false;
     this.level = Math.max(1, level);
     this.exp = expForLevel(this.level);
     this.calc();
@@ -648,10 +685,11 @@ class PokeInst {
     PokeMan.seen.add(to);
     PokeMan.caught.add(to);
   }
-  serialize(){ return { sp:this.sp, level:this.level, exp:this.exp, hp:this.hp }; }
+  serialize(){ return { sp:this.sp, level:this.level, exp:this.exp, hp:this.hp, sh:this.shiny ? 1 : 0 }; }
   static from(d){
     const p = new PokeInst(d.sp, d.level);
     p.exp = d.exp; p.hp = clamp(d.hp, 0, p.maxHp);
+    p.shiny = !!d.sh;
     return p;
   }
 }
@@ -677,12 +715,13 @@ class WildPoke {
   constructor(sp, level, x, y, z){
     this.netId = ++_wildIdCounter;
     this.inst = new PokeInst(sp, level);
+    this.inst.shiny = Math.random() < 1 / 400; // ✨ 색이 다른 포켓몬!
     const spec = SPECIES[sp];
     const sc = spec.model.s || 1;
     this.body = new PhysBody(x, y, z, clamp(0.32 * sc / 0.55, 0.2, 0.55), clamp(1.1 * sc, 0.45, 1.8));
-    this.built = buildPokeModel(sp);
+    this.built = buildPokeModel(sp, this.inst.shiny);
     this.group = this.built.root;
-    this.tag = makeNameTag(spec.name + ' Lv.' + this.inst.level);
+    this.tag = makeNameTag((this.inst.shiny ? '✨' : '') + spec.name + ' Lv.' + this.inst.level);
     this.tag.position.y = this.body.h + 0.45;
     this.group.add(this.tag);
     scene.add(this.group);
@@ -693,6 +732,8 @@ class WildPoke {
   }
   update(dt, world, player){
     if(this.catching) return;
+    if(this.inst.shiny && Math.random() < dt * 2.5)
+      Particles.spawn(this.body.x, this.body.y + this.body.h * 0.7, this.body.z, 0xffe97a, 2, 1.2, 0.5, 1.2);
     const b = this.body;
     let speed = 0;
     if(this.fleeTimer > 0){
@@ -804,8 +845,17 @@ const PokeMan = {
       // 밤에는 아주 낮은 확률로 뮤츠 출현
       if(game.isNight() && world.dim === 'over' && Math.random() < 0.012) sp = 150;
       if(LEGENDARIES.includes(sp)) lv = 35 + Math.floor(Math.random() * 10);
-      this.wilds.push(new WildPoke(sp, lv, x, y + 0.1, z));
+      const wp = new WildPoke(sp, lv, x, y + 0.1, z);
+      this.wilds.push(wp);
       this.seen.add(sp);
+      if(LEGENDARIES.includes(sp)){
+        UI.toast('⚡ 전설의 포켓몬 ' + SPECIES[sp].name + '이(가) 근처에 나타났다!!', 5000);
+        SFX.play('level');
+      }
+      if(wp.inst.shiny){
+        UI.toast('✨ 색이 다른 ' + SPECIES[sp].name + '이(가) 나타났다!! 놓치지 마라!', 5000);
+        SFX.play('level');
+      }
       return;
     }
   },
@@ -814,6 +864,7 @@ const PokeMan = {
     this.caught.add(inst.sp);
     if(typeof Ach !== 'undefined'){
       Ach.unlock('first_catch');
+      if(inst.shiny) Ach.unlock('shiny');
       if(LEGENDARIES.includes(inst.sp)) Ach.unlock('legend');
       const n = this.caught.size;
       if(n >= 10) Ach.unlock('dex10');
@@ -861,6 +912,26 @@ const PokeMan = {
     }
   },
   // 이상한 사탕: 다음 레벨까지 경험치 채움
+  useStone(inst, stoneId){
+    const map = STONE_EVOS[stoneId];
+    if(!map || !map[inst.sp]) return false;
+    const to = map[inst.sp];
+    inst.doEvolve(to);
+    SFX.play('evolve');
+    UI.toast('🌟 ' + SPECIES[to].name + '(으)로 진화했다!');
+    return true;
+  },
+  reviveFossil(fossilId){
+    const sp = FOSSIL_POKES[fossilId];
+    if(!sp) return false;
+    const inst = new PokeInst(sp, 25);
+    inst.shiny = Math.random() < 1 / 400;
+    const where = this.addCaught(inst);
+    SFX.play('evolve');
+    UI.toast('🦴 화석에서 ' + (inst.shiny ? '✨색이 다른 ' : '') + inst.name + '이(가) 부활했다!' + (where === 'box' ? ' (PC로 이동)' : ''), 5000);
+    if(typeof Ach !== 'undefined') Ach.unlock('fossil');
+    return true;
+  },
   applyCandy(p){
     const need = expForLevel(p.level + 1) - p.exp;
     const evs = p.gainExp(Math.max(1, need));
@@ -916,9 +987,11 @@ const Follower = {
       return;
     }
     const want = PokeMan.party[0].sp;
-    if(!this.ent || this.sp !== want){
+    const wantShiny = !!PokeMan.party[0].shiny;
+    if(!this.ent || this.sp !== want || this._shiny !== wantShiny){
       this.clear();
-      const built = buildPokeModel(want);
+      this._shiny = wantShiny;
+      const built = buildPokeModel(want, wantShiny);
       const sc = SPECIES[want].model.s || 1;
       this.ent = {
         built, group: built.root,
@@ -1040,11 +1113,11 @@ const Battle = {
     this.camE = new THREE.PerspectiveCamera(42, 260/200, 0.1, 50);
     this.camA = new THREE.PerspectiveCamera(42, 260/200, 0.1, 50);
   },
-  setModel(side, sp){
+  setModel(side, sp, shiny){
     const sc = side === 'E' ? this.scE : this.scA;
     const old = side === 'E' ? this.mE : this.mA;
     if(old){ sc.remove(old.root); disposeObject(old.root); }
-    const built = buildPokeModel(sp);
+    const built = buildPokeModel(sp, shiny);
     sc.add(built.root);
     built.root.rotation.y = side === 'E' ? 0.3 : Math.PI - 0.3;
     const s = built.scaleVal;
@@ -1056,13 +1129,14 @@ const Battle = {
   // 체육관 관장 배틀: 3마리 연속, 포획 불가
   async startTrainer(gymType, gymKey){
     if(this.active) return false;
-    const G = GYM_TEAMS[gymType];
+    const custom = typeof gymType === 'object';
+    const G = custom ? gymType : GYM_TEAMS[gymType];
     if(!G) return false;
     this.initDom();
     this.active = true; this.busy = true;
     game.inBattle = true;
     if(document.exitPointerLock) document.exitPointerLock();
-    this.trainer = { type: gymType, gymKey, ...G };
+    this.trainer = custom ? { custom: true, ...G } : { type: gymType, gymKey, ...G };
     this.enemyTeam = G.team.map(([sp, lv]) => new PokeInst(sp, lv));
     this.enemyIdx = 0;
     this.wild = this.enemyTeam[0];
@@ -1074,15 +1148,17 @@ const Battle = {
                   water:'linear-gradient(#7ec8ff 0%, #5a9fd8 60%, #3a76c0 100%)',
                   electric:'linear-gradient(#f5e8a8 0%, #e8d868 60%, #c8b848 100%)',
                   fire:'linear-gradient(#f5b8a8 0%, #e88868 60%, #c85838 100%)' };
-    this.$('battle-stage').style.background = bgs[gymType];
-    this.setModel('E', this.wild.sp);
-    this.setModel('A', this.ally.sp);
+    this.$('battle-stage').style.background = custom
+      ? 'linear-gradient(#8fc8e8 0%, #b8e08a 60%, #7ab85a 100%)'
+      : bgs[gymType];
+    this.setModel('E', this.wild.sp, this.wild.shiny);
+    this.setModel('A', this.ally.sp, this.ally.shiny);
     this.$('b-enemy-canvas').style.visibility = 'visible';
     this.$('battle-overlay').classList.remove('hidden');
     this.hideSub();
     this.updateBars();
     this.menuEnabled(false);
-    await this.say('체육관 관장 ' + G.name + '이(가) 승부를 걸어왔다!');
+    await this.say(custom ? (G.name + '이(가) 승부를 걸어왔다!') : ('체육관 관장 ' + G.name + '이(가) 승부를 걸어왔다!'));
     await this.say(G.name + ': 가랏, ' + this.wild.name + '!');
     await this.say('가랏! ' + this.ally.name + '!');
     this.busy = false;
@@ -1110,8 +1186,8 @@ const Battle = {
       ocean: 'linear-gradient(#7ec8ff 0%, #5a9fd8 60%, #3a76c0 100%)',
     };
     this.$('battle-stage').style.background = bgs[biome] || 'linear-gradient(#7ec8ff 0%, #b9e48f 70%, #6da34d 100%)';
-    this.setModel('E', this.wild.sp);
-    this.setModel('A', this.ally.sp);
+    this.setModel('E', this.wild.sp, this.wild.shiny);
+    this.setModel('A', this.ally.sp, this.ally.shiny);
     this.$('b-enemy-canvas').style.visibility = 'visible';
     this.$('battle-overlay').classList.remove('hidden');
     this.hideSub();
@@ -1327,7 +1403,7 @@ const Battle = {
           SFX.play('evolve');
           const oldName = this.ally.name;
           this.ally.doEvolve(target);
-          this.setModel('A', this.ally.sp);
+          this.setModel('A', this.ally.sp, this.ally.shiny);
           this.updateBars();
           await this.say(oldName + '은(는) ' + this.ally.name + '(으)로 진화했다!');
           target = this.ally.evolveTarget();
@@ -1340,13 +1416,25 @@ const Battle = {
       this.wild = this.enemyTeam[this.enemyIdx];
       PokeMan.seen.add(this.wild.sp);
       if(this.mE) this.mE.root.rotation.x = 0;
-      this.setModel('E', this.wild.sp);
+      this.setModel('E', this.wild.sp, this.wild.shiny);
       this.updateBars();
       await this.say(this.trainer.name + ': 가랏, ' + this.wild.name + '!');
       return; // 배틀 계속
     }
     if(this.trainer){
       await this.say(this.trainer.name + ': 훌륭한 승부였다...!');
+      if(this.trainer.custom){
+        const em = 2 + Math.floor(Math.random() * 3);
+        player.addItem(I.EMERALD, em);
+        let bonus = '';
+        if(Math.random() < 0.5){ player.addItem(I.GREATBALL, 1); bonus = ' + 슈퍼볼'; }
+        if(Math.random() < 0.25){ player.addItem(I.RARECANDY, 1); bonus += ' + 이상한사탕'; }
+        await this.say('보상으로 에메랄드 ' + em + '개' + bonus + '를 받았다!');
+        if(typeof Ach !== 'undefined') Ach.unlock('trainer');
+        if(this.trainer.mob) this.trainer.mob.battledT = 180;
+        this.end('win');
+        return;
+      }
       if(typeof world !== 'undefined' && !world.gymsBeaten.has(this.trainer.gymKey)){
         world.gymsBeaten.add(this.trainer.gymKey);
         PokeMan.badges.add(this.trainer.type);
@@ -1378,7 +1466,7 @@ const Battle = {
     if(this.ally && this.ally.hp > 0) await this.say('돌아와, ' + this.ally.name + '!');
     this.allyIdx = idx;
     this.ally = PokeMan.party[idx];
-    this.setModel('A', this.ally.sp);
+    this.setModel('A', this.ally.sp, this.ally.shiny);
     this.updateBars();
     await this.say('가랏! ' + this.ally.name + '!');
   },

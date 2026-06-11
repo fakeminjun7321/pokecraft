@@ -427,7 +427,7 @@ const Net = {
           ...[...this.players.entries()].map(([id, p]) => ({ id, name: p.name, x: p.x, y: p.y, z: p.z, yaw: p.yaw, fol: p.fol, rid: p.rid, arm: p.arm, dm: p.dm }))
         ],
         mobs: MobManager.list.map(m => ({ id: m.netId, type: m.type, x: m.body.x, y: m.body.y, z: m.body.z, dir: m.dir })),
-        wilds: PokeMan.wilds.map(w => ({ id: w.netId, sp: w.inst.sp, lv: w.inst.level, hp: w.inst.hp,
+        wilds: PokeMan.wilds.map(w => ({ id: w.netId, sp: w.inst.sp, lv: w.inst.level, hp: w.inst.hp, sh: w.inst.shiny ? 1 : 0,
                                           x: w.body.x, y: w.body.y, z: w.body.z, dir: w.dir, frozen: !!w.catching })),
         drops: ItemDrops.list.filter(d => (d.dim || 'over') === game.dim).map(d => ({ id: d.netId, item: d.id, n: d.n, x: d.x, y: d.y, z: d.z })),
         tnts: TNTs.list.map(e => ({ x: e.x, y: e.y, z: e.z })),
@@ -545,8 +545,8 @@ const Net = {
       return { built, group: built.group, walkPhase: 0 };
     });
     this._syncPuppets(this.pWilds, m.wilds, d => {
-      const built = buildPokeModel(d.sp);
-      const tag = makeNameTag(SPECIES[d.sp].name + ' Lv.' + d.lv);
+      const built = buildPokeModel(d.sp, !!d.sh);
+      const tag = makeNameTag((d.sh ? '✨' : '') + SPECIES[d.sp].name + ' Lv.' + d.lv);
       tag.position.y = clamp(1.1 * (SPECIES[d.sp].model.s || 1), 0.45, 1.8) + 0.45;
       built.root.add(tag);
       scene.add(built.root);

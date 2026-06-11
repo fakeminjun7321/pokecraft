@@ -15,7 +15,7 @@ const game = {
   keys: {}, locked: false, inBattle: false, paused: false,
   shake: 0, swing: 0, sprint: false,
   followerOn: true, chatOpen: false, camMode: 0, riding: false, touch: false,
-  dim: 'over', portalCd: 0,
+  dim: 'over', portalCd: 0, healCd: 0,
   get uiOpen(){ return typeof UI !== 'undefined' && UI.isOpen(); },
   isNight(){ return Math.sin(this.time * Math.PI * 2) < -0.05; },
   isDay(){ return !this.isNight(); },
@@ -1132,6 +1132,7 @@ function tick(t){
       game.sprint = Touch.sprinting ? Touch.sprinting() : false; // 스틱 끝까지 = 달리기
     }
     player.update(dt);
+    if(game.healCd > 0) game.healCd -= dt;
     world.update(player.body.x, player.body.z);
     if(!isGuest){
       world.tickFurnaces(dt);

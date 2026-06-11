@@ -194,6 +194,12 @@ const MOB_DEFS = {
       const wingL = makeBox(g, 3.4, 0.12, 1.8, '#2a2a36', -2.2, 1.7, 0);
       const wingR = makeBox(g, 3.4, 0.12, 1.8, '#2a2a36', 2.2, 1.7, 0);
       return { group: g, legs: [wingL, wingR], head }; } },
+  trainer: { name:'떠돌이 트레이너', hp:20, speed:0.9, w:0.3, h:1.8, npc:true, trainer:true,
+    model:()=> { const m = buildBiped({ body:'#3a6ac8', headC:'#e0b08a', legC:'#2a3a5a', armC:'#3a6ac8', legH:0.75, bh:0.7 });
+      makeBox(m.head, 0.52, 0.16, 0.52, '#c83a3a', 0, 0.3, 0);   // 빨간 모자
+      makeBox(m.head, 0.52, 0.08, 0.24, '#c83a3a', 0, 0.24, 0.3); // 챙
+      makeBox(m.head, 0.2, 0.08, 0.04, '#e8e8e8', 0, 0.32, 0.27); // 모자 마크
+      return m; } },
   villager: { name:'주민', hp:20, speed:0.8, w:0.3, h:1.8, npc:true, drops:[[I.EMERALD,0,1]],
     model:()=> { const m = buildBiped({ body:'#8a6a4a', headC:'#d8a888', legC:'#6a5038', armC:'#8a6a4a', legH:0.7, bh:0.75 });
       makeBox(m.head, 0.12, 0.22, 0.1, '#c89878', 0, -0.05, 0.28);
@@ -227,7 +233,7 @@ class Mob {
     this.dead = false;
     this.angry = false; this.hopT = 0; this.tpT = 3; this.bobSeed = Math.random() * 10; this.lavaAcc = 0;
     this.love = 0; this.tamed = false; this.babyT = 0; // 번식/펫/아기
-    if(this.def.npc) this.setTag(this.def.leader ? '체육관 관장' : '주민');
+    if(this.def.npc) this.setTag(this.def.leader ? '체육관 관장' : this.def.trainer ? '트레이너 · 우클릭 배틀!' : '주민');
   }
   makeBaby(){
     this.babyT = 180; // 3분 뒤 성체
@@ -242,6 +248,7 @@ class Mob {
   }
   update(dt, world, player){
     if(this.dead) return;
+    if(this.battledT > 0) this.battledT -= dt;
     const b = this.body, def = this.def;
     // 공격 대상: 싱글은 플레이어, 멀티 호스트는 가장 가까운 플레이어(게스트 포함)
     let tgt = { x: player.body.x, y: player.body.y, z: player.body.z, dead: player.dead,
@@ -589,6 +596,13 @@ const MobManager = {
           }
         }
         return;
+      }
+      // 떠돌이 트레이너: 주변에 1명 유지
+      if(PokeMan.enabled && PokeMan.party.length && !this.list.some(x => x.type === 'trainer') && Math.random() < 0.35){
+        const ta = Math.random() * Math.PI * 2;
+        const tx = px + Math.sin(ta) * 26, tz = pz + Math.cos(ta) * 26;
+        const ty = world.colTop(tx, tz) + 1.1;
+        if(ty > SEA + 2) this.list.push(new Mob('trainer', tx, ty, tz));
       }
       for(const v of world.villagesNear(px, pz)){
         if(Math.hypot(v.x - px, v.z - pz) > 80) continue;

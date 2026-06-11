@@ -689,7 +689,7 @@ const UI = {
       row.innerHTML = `
         <img src="${portraitURL(p.sp)}" alt="">
         <div class="party-mid">
-          <div><b>${p.name}</b> Lv.${p.level} ${typeTagsHTML(p.spec.types)}</div>
+          <div><b>${p.shiny ? '✨' : ''}${p.name}</b> Lv.${p.level} ${typeTagsHTML(p.spec.types)}</div>
           <div class="p-hpbar"><div style="width:${hpPct}%; background:${hpPct > 50 ? '#44c944' : hpPct > 20 ? '#e8b820' : '#e23b3b'}"></div></div>
           <div>HP ${p.hp}/${p.maxHp} · 공격 ${p.atk} · 방어 ${p.def} · 스피드 ${p.spd} · EXP ${Math.floor(p.expPct() * 100)}%</div>
           <div class="p-moves">기술: ${p.moves.map(k => MOVES[k].n).join(', ')}</div>
@@ -713,6 +713,30 @@ const UI = {
         b.onclick = () => {
           player.removeItem(I.RARECANDY, 1);
           PokeMan.applyCandy(p);
+          this.openParty();
+        };
+        btns.appendChild(b);
+      }
+      // 진화의 돌
+      for(const sidStr of Object.keys(STONE_EVOS)){
+        const sid = +sidStr;
+        if(STONE_EVOS[sid][p.sp] && player.countItem(sid) > 0){
+          const b = document.createElement('button');
+          b.textContent = '🌟 ' + itemName(sid);
+          b.onclick = () => {
+            player.removeItem(sid, 1);
+            PokeMan.useStone(p, sid);
+            this.openParty();
+          };
+          btns.appendChild(b);
+        }
+      }
+      if(PokeMan.party.length > 1){
+        const b = document.createElement('button');
+        b.textContent = '박스로';
+        b.onclick = () => {
+          PokeMan.party.splice(i, 1);
+          PokeMan.box.push(p);
           this.openParty();
         };
         btns.appendChild(b);
@@ -746,7 +770,7 @@ const UI = {
       PokeMan.box.forEach((p, i) => {
         const row = document.createElement('div');
         row.className = 'party-row';
-        row.innerHTML = `<img src="${portraitURL(p.sp)}" alt=""><div class="party-mid"><b>${p.name}</b> Lv.${p.level}</div><div class="party-btns"></div>`;
+        row.innerHTML = `<img src="${portraitURL(p.sp)}" alt=""><div class="party-mid"><b>${p.shiny ? '✨' : ''}${p.name}</b> Lv.${p.level}</div><div class="party-btns"></div>`;
         if(PokeMan.party.length < 6){
           const b = document.createElement('button');
           b.textContent = '파티로';

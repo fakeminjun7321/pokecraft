@@ -334,6 +334,7 @@ class Player {
         const held = this.currentItem();
         if(npc.def.npc){
           if(npc.def.leader && npc.gym) startGymBattle(npc.gym);
+          else if(npc.def.trainer) startNPCBattle(npc);
           else if(npc.type === 'villager'){ UI.openTrade(); if(typeof Ach !== 'undefined') Ach.unlock('trade'); }
           return;
         }
@@ -404,6 +405,34 @@ class Player {
             return;
           }
         }
+      }
+      if(hit.id === B.HEAL_MACHINE){
+        if(!PokeMan.enabled || !PokeMan.party.length){ UI.toast('회복할 포켓몬이 없어요'); return; }
+        if(game.healCd > 0){ UI.toast('회복 머신 충전 중... ' + Math.ceil(game.healCd) + '초'); return; }
+        game.healCd = 60;
+        PokeMan.party.forEach(q => { q.hp = q.maxHp; });
+        Particles.spawn(hit.bx + 0.5, hit.by + 1.2, hit.bz + 0.5, 0x48e0c8, 18, 2, 0.8, 1.5);
+        SFX.play('level');
+        UI.toast('💖 포켓몬들이 모두 회복했다! 삐리리~');
+        if(typeof Ach !== 'undefined') Ach.unlock('heal');
+        return;
+      }
+      if(hit.id === B.FOSSIL_MACHINE){
+        const held1 = this.currentItem();
+        if(held1 && FOSSIL_POKES[held1.id]){
+          held1.n--; if(held1.n <= 0) this.inventory[this.selected] = null;
+          UI.updateHotbar();
+          Particles.spawn(hit.bx + 0.5, hit.by + 1.2, hit.bz + 0.5, 0x7ad0c8, 20, 2, 1, 2);
+          PokeMan.reviveFossil(held1.id);
+        } else {
+          UI.toast('화석을 들고 우클릭하세요 (화석 광석: 지하 y20 아래)');
+        }
+        return;
+      }
+      if(hit.id === B.PC_BLOCK){
+        if(!PokeMan.enabled){ UI.toast('포켓몬 모드가 꺼져 있어요'); return; }
+        UI.openParty();
+        return;
       }
       if(hit.id === B.BED){ this.trySleep(hit); return; }
       if(hit.id === B.TNT){
