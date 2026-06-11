@@ -157,17 +157,17 @@ const MOB_DEFS = {
     model:()=> { const m = buildQuad({ body:'#b8b8c0', bw:0.5, bh:0.42, bd:0.8, legH:0.32, hs:0.42, headC:'#c8c8d0', ears:'#9a9aa8', snout:'#8a8a98' });
       makeBox(m.group, 0.1, 0.1, 0.4, '#b8b8c0', 0, 0.62, -0.55);
       return m; } },
-  pigman: { name:'좀비피그맨', hp:25, speed:1.8, w:0.3, h:1.8, neutral:true, dmg:4, fireImmune:true, drops:[[I.GOLD_INGOT,0,1],[I.ROTTEN,1,2]],
+  pigman: { name:'좀비피그맨', hp:25, speed:1.8, w:0.3, h:1.8, neutral:true, dmg:3, fireImmune:true, drops:[[I.GOLD_INGOT,0,1],[I.ROTTEN,1,2]],
     model:()=> buildBiped({ body:'#e8a0a8', headC:'#e8a0a8', legC:'#8a5a4a', armC:'#e8a0a8', legH:0.75, bh:0.7, zombieArms:true,
       eyeC:'#3a3a3a' }) },
-  ghast: { name:'가스트', hp:12, speed:1.2, w:0.8, h:1.5, hostile:true, flier:true, fireball:3.2, fireballR:2, fireImmune:true, drops:[[I.GUNPOWDER,1,3]],
+  ghast: { name:'가스트', hp:12, speed:1.2, w:0.8, h:1.5, hostile:true, flier:true, fireball:4.5, fireballR:1.6, fireImmune:true, drops:[[I.GUNPOWDER,1,3]],
     model:()=> { const g = new THREE.Group();
       const body = makeBox(g, 1.4, 1.4, 1.4, '#e8e8e8', 0, 1.0, 0);
       makeBox(body, 0.16, 0.25, 0.04, '#3a3a3a', -0.3, 0.15, 0.71); makeBox(body, 0.16, 0.25, 0.04, '#3a3a3a', 0.3, 0.15, 0.71);
       makeBox(body, 0.5, 0.12, 0.04, '#3a3a3a', 0, -0.25, 0.71);
       for(let i = 0; i < 5; i++) makeBox(g, 0.14, 0.6, 0.14, '#d8d8d8', (i - 2) * 0.28, 0.15, (i % 2) * 0.3 - 0.15);
       return { group: g, legs: [], head: body }; } },
-  blaze: { name:'블레이즈', hp:20, speed:1.0, w:0.4, h:1.6, hostile:true, flier:true, fireball:2.4, fireballR:1, fireImmune:true, drops:[[I.BLAZE_ROD,1,2]],
+  blaze: { name:'블레이즈', hp:20, speed:1.0, w:0.4, h:1.6, hostile:true, flier:true, fireball:3.2, fireballR:1, fireImmune:true, drops:[[I.BLAZE_ROD,1,2]],
     model:()=> { const g = new THREE.Group();
       const body = makeBox(g, 0.4, 0.5, 0.4, '#f0a020', 0, 1.0, 0);
       addEyes(body, 0.4, 0.4, '#3a2a0a');
@@ -265,7 +265,7 @@ class Mob {
       this._bossT = (this._bossT === undefined ? Math.random() * 12 : this._bossT) + dt;
       this.attackCd -= dt;
       if(world.crystals && world.crystals.size > 0){
-        this.hp = Math.min(def.hp, this.hp + dt * 2); // 크리스탈이 남아있으면 회복!
+        this.hp = Math.min(def.hp, this.hp + dt * 1.5); // 크리스탈이 남아있으면 회복!
         if(Math.random() < dt * 3){
           const pks = [...world.crystals];
           const [cx2, cy2, cz2] = pks[(Math.random() * pks.length) | 0].split(',').map(Number);
@@ -288,11 +288,11 @@ class Mob {
       this.dir = Math.atan2(b.vx, b.vz);
       if(!tgt.dead && dToP < 3 && this.attackCd <= 0){
         this.attackCd = 1.2;
-        tgt.hurt(8, (tgt.x - b.x) * 0.8, (tgt.z - b.z) * 0.8);
+        tgt.hurt(6, (tgt.x - b.x) * 0.8, (tgt.z - b.z) * 0.8);
         SFX.play('hit');
       }
       if(!diving && !tgt.dead && dToP < 35 && this.attackCd <= 0){
-        this.attackCd = 3.5;
+        this.attackCd = 5;
         const fx2 = tgt.x - b.x, fy2 = (tgt.y + 1) - b.y, fz2 = tgt.z - b.z;
         const fl = Math.sqrt(fx2*fx2 + fy2*fy2 + fz2*fz2) || 1;
         Projectiles.shootFireball(b.x, b.y + 0.8, b.z, fx2/fl, fy2/fl, fz2/fl, 1.5);

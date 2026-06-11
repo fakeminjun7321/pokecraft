@@ -706,7 +706,7 @@ function calcDamage(att, def, moveKey, mult){
 }
 function catchChance(inst, ballMod){
   const f = (3 * inst.maxHp - 2 * inst.hp) * inst.spec.cr * ballMod / (3 * inst.maxHp);
-  return clamp(f / 255, 0.03, 1);
+  return clamp(f / 255, 0.05, 1);
 }
 
 // ---------- 야생 포켓몬 ----------
@@ -839,8 +839,8 @@ const PokeMan = {
       for(const [id, w] of table){ r -= w; if(r <= 0){ sp = id; break; } }
       const spawnP = world.spawnPoint || { x:0, z:0 };
       const d = Math.hypot(x - spawnP.x, z - spawnP.z);
-      let lv = clamp(Math.floor(2 + d / 70 + Math.random() * 5 - 2), 2, 32);
-      if(world.dim === 'nether') lv = clamp(lv + 8, 10, 40); // 네더는 강한 개체
+      let lv = clamp(Math.floor(2 + d / 60 + Math.random() * 5 - 2), 2, 42);
+      if(world.dim === 'nether') lv = clamp(lv + 8, 10, 48); // 네더는 강한 개체
       if(world.dim === 'end') lv = clamp(lv + 15, 20, 55);    // 엔드는 최상위 개체
       // 밤에는 아주 낮은 확률로 뮤츠 출현
       if(game.isNight() && world.dim === 'over' && Math.random() < 0.012) sp = 150;
@@ -1356,8 +1356,8 @@ const Battle = {
       await this.say('하지만 빗나갔다!');
       return;
     }
-    // 배지 1개당 내 포켓몬 공격 +4%
-    const r = calcDamage(user, target, mk, isAlly ? 1 + 0.04 * PokeMan.badges.size : 1);
+    // 배지 1개당 내 포켓몬 공격 +5%
+    const r = calcDamage(user, target, mk, isAlly ? 1 + 0.05 * PokeMan.badges.size : 1);
     if(r.eff === 0){
       await this.say('효과가 없는 것 같다...');
       return;
@@ -1383,7 +1383,7 @@ const Battle = {
     SFX.play('faint');
     if(this.mE) this.mE.root.rotation.x = Math.PI / 2;
     await this.say('야생 ' + this.wild.name + '은(는) 쓰러졌다!');
-    const exp = Math.floor(this.wild.spec.bx * this.wild.level / 7) + 1;
+    const exp = Math.floor(this.wild.spec.bx * this.wild.level / 5) + 1;
     await this.say(this.ally.name + '은(는) 경험치 ' + exp + '을(를) 얻었다!');
     const evs = this.ally.gainExp(exp);
     this.updateBars();

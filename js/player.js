@@ -159,7 +159,7 @@ class Player {
     }
     // 자연 회복 (재생 물약이면 2.5초마다)
     this.regenTimer += dt;
-    if(this.regenTimer > (this.effects.regen > 0 ? 2.5 : 5)){
+    if(this.regenTimer > (this.effects.regen > 0 ? 2 : 3.5)){
       this.regenTimer = 0;
       if(this.health < this.maxHealth) this.health++;
     }
