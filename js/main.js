@@ -7,7 +7,7 @@ let pendingWorldSaves = {}; // 로드한 세이브의 차원별 데이터 (지�
 let sunLight, ambLight, sunSprite, moonSprite, stars, cloudMesh;
 let highlightBox, crackBox, heldGroup;
 let lastT = 0, autosaveAcc = 0, fpsAcc = 0, fpsCnt = 0, fpsShow = 0;
-let debugOn = false, lastWTap = 0;
+let debugOn = false, lastWTap = 0, lastSpaceTap = 0;
 
 const game = {
   started: false, mode: 'survival', seed: 1, seedStr: '',
@@ -958,6 +958,17 @@ function bindInput(){
       const now = performance.now();
       if(now - lastWTap < 280) game.sprint = true;
       lastWTap = now;
+    }
+    // 마크처럼: 크리에이티브에서 Space 2번 = 비행 토글
+    if(e.code === 'Space' && !e.repeat && game.mode === 'creative' && player && !game.uiOpen && !game.inBattle){
+      const now = performance.now();
+      if(now - lastSpaceTap < 280){
+        player.fly = !player.fly;
+        player.body.noGravity = player.fly;
+        if(player.fly) player.body.vy = 0;
+        UI.toast(player.fly ? '비행 모드 ON (Space 2번으로 끄기)' : '비행 모드 OFF');
+        lastSpaceTap = 0;
+      } else lastSpaceTap = now;
     }
     if(e.code === 'KeyE'){
       if(UI.open === 'inv' || UI.open === 'furnace'){ UI.close(); requestLock(); }

@@ -314,7 +314,19 @@ const Touch = {
         el.addEventListener('touchcancel', () => up());
       }
     };
-    bind('t-jump', () => { game.keys['Space'] = true; }, () => { game.keys['Space'] = false; });
+    let lastJumpTap = 0;
+    bind('t-jump', () => {
+      game.keys['Space'] = true;
+      // 크리에이티브: 점프 버튼 빠르게 2번 = 비행 토글 (마크와 동일)
+      const now = performance.now();
+      if(game.mode === 'creative' && player && now - lastJumpTap < 300){
+        player.fly = !player.fly;
+        player.body.noGravity = player.fly;
+        if(player.fly) player.body.vy = 0;
+        UI.toast(player.fly ? '비행 모드 ON (점프 2번으로 끄기)' : '비행 모드 OFF');
+        lastJumpTap = 0;
+      } else lastJumpTap = now;
+    }, () => { game.keys['Space'] = false; });
     bind('t-dig', () => { if(player){ player.mouseLeft = true; player.attack(); } }, () => { if(player) player.mouseLeft = false; });
     bind('t-use', () => { if(player) player.use(); });
     bind('t-inv', () => {
