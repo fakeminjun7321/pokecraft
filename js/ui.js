@@ -998,8 +998,8 @@ function evoInfoText(p){
   const parts = [];
   const e = p.spec.evo;
   if(e){
-    if(e.special === 'eevee') parts.push('🌍 Lv.25+ 주변 지형에 따라 진화 (물가/사막/평원)');
-    else if(e.lv && e.to) parts.push('⬆ Lv.' + e.lv + ' → ' + SPECIES[e.to].name);
+    if(e.special === 'eevee') parts.push('🌍 Lv.16+ 주변 지형에 따라 진화 (물가/사막/평원)');
+    else if(e.to) parts.push('⬆ Lv.' + evoReqLevel(p.sp) + ' → ' + SPECIES[e.to].name);
   }
   if(typeof TRADE_EVOS !== 'undefined' && TRADE_EVOS[p.sp]) parts.push('🔗 연결의 끈 → ' + SPECIES[TRADE_EVOS[p.sp]].name);
   for(const sidStr of Object.keys(STONE_EVOS)){

@@ -447,9 +447,9 @@ class World {
     for(let i = 0; i < torches.length; i++){
       const t = torches[i];
       const d = dist3(wx + 0.5, wy + 0.5, wz + 0.5, t[0], t[1], t[2]);
-      if(d < 8) l = Math.max(l, 0.25 + (1 - d / 8) * 1.05);
+      if(d < 11) l = Math.max(l, 0.45 + (1 - d / 11) * 1.15); // 더 밝고 멀리
     }
-    return Math.min(l, 1.3);
+    return Math.min(l, 1.45);
   }
   _shouldDraw(id, nb){
     if(nb === B.AIR) return true;

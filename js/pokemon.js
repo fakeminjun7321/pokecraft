@@ -587,6 +587,15 @@ function baseFormOf(sp){
   while(_PRE_EVO[cur] && guard++ < 6) cur = _PRE_EVO[cur];
   return cur;
 }
+// 진화 체인에서 몇 단계인지 (1 = 베이스)
+function evoStage(sp){
+  baseFormOf(sp); // _PRE_EVO 빌드 보장
+  let depth = 1, cur = sp, guard = 0;
+  while(_PRE_EVO[cur] && guard++ < 6){ cur = _PRE_EVO[cur]; depth++; }
+  return depth;
+}
+// 통일된 진화 레벨: 1→2단계 = Lv.16, 2→3단계 = Lv.24
+function evoReqLevel(sp){ return evoStage(sp) <= 1 ? 16 : 24; }
 // 네더: 불꽃 타입 천국 (파이어는 네더에서 더 잘 나옴)
 SPAWN_TABLES.nether = [[4, 10], [37, 10], [58, 10], [77, 8], [126, 7], [136, 5], [146, 0.5]];
 // 엔드: 에스퍼·고스트의 영역 — 케이시/윤겔라/후딘, 고오스 계열, 슬리퍼, 마임맨 + 뮤츠/뮤
@@ -699,7 +708,7 @@ class PokeInst {
     const e = this.spec.evo;
     if(!e) return null;
     if(e.special === 'eevee'){
-      if(this.level < 25) return null;
+      if(this.level < 16) return null;
       const b = world.biomeAt(Math.floor(player.body.x), Math.floor(player.body.z));
       let water = b === 'ocean';
       for(let dx = -4; dx <= 4 && !water; dx += 2){
@@ -711,7 +720,8 @@ class PokeInst {
       if(b === 'desert' || b === 'mountain' || b === 'nether') return 136; // 부스터
       return 135;               // 쥬피썬더
     }
-    return this.level >= e.lv ? e.to : null;
+    // 통일 규칙: 2단계 진화 Lv.16, 3단계 진화 Lv.24
+    return this.level >= evoReqLevel(this.sp) ? e.to : null;
   }
   doEvolve(to){
     if(typeof Ach !== 'undefined') Ach.unlock('first_evolve');
@@ -1387,6 +1397,7 @@ const Battle = {
     if(document.exitPointerLock) document.exitPointerLock();
     this.trainer = custom ? { custom: true, ...G } : { type: gymType, gymKey, ...G };
     this.enemyTeam = G.insts ? G.insts : G.team.map(([sp, lv]) => new PokeInst(sp, lv));
+    this._firstTurn = !this.pvp; // PvP는 공정하게 스피드 순
     this.enemyIdx = 0;
     this.wild = this.enemyTeam[0];
     this.wildEnt = null;
@@ -1420,6 +1431,7 @@ const Battle = {
     if(document.exitPointerLock) document.exitPointerLock();
     this.wildEnt = wildEnt;
     this.wild = wildEnt.inst;
+    this._firstTurn = true; // 첫 턴은 내가 선공 (전설 선빵 방지)
     wildEnt.catching = true; // 필드에서 정지
     PokeMan.seen.add(this.wild.sp);
     this.allyIdx = PokeMan.party.findIndex(p => p.hp > 0);
@@ -1647,7 +1659,8 @@ const Battle = {
       } else if(action.type === 'move'){
         const aPrio = MOVES[action.move].prio || 0, ePrio = MOVES[enemyMove].prio || 0;
         let allyFirst;
-        if(aPrio !== ePrio) allyFirst = aPrio > ePrio;
+        if(this._firstTurn && !this.pvp){ allyFirst = true; this._firstTurn = false; } // 기습 보너스!
+        else if(aPrio !== ePrio) allyFirst = aPrio > ePrio;
         else if(this.ally.spd !== this.wild.spd) allyFirst = this.ally.spd > this.wild.spd;
         else allyFirst = Math.random() < 0.5;
         const actingAlly = this.ally; // 기절→강제 교체된 포켓몬이 대신 공격하는 것 방지
