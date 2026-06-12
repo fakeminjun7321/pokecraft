@@ -694,8 +694,8 @@ const MobManager = {
         }
         return;
       }
-      // 💀 로켓단 출몰 이벤트
-      if(PokeMan.enabled && PokeMan.party.length && !this.list.some(x => x.type === 'rocket') && Math.random() < 0.07){
+      // 💀 로켓단 출몰 이벤트 (희귀하게)
+      if(PokeMan.enabled && PokeMan.party.length && !this.list.some(x => x.type === 'rocket') && Math.random() < 0.02){
         const ra = Math.random() * Math.PI * 2;
         const rx2 = px + Math.sin(ra) * 24, rz2 = pz + Math.cos(ra) * 24;
         const ry2 = world.colTop(rx2, rz2) + 1.1;

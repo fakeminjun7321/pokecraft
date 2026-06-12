@@ -1563,6 +1563,7 @@ function tick(t){
     Particles.update(dt);
     Projectiles.update(dt, world, player);
     Follower.update(dt, world, player);
+    if(typeof ExtraFollowers !== 'undefined') ExtraFollowers.update(dt, world, player);
     updateSelfModel(dt);
     Minimap.render(dt);
     game.time = (game.time + dt / 600) % 1;

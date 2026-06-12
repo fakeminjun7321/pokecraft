@@ -379,6 +379,33 @@ class Player {
       const sharp = item && item.ench && item.ench.k === 'sharp' ? item.ench.l : 0;
       mob.hurt(dmg + sharp, d.x * 0.6, d.z * 0.6);
       if(tool && (tool.kind === 'sword' || tool.kind === 'axe')) this.damageTool(item);
+      return;
+    }
+    // ⚔ 야생 포켓몬 직접 공격 — 맞으면 분노해서 반격해온다!
+    if(this.attackCd <= 0 && typeof PokeMan !== 'undefined' && PokeMan.enabled){
+      let bw = null, bt = 3.6;
+      for(const w of PokeMan.wilds){
+        if(w.fainted || w.catching) continue;
+        for(let t = 0.7; t < 3.6; t += 0.4){
+          if(dist3(e.x + d.x * t, e.y + d.y * t, e.z + d.z * t,
+                   w.body.x, w.body.y + w.body.h * 0.5, w.body.z) < Math.max(0.9, w.body.w + 0.55)){
+            if(t < bt){ bt = t; bw = w; }
+            break;
+          }
+        }
+      }
+      if(bw){
+        this.attackCd = 0.35;
+        const sharp = item && item.ench && item.ench.k === 'sharp' ? item.ench.l : 0;
+        const pdmg = Math.round((dmg + sharp) * 5 + 2);
+        bw.inst.hp = Math.max(0, bw.inst.hp - pdmg);
+        bw.body.vx += d.x * 3; bw.body.vz += d.z * 3;
+        Particles.spawn(bw.body.x, bw.body.y + bw.body.h * 0.6, bw.body.z, 0xff8888, 10, 1.8, 0.6, 1.4);
+        SFX.play('hit');
+        if(tool && (tool.kind === 'sword' || tool.kind === 'axe')) this.damageTool(item);
+        if(bw.inst.hp <= 0){ bw.angry = 0; FieldBattle.wildDefeated(bw); }
+        else { PokeMan.aggroAt(bw, 12); bw.updateHpTag(); }
+      }
     }
   }
 

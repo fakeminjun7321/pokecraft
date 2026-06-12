@@ -967,6 +967,13 @@ const UI = {
         b.onclick = () => { TradeNPC.doTrade(p); };
         btns.appendChild(b);
       }
+      // 🐾 추가 동행: 파티 2번 이후도 같이 꺼낼 수 있다
+      if(i > 0 && typeof ExtraFollowers !== 'undefined' && p.hp > 0){
+        const b = document.createElement('button');
+        b.textContent = ExtraFollowers.out.includes(p) ? '🔙 들여보내기' : '🐾 꺼내기';
+        b.onclick = () => { ExtraFollowers.toggle(p); this.openParty(); };
+        btns.appendChild(b);
+      }
       // 멀티: 포켓몬 교환 (제안 받은 상태면 '이걸로 교환')
       if(typeof Net !== 'undefined' && Net.mode !== 'off'){
         if(typeof TradeMan !== 'undefined' && TradeMan._incoming){

@@ -115,6 +115,31 @@ const MOVES = {
   dragonbreath:{ n:'용의숨결',     t:'dragon',  p:60,  a:100 },
   dragonclaw:  { n:'드래곤클로',   t:'dragon',  p:80,  a:100 },
   outrage:     { n:'역린',         t:'dragon',  p:110, a:90 },
+  // ⚔ 상징 기술·커버리지 확장
+  seismictoss: { n:'지구던지기',   t:'fighting',p:65,  a:100 },
+  firepunch:   { n:'불꽃펀치',     t:'fire',    p:75,  a:100 },
+  thunderpunch:{ n:'번개펀치',     t:'electric',p:75,  a:100 },
+  icepunch:    { n:'냉동펀치',     t:'ice',     p:75,  a:100 },
+  drainpunch:  { n:'드레인펀치',   t:'fighting',p:75,  a:100 },
+  slash:       { n:'베어가르기',   t:'normal',  p:70,  a:100 },
+  swift:       { n:'스피드스타',   t:'normal',  p:60,  a:100 },
+  hyperbeam:   { n:'파괴광선',     t:'normal',  p:150, a:90 },
+  aerialace:   { n:'제비반환',     t:'flying',  p:60,  a:100 },
+  airslash:    { n:'에어슬래시',   t:'flying',  p:75,  a:95 },
+  flareblitz:  { n:'플레어드라이브',t:'fire',   p:120, a:100 },
+  wildcharge:  { n:'와일드볼트',   t:'electric',p:90,  a:100 },
+  aquatail:    { n:'아쿠아테일',   t:'water',   p:90,  a:90 },
+  waterfall:   { n:'폭포오르기',   t:'water',   p:80,  a:100 },
+  leafblade:   { n:'리프블레이드', t:'grass',   p:90,  a:100 },
+  seedbomb:    { n:'씨폭탄',       t:'grass',   p:80,  a:100 },
+  xscissor:    { n:'시저크로스',   t:'bug',     p:80,  a:100 },
+  poisonjab:   { n:'독찌르기',     t:'poison',  p:80,  a:100 },
+  zenheadbutt: { n:'사념의박치기', t:'psychic', p:80,  a:90 },
+  dragonrush:  { n:'드래곤다이브', t:'dragon',  p:100, a:75 },
+  playrough:   { n:'치근거리기',   t:'fairy',   p:90,  a:90 },
+  rockblast:   { n:'락블라스트',   t:'rock',    p:75,  a:90 },
+  bulldoze:    { n:'땅고르기',     t:'ground',  p:60,  a:100 },
+  shadowclaw:  { n:'섀도클로',     t:'ghost',   p:70,  a:100 },
 };
 
 // ---------- 추가 모델 빌더 ----------
@@ -177,6 +202,18 @@ function autoLearn(types){
   ls.push([20, pick(t1, t1.length >= 3 ? 2 : 1, 'bodyslam')]);
   ls.push([28, t2.length >= 3 ? t2[2] : 'bodyslam']);
   ls.push([36, t1[t1.length - 1] || 'bodyslam']);
+  // 🎯 고레벨 커버리지: 자기 타입 밖의 기술 + 최종기 파괴광선
+  const COVER = {
+    normal:'seismictoss', fire:'slash', water:'icepunch', grass:'poisonjab',
+    electric:'swift', flying:'aerialace', bug:'poisonjab', psychic:'shadowclaw',
+    rock:'bulldoze', ground:'rockblast', ice:'zenheadbutt', fairy:'playrough',
+    poison:'sludgebomb', fighting:'rockblast', dark:'shadowclaw', steel:'bulldoze',
+    ghost:'zenheadbutt', dragon:'aquatail',
+  };
+  const cov = COVER[types[0]];
+  if(cov && MOVES[cov].t !== types[0] && MOVES[cov].t !== types[1]) ls.push([44, cov]);
+  else ls.push([44, 'seismictoss']);
+  ls.push([52, 'hyperbeam']);
   // 중복 제거
   const out = [];
   const seen = new Set();
@@ -1178,6 +1215,27 @@ for(const b in SPAWN_TABLES){
   if(!total || !sums[1] || !sums[2] || !sums[3]) continue;
   tbl.forEach(e => { const g = genOf(e[0]); e[1] = e[1] * (target[g] * total / sums[g]); });
 }
+// ⚔ 시그니처 기술: 유명 포켓몬은 애니 명장면 기술을 배운다 (리자몽 지구던지기!)
+const SIG_LEARN = {
+  6:   [[36, 'seismictoss'], [55, 'flareblitz']],   // 리자몽
+  9:   [[40, 'aquatail']],                          // 거북왕
+  25:  [[30, 'irontail']],                          // 피카츄
+  26:  [[34, 'irontail']],                          // 라이츄
+  59:  [[48, 'flareblitz']],                        // 윈디
+  65:  [[44, 'zenheadbutt']],                       // 후딘
+  94:  [[36, 'shadowclaw']],                        // 팬텀
+  130: [[40, 'waterfall'], [52, 'dragonrush']],     // 갸라도스
+  143: [[45, 'bodyslam'], [55, 'hyperbeam']],       // 잠만보
+  149: [[50, 'dragonrush']],                        // 망나뇽
+  248: [[50, 'crunch']],                            // 마기라스
+  384: [[60, 'dragonrush']],                        // 레쿠자
+};
+for(const idStr in SIG_LEARN){
+  const sp = SPECIES[+idStr];
+  if(!sp || !sp.learn) continue;
+  SIG_LEARN[idStr].forEach(([lv, k]) => { if(!sp.learn.some(e => e[1] === k)) sp.learn.push([lv, k]); });
+  sp.learn.sort((a, b) => a[0] - b[0]);
+}
  // 3세대: 레지 삼총사·라티·날씨 트리오·지라치·테오키스
 // 진화의 돌: 돌 아이템 → { 현재 도감번호: 진화 도감번호 }
 const STONE_EVOS = {
@@ -1602,6 +1660,7 @@ class WildPoke {
     this.moveTimer = 0; this.moving = false;
     this.walkPhase = 0; this.bob = Math.random() * 10;
     this.catching = false; this.fleeTimer = 0;
+    this.angry = 0; // 😡 공격당하면 분노해서 반격!
   }
   setTag(text){
     if(this.tag){ this.group.remove(this.tag); disposeObject(this.tag); }
@@ -1615,7 +1674,7 @@ class WildPoke {
     // 🎯 현재 장착 볼 기준 포획률 표시
     const ballId = (typeof PokeMan !== 'undefined' && PokeMan.bestBall) ? PokeMan.bestBall() : 0;
     const pct = ballId ? Math.round(catchChance(i, ballBonus(ballId)) * 100) : 0;
-    this.setTag('⚔ ' + (i.shiny ? '✨' : '') + i.name + ' ' + '█'.repeat(Math.max(0, bars)) + '░'.repeat(8 - Math.max(0, bars)) + (ballId ? ' 🎯' + pct + '%' : ''));
+    this.setTag((this.angry > 0 ? '😡 ' : '⚔ ') + (i.shiny ? '✨' : '') + i.name + ' ' + '█'.repeat(Math.max(0, bars)) + '░'.repeat(8 - Math.max(0, bars)) + (ballId ? ' 🎯' + pct + '%' : ''));
   }
   update(dt, world, player){
     if(this.fainted){
@@ -1672,7 +1731,36 @@ class WildPoke {
       Particles.spawn(this.body.x, this.body.y + this.body.h * 0.7, this.body.z, 0xffe97a, 2, 1.2, 0.5, 1.2);
     const b = this.body;
     let speed = 0;
-    if(this.fleeTimer > 0){
+    if(this.angry > 0 && !this.battling){
+      // 😡 분노: 플레이어와 내 포켓몬 중 가까운 쪽을 추격해 공격!
+      this.angry -= dt;
+      const targets = [{ body: player.body, hit: () => {
+        player.hurt(Math.min(9, 1 + Math.round(this.inst.level * 0.12)), (player.body.x - b.x) * 0.35, (player.body.z - b.z) * 0.35);
+      } }];
+      const par0 = PokeMan.party[0];
+      if(typeof Follower !== 'undefined' && Follower.ent && par0 && par0.hp > 0)
+        targets.push({ body: Follower.ent.body, inst: par0 });
+      if(typeof ExtraFollowers !== 'undefined')
+        ExtraFollowers.out.forEach(q => { const e2 = ExtraFollowers.ents.get(q); if(e2 && q.hp > 0) targets.push({ body: e2.body, inst: q }); });
+      let tgt = targets[0], td = 1e9;
+      targets.forEach(t => { const dd = dist3(b.x, b.y, b.z, t.body.x, t.body.y, t.body.z); if(dd < td){ td = dd; tgt = t; } });
+      if(td > 28 || this.angry <= 0){ this.angry = 0; this.updateHpTag(); }
+      else {
+        this.dir = Math.atan2(tgt.body.x - b.x, tgt.body.z - b.z);
+        speed = td > 1.6 ? 3.4 : 0;
+        this._aCd = (this._aCd || 0) - dt;
+        if(td < 1.8 && this._aCd <= 0){
+          this._aCd = 1.3;
+          if(tgt.inst){
+            const dm = fieldDmg(this.inst, tgt.inst);
+            tgt.inst.hp = Math.max(0, tgt.inst.hp - dm);
+            if(tgt.inst.hp <= 0) UI.toast('😵 ' + tgt.inst.name + '은(는) 쓰러졌다!');
+          } else tgt.hit();
+          Particles.spawn(tgt.body.x, tgt.body.y + 0.7, tgt.body.z, 0xff8888, 8, 1.6, 0.5, 1.3);
+          SFX.play('hit');
+        }
+      }
+    } else if(this.fleeTimer > 0){
       this.fleeTimer -= dt;
       this.dir = Math.atan2(b.x - player.body.x, b.z - player.body.z);
       speed = 3.2;
@@ -1731,6 +1819,21 @@ const PokeMan = {
   badges: new Set(),
   bag: {}, activeBall: 150, // I.POKEBALL
   spawnTimer: 2, regenTimer: 0,
+  // 😡 공격당한 야생 + 주변 야생까지 함께 분노 (반격 모드)
+  aggroAt(src, radius){
+    let n = 0;
+    this.wilds.forEach(w => {
+      if(w.fainted || w.catching || w.battling) return;
+      const d = dist3(src.body.x, src.body.y, src.body.z, w.body.x, w.body.y, w.body.z);
+      if(w === src || d < radius){
+        w.angry = Math.max(w.angry || 0, w === src ? 25 : 16);
+        w.fleeTimer = 0;
+        w.updateHpTag();
+        n++;
+      }
+    });
+    if(n > 1) UI.toast('😡 주변 야생 포켓몬 ' + n + '마리가 분노해서 달려든다!!', 4000);
+  },
   reset(){
     this.wilds.forEach(w => { scene.remove(w.group); disposeObject(w.group); });
     this.wilds = []; this.party = []; this.box = [];
@@ -2170,6 +2273,9 @@ function partnerFieldMove(moveKey){
         for(const ev of evs){ if(ev.type === 'level'){ UI.toast(par.name + ' 레벨 ' + ev.lv + '!'); SFX.play('level'); } }
         if(typeof QuestMan !== 'undefined') QuestMan.onDefeatWild(w.inst);
         if(w.boss){ player.addItem(I.RARECANDY, 2); player.addItem(I.ULTRABALL, 2); UI.toast('👑 보스 보상! 이상한사탕 2 + 하이퍼볼 2'); }
+      } else {
+        // 😡 살아남은 야생은 분노해서 반격!
+        PokeMan.aggroAt(w, 0);
       }
     }
     for(const mb of MobManager.list.slice()){
@@ -2397,6 +2503,122 @@ const Follower = {
         }
       }
     }
+  }
+};
+
+// ---------- 🐾 추가 동행 (파티 2번 이후도 동시에 꺼낼 수 있다!) ----------
+const ExtraFollowers = {
+  out: [],          // 꺼내 둔 PokeInst들 (파티 1번 제외)
+  ents: new Map(),  // inst → ent
+  maxOut: 2,
+  toggle(inst){
+    if(this.out.includes(inst)){ this.recall(inst); UI.toast(inst.name + ', 돌아와!'); return false; }
+    if(inst === PokeMan.party[0]){ UI.toast('1번 포켓몬은 파트너 따라오기(ON)로 함께해요'); return false; }
+    if(inst.hp <= 0){ UI.toast(inst.name + '은(는) 지쳐 있다... 회복시키자'); return false; }
+    if(this.out.length >= this.maxOut){ UI.toast('추가로 꺼낼 수 있는 포켓몬은 ' + this.maxOut + '마리까지! (파트너 포함 총 ' + (this.maxOut + 1) + '마리)'); return false; }
+    this.out.push(inst);
+    SFX.play('pop');
+    Particles.spawn(player.body.x, player.body.y + 1, player.body.z, 0xffe97a, 14, 2, 0.8, 1.4);
+    UI.toast('가랏, ' + inst.name + '!');
+    return true;
+  },
+  recall(inst){
+    const i = this.out.indexOf(inst);
+    if(i >= 0) this.out.splice(i, 1);
+    const e = this.ents.get(inst);
+    if(e){ scene.remove(e.group); disposeObject(e.group); this.ents.delete(inst); }
+  },
+  clear(){ this.out.slice().forEach(p => this.recall(p)); },
+  update(dt, world, player){
+    if(!this.out.length) return;
+    if(!PokeMan.enabled || player.dead){ this.clear(); return; }
+    // 기절했거나 파티에서 빠지면 자동 복귀
+    this.out.slice().forEach(p => {
+      if(p.hp <= 0 || !PokeMan.party.includes(p)){
+        if(p.hp <= 0) UI.toast('😵 ' + p.name + '은(는) 쓰러져서 볼로 돌아왔다');
+        this.recall(p);
+      }
+    });
+    this.out.forEach((p, idx) => {
+      let e = this.ents.get(p);
+      if(!e || e.sp !== p.sp){
+        if(e){ scene.remove(e.group); disposeObject(e.group); }
+        const built = buildPokeModel(p.sp, p.shiny);
+        const sc = SPECIES[p.sp].model.s || 1;
+        e = { built, group: built.root, sp: p.sp,
+          body: new PhysBody(player.body.x + 1.2, player.body.y + 1, player.body.z + 1.2,
+            clamp(0.32 * sc / 0.55, 0.2, 0.55), clamp(1.1 * sc, 0.45, 1.8)),
+          walkPhase: 0, bob: Math.random() * 10, dir: 0, atkCd: 0 };
+        scene.add(e.group);
+        this.ents.set(p, e);
+      }
+      const b = e.body;
+      const d = dist3(b.x, b.y, b.z, player.body.x, player.body.y, player.body.z);
+      if(d > 24){ b.x = player.body.x; b.y = player.body.y + 1; b.z = player.body.z; b.vx = b.vz = 0; }
+      // 각자 다른 자리에서 따라오기
+      const ang = (idx + 1) * 2.2;
+      const tx = player.body.x + Math.sin(ang) * 2.4, tz = player.body.z + Math.cos(ang) * 2.4;
+      // 근처 위협(적대 몹·성난 야생)과 싸운다
+      e.atkCd -= dt;
+      let tgt = null, td = 8;
+      if(!game.inBattle && typeof MobManager !== 'undefined'){
+        for(const mb of MobManager.list){
+          if(mb.dead || mb.def.npc || mb.tamed) continue;
+          if(!(mb.def.hostile || (mb.def.neutral && mb.angry))) continue;
+          const dm = dist3(mb.body.x, mb.body.y, mb.body.z, b.x, b.y, b.z);
+          if(dm < td){ td = dm; tgt = mb; }
+        }
+        for(const w of PokeMan.wilds){
+          if(!(w.angry > 0) || w.fainted || w.catching) continue;
+          const dw = dist3(w.body.x, w.body.y, w.body.z, b.x, b.y, b.z);
+          if(dw < td){ td = dw; tgt = w; }
+        }
+      }
+      let speed = 0;
+      if(tgt){
+        e.dir = Math.atan2(tgt.body.x - b.x, tgt.body.z - b.z);
+        if(td > 1.5) speed = clamp(td * 1.4, 2, 7);
+        if(td < 1.8 && e.atkCd <= 0){
+          e.atkCd = 1.2;
+          if(tgt.hurt){
+            let dm2 = Math.round(3 + p.level * 0.4 + p.atk * 0.08);
+            if(p.spec.types[0] === 'fire') dm2 = Math.round(dm2 * 1.3);
+            tgt.hurt(dm2, (tgt.body.x - b.x) * 0.4, (tgt.body.z - b.z) * 0.4);
+          } else {
+            const dm2 = fieldDmg(p, tgt.inst);
+            tgt.inst.hp = Math.max(0, tgt.inst.hp - dm2);
+            tgt.updateHpTag();
+            if(tgt.inst.hp <= 0){ tgt.angry = 0; FieldBattle.wildDefeated(tgt); }
+          }
+          Particles.spawn(tgt.body.x, tgt.body.y + 0.7, tgt.body.z, 0xffe97a, 8, 1.6, 0.5, 1.3);
+          SFX.play('hit');
+        }
+      } else {
+        const gd = Math.hypot(b.x - tx, b.z - tz);
+        if(gd > 1.2){ e.dir = Math.atan2(tx - b.x, tz - b.z); speed = clamp(gd * 1.2, 0.8, 6); }
+      }
+      b.vx = lerp(b.vx, Math.sin(e.dir) * speed, Math.min(1, dt * 8));
+      b.vz = lerp(b.vz, Math.cos(e.dir) * speed, Math.min(1, dt * 8));
+      if(b.hitWall && b.onGround && speed > 0) b.vy = 8.8;
+      if(b.inWater) b.vy = Math.max(b.vy, 2);
+      b.update(dt, world);
+      e.bob += dt;
+      const sp2 = Math.hypot(b.vx, b.vz);
+      e.walkPhase += sp2 * dt * 4;
+      const sw = Math.sin(e.walkPhase) * Math.min(1, sp2) * 0.7;
+      (e.built.legs || []).forEach((l, i) => { l.rotation.x = (i % 2 === 0 ? sw : -sw); });
+      (e.built.wings || []).forEach((w2, i) => { w2.rotation.z = (i === 0 ? 1 : -1) * Math.sin(e.bob * 8) * 0.4; });
+      const hoverY = e.built.hover ? Math.sin(e.bob * 2) * 0.15 + 0.1 : 0;
+      e.group.position.set(b.x, b.y + hoverY, b.z);
+      if(e.built.billboard){
+        e.group.rotation.y = Math.atan2(camera.position.x - b.x, camera.position.z - b.z);
+        const m = e.built.sprite;
+        m.position.y = e.built.spriteH * 0.5 + (sp2 > 0.3 ? Math.abs(Math.sin(e.bob * 7)) * 0.09 : 0);
+        m.scale.y = 1 + Math.sin(e.bob * 2.2) * 0.02;
+      } else {
+        e.group.rotation.y = turnToward(e.group.rotation.y, e.dir, dt);
+      }
+    });
   }
 };
 
