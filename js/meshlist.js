@@ -1,2 +1,2 @@
 'use strict';
-const MESH_IDS = [];
+const MESH_IDS = [6];
