@@ -200,8 +200,10 @@ class World {
         const rd = this.ravineDepth(wx, wz);
         if(rd > 0 && baseH > SEA + 2) h = Math.max(9, Math.floor(baseH - rd * (baseH - 9)));
         const biome = this.biomeAt(wx, wz);
-        const surf = this.surfaceBlockFor(biome, h);
+        let surf = this.surfaceBlockFor(biome, h);
         const filler = (biome === 'desert' || surf === B.SAND) ? B.SAND : B.DIRT;
+        // 물가 모래밭의 일부는 자갈밭 (부싯돌 수급)
+        if(surf === B.SAND && biome !== 'desert' && h <= SEA + 1 && rand3(wx, h, wz, seed ^ 0x5151) < 0.3) surf = B.GRAVEL;
         for(let y = 0; y <= h; y++){
           let id;
           if(y === 0) id = B.BEDROCK;
@@ -217,6 +219,7 @@ class World {
             else if(r < 0.047 && y < 24) id = B.GOLD_ORE;
             else if(r < 0.054 && y < 20) id = B.REDSTONE_ORE;
             else if(r < 0.060 && y < 16) id = B.DIAMOND_ORE;
+            else if(r >= 0.93 && r < 0.952 && y < 50) id = B.GRAVEL; // 자갈 주머니 (부싯돌!)
             // r 상위 구간 사용 — else-if 체인의 y 조건 낙수 효과 방지 (위 광석들과 독립)
             else if(r >= 0.9985 && y < 28) id = B.MYSTIC_ORE;
             else if(r >= 0.9962 && y < 20) id = B.FOSSIL_ORE;
