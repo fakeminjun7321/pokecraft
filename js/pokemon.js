@@ -26,15 +26,15 @@ const TYPE_CHART = {
   normal:  { rock:0.5, ghost:0, steel:0.5 },
   fire:    { grass:2, ice:2, bug:2, steel:2, water:0.5, fire:0.5, rock:0.5, dragon:0.5 },
   water:   { fire:2, rock:2, ground:2, water:0.5, grass:0.5, dragon:0.5 },
-  grass:   { water:2, rock:2, ground:2, fire:0.5, grass:0.5, flying:0.5, bug:0.5, poison:0.5, dragon:0.5 },
+  grass:   { water:2, rock:2, ground:2, fire:0.5, grass:0.5, flying:0.5, bug:0.5, poison:0.5, dragon:0.5, steel:0.5 },
   electric:{ water:2, flying:2, grass:0.5, electric:0.5, ground:0, dragon:0.5 },
-  flying:  { grass:2, bug:2, fighting:2, electric:0.5, rock:0.5 },
+  flying:  { grass:2, bug:2, fighting:2, electric:0.5, rock:0.5, steel:0.5 },
   bug:     { grass:2, psychic:2, dark:2, fire:0.5, flying:0.5, poison:0.5, fairy:0.5, fighting:0.5, ghost:0.5, steel:0.5 },
-  rock:    { fire:2, ice:2, flying:2, bug:2, ground:0.5, fighting:0.5 },
+  rock:    { fire:2, ice:2, flying:2, bug:2, ground:0.5, fighting:0.5, steel:0.5 },
   ground:  { fire:2, electric:2, rock:2, poison:2, steel:2, grass:0.5, bug:0.5, flying:0 },
   psychic: { poison:2, fighting:2, psychic:0.5, steel:0.5, dark:0 },
   fairy:   { fighting:2, dragon:2, dark:2, poison:0.5, fire:0.5, steel:0.5 },
-  ice:     { grass:2, ground:2, flying:2, dragon:2, fire:0.5, water:0.5, ice:0.5 },
+  ice:     { grass:2, ground:2, flying:2, dragon:2, fire:0.5, water:0.5, ice:0.5, steel:0.5 },
   poison:  { grass:2, fairy:2, poison:0.5, rock:0.5, ground:0.5, ghost:0.5, steel:0 },
   fighting:{ normal:2, rock:2, ice:2, dark:2, steel:2, flying:0.5, poison:0.5, bug:0.5, psychic:0.5, fairy:0.5, ghost:0 },
   ghost:   { ghost:2, psychic:2, normal:0, dark:0.5 },
@@ -1311,6 +1311,39 @@ if(_spriteOK === null){
   ti.onerror = () => { _spriteOK = false; };
   ti.src = 'img/poke/' + ((typeof ART_IDS !== 'undefined' && ART_IDS[0]) || 6) + '.png';
 }
+// 🗿 3D 메시 모델 (Meshy 등 image-to-3D로 만든 GLB) — models/poke/<id>.glb
+const _meshCache = {};   // sp → { scene, h } (로드 완료 시)
+let _meshLoader = null;
+function preloadPokeMeshes(){
+  if(typeof MESH_IDS === 'undefined' || !MESH_IDS.length || typeof THREE.GLTFLoader === 'undefined') return;
+  _meshLoader = _meshLoader || new THREE.GLTFLoader();
+  MESH_IDS.forEach(sp => {
+    if(_meshCache[sp]) return;
+    _meshLoader.load('models/poke/' + sp + '.glb', g => {
+      const sc = g.scene;
+      const box = new THREE.Box3().setFromObject(sc);
+      const size = new THREE.Vector3(); box.getSize(size);
+      const ctr = new THREE.Vector3(); box.getCenter(ctr);
+      sc.position.sub(ctr); sc.position.y += size.y / 2; // 발이 바닥(y=0)에 오게
+      _meshCache[sp] = { scene: sc, h: Math.max(size.y, 0.01) };
+    }, undefined, () => { _meshCache[sp] = null; });
+  });
+}
+function pokeMeshModel(sp, shiny){
+  if(!_spriteMode) return null; // 고급 그래픽 토글 공유
+  const c = _meshCache[sp];
+  if(!c) return null;
+  const inst = c.scene.clone(true);
+  const s = (SPECIES[sp].model && SPECIES[sp].model.s) || 1;
+  const targetH = clamp(s * 1.7, 0.7, 4.0);
+  const k = targetH / c.h;
+  inst.scale.setScalar(k);
+  if(shiny) inst.traverse(o => { if(o.isMesh && o.material){ o.material = o.material.clone(); o.material.color.multiply(new THREE.Color('#a8e8ff')); } });
+  const root = new THREE.Group();
+  root.add(inst);
+  return { root, group: root, legs: [], arms: [], wings: [], segs: [], head: inst, body: inst,
+    mesh: inst, scaleVal: s, isMesh: true };
+}
 const _artTexCache = {};
 function pokeSpriteModel(sp, shiny){
   if(!_spriteMode || _spriteOK !== true) return null;
@@ -1340,6 +1373,8 @@ function pokeSpriteModel(sp, shiny){
     sprite: spr, spriteH: sc, scaleVal: s, isSprite: true, billboard: true };
 }
 function buildPokeModel(spId, shiny){
+  const mm = pokeMeshModel(spId, shiny);
+  if(mm) return mm;
   const sm = pokeSpriteModel(spId, shiny);
   if(sm) return sm;
   const sp = SPECIES[spId], M = sp.model;
@@ -1404,7 +1439,8 @@ class PokeInst {
   get spec(){ return SPECIES[this.sp]; }
   calc(){
     const bs = this.spec.bs, lv = this.level;
-    this.maxHp = Math.floor(bs[0] * 2 * lv / 100) + lv + 10;
+    // 고레벨 한방 방지: HP가 레벨에 따라 공격보다 빠르게 성장
+    this.maxHp = Math.floor(bs[0] * 2.4 * lv / 100) + Math.floor(lv * 1.3) + 10;
     this.atk = Math.floor(bs[1] * 2 * lv / 100) + 5;
     this.def = Math.floor(bs[2] * 2 * lv / 100) + 5;
     this.spd = Math.floor(bs[3] * 2 * lv / 100) + 5;
@@ -1501,7 +1537,7 @@ function calcDamage(att, def, moveKey, mult){
   if(eff === 0) return { dmg:0, eff:0, crit:false };
   const stab = att.spec.types.includes(mv.t) ? 1.5 : 1;
   const crit = Math.random() < 1 / 16;
-  let dmg = ((2 * att.level / 5 + 2) * mv.p * att.atk / Math.max(1, def.def)) / 50 + 2;
+  let dmg = ((2 * att.level / 5 + 2) * mv.p * att.atk / Math.max(1, def.def)) / 55 + 2;
   dmg *= stab * eff * (crit ? 1.5 : 1) * (0.85 + Math.random() * 0.15) * (mult || 1);
   return { dmg: Math.max(1, Math.floor(dmg)), eff, crit };
 }
@@ -1510,7 +1546,7 @@ function estimateDamage(att, def, moveKey, mult){
   const eff = typeMult(mv.t, def.spec.types);
   if(eff === 0 || mv.p === 0) return { min:0, max:0, eff };
   const stab = att.spec.types.includes(mv.t) ? 1.5 : 1;
-  let dmg = ((2 * att.level / 5 + 2) * mv.p * att.atk / Math.max(1, def.def)) / 50 + 2;
+  let dmg = ((2 * att.level / 5 + 2) * mv.p * att.atk / Math.max(1, def.def)) / 55 + 2;
   dmg *= stab * eff * (mult || 1);
   const max = Math.max(1, Math.floor(dmg));
   return { min:Math.max(1, Math.floor(dmg * 0.85)), max, eff };

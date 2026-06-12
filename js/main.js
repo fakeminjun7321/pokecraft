@@ -338,6 +338,7 @@ window.addEventListener('load', () => {
   Music.init();
   Minimap.init();
   Guide.init();
+  if(typeof preloadPokeMeshes === 'function') preloadPokeMeshes();
   Touch.init();
   if(game.touch) document.body.classList.add('touch');
   requestAnimationFrame(loop);
