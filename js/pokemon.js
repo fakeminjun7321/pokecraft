@@ -2216,9 +2216,8 @@ function _renderPortrait(sp){
   disposeObject(built.root);
 }
 // 🎨 AI 애니풍 아트 (img/poke/<id>.png) — 있으면 우선 사용
-let ART_SET = new Set();
-fetch('img/poke/manifest.json').then(r => r.ok ? r.json() : []).then(ids => { ART_SET = new Set(ids); })
-  .catch(() => {});
+// ⚠ file:// 실행에서는 fetch가 차단되므로 js/artlist.js의 ART_IDS를 사용한다
+let ART_SET = new Set(typeof ART_IDS !== 'undefined' ? ART_IDS : []);
 function artURL(sp){ return ART_SET.has(sp) ? 'img/poke/' + sp + '.png' : null; }
 function portraitURL(sp){
   const a = artURL(sp);
@@ -2257,6 +2256,24 @@ const Battle = {
     });
     this.camE = new THREE.PerspectiveCamera(42, 260/200, 0.1, 50);
     this.camA = new THREE.PerspectiveCamera(42, 260/200, 0.1, 50);
+  },
+  // 🎨 등장 연출: 대형 애니 아트 스플래시
+  _splash(inst){
+    const src = artURL(inst.sp);
+    if(!src) return;
+    const el = document.getElementById('b-splash');
+    const img = document.getElementById('b-splash-img');
+    const nm = document.getElementById('b-splash-name');
+    if(!el) return;
+    img.src = src;
+    img.classList.toggle('shiny', !!inst.shiny);
+    nm.textContent = (inst.shiny ? '✨ ' : '') + inst.name + ' Lv.' + inst.level;
+    el.classList.remove('hidden', 'fadeout');
+    clearTimeout(this._splashT);
+    this._splashT = setTimeout(() => {
+      el.classList.add('fadeout');
+      setTimeout(() => el.classList.add('hidden'), 420);
+    }, 1600);
   },
   // 인월드 배틀: 모델은 화면 속 캔버스가 아니라 월드에 직접 세운다
   setModel(side, sp, shiny){
@@ -2380,6 +2397,7 @@ const Battle = {
     this.updateBars();
     this.menuEnabled(false);
     await this.say(custom ? (G.introLine || (G.name + '이(가) 승부를 걸어왔다!')) : ('체육관 관장 ' + G.name + '이(가) 승부를 걸어왔다!'));
+    this._splash(this.wild);
     await this.say(G.name + ': 가랏, ' + this.wild.name + '!');
     await this.say('가랏! ' + this.ally.name + '!');
     this.busy = false;
@@ -2416,6 +2434,7 @@ const Battle = {
     this._applyIntimidate();
     this.updateBars();
     this.menuEnabled(false);
+    this._splash(this.wild);
     await this.say('앗! 야생의 ' + this.wild.name + ' Lv.' + this.wild.level + '이(가) 나타났다!');
     await this.say('가랏! ' + this.ally.name + '!');
     this.busy = false;

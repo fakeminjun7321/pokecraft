@@ -405,6 +405,23 @@ body.touch #hotbar .hslot { width: 44px; height: 44px; }
 .quest-prog { font-size:12px; text-align:right; color:#aaa; margin-top:3px; }
 
 /* 🎨 배틀 카드 애니 초상화 */
-.b-art { width:84px; height:84px; image-rendering:auto; float:right; margin:-6px -2px 2px 6px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.35)); }
+.b-art { width:150px; height:150px; image-rendering:auto; float:right; margin:-6px -2px 2px 6px; filter:drop-shadow(0 2px 4px rgba(0,0,0,.35)); }
 .b-art.shiny { filter:hue-rotate(150deg) saturate(1.25) drop-shadow(0 2px 4px rgba(0,0,0,.35)); }
 .party-row img, #dex-grid img { image-rendering:auto; }
+
+/* 🎨 배틀 등장 스플래시 */
+#b-splash {
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  pointer-events:none; z-index:60;
+}
+#b-splash img.shiny { filter:hue-rotate(150deg) saturate(1.25) drop-shadow(0 10px 30px rgba(0,0,0,.5)); }
+#b-splash img { width:min(46vh, 380px); height:min(46vh, 380px); filter:drop-shadow(0 10px 30px rgba(0,0,0,.5)); animation:splashIn .55s cubic-bezier(.2,1.4,.4,1); }
+#b-splash-name {
+  margin-top:6px; font-size:30px; font-weight:bold; color:#fff;
+  text-shadow:0 2px 0 #000, 0 0 18px rgba(0,0,0,.6); animation:splashIn .55s .08s cubic-bezier(.2,1.4,.4,1) backwards;
+}
+#b-splash.fadeout { animation:splashOut .4s forwards; }
+@keyframes splashIn { from { transform:scale(.3); opacity:0; } to { transform:scale(1); opacity:1; } }
+@keyframes splashOut { to { opacity:0; transform:scale(1.12); } }
+.party-row img { width:72px; height:72px; }
+.dex-cell img { width:84px; height:84px; }
