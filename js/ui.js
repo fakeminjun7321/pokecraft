@@ -957,6 +957,30 @@ const UI = {
           };
           row.querySelector('.party-btns').appendChild(b);
         }
+        // 🎒 교환 상인과 교환 (보관함에서도!)
+        if(typeof TradeNPC !== 'undefined' && TradeNPC._activeNpc && TradeNPC.canTrade(p)){
+          const tb = document.createElement('button');
+          tb.textContent = '🎒 상인과 교환';
+          tb.onclick = () => { TradeNPC.doTrade(p); };
+          row.querySelector('.party-btns').appendChild(tb);
+        }
+        // 🔄 멀티 교환 (보관함에서도!)
+        if(typeof Net !== 'undefined' && Net.mode !== 'off'){
+          if(typeof TradeMan !== 'undefined' && TradeMan._incoming){
+            const tb = document.createElement('button');
+            tb.textContent = '🔄 이걸로 교환';
+            tb.onclick = () => { TradeMan.pickMine(p); };
+            row.querySelector('.party-btns').appendChild(tb);
+          } else {
+            const pid = Net.nearestPlayerId(8);
+            if(pid){
+              const tb = document.createElement('button');
+              tb.textContent = '🔄 교환 제안';
+              tb.onclick = () => { TradeMan.propose(pid, p); this.openParty(); };
+              row.querySelector('.party-btns').appendChild(tb);
+            }
+          }
+        }
         const rel2 = document.createElement('button');
         rel2.textContent = '놓아주기';
         rel2.onclick = () => {

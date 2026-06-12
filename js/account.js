@@ -257,14 +257,40 @@ const Account = {
       const users = this.users();
       const existing = users[data.user.name];
       if(existing && existing.id !== data.user.id){
-        // 같은 이름의 다른 계정이 이미 있음 → 이름 뒤에 표식을 붙여 따로 복원
-        data.user = { ...data.user, name: (data.user.name + '_복원').slice(0, 12) };
-        if(users[data.user.name] && users[data.user.name].id !== data.user.id)
-          throw new Error('같은 이름의 계정이 이미 있어요 — 그 계정으로 로그인한 뒤 가져와 주세요');
+        // 같은 이름의 다른 계정이 이미 있음 → 백업 것으로 완전 교체할지 묻는다
+        if(confirm('"' + data.user.name + '" 계정이 이 브라우저에 이미 있어요.\n\n[확인] 기존 계정을 지우고 백업 내용으로 완전히 교체 (추천)\n[취소] "' + data.user.name + '_복원" 이름으로 따로 가져오기')){
+          // 기존 계정 데이터 전부 삭제 후 교체
+          const oldPre = 'pokecraft_u_' + existing.id + '_';
+          const toDel = [];
+          for(let i = 0; i < localStorage.length; i++){
+            const k = localStorage.key(i);
+            if(k && k.startsWith(oldPre)) toDel.push(k);
+          }
+          toDel.forEach(k => localStorage.removeItem(k));
+        } else {
+          data.user = { ...data.user, name: (data.user.name + '_복원').slice(0, 12) };
+          if(users[data.user.name] && users[data.user.name].id !== data.user.id)
+            throw new Error('같은 이름의 계정이 이미 있어요 — 그 계정으로 로그인한 뒤 가져와 주세요');
+        }
       }
       users[data.user.name] = data.user;
       this._saveUsers(users);
       this._setCurrent(data.user);
+    } else if(this.user.name === data.user.name && this.user.id !== data.user.id){
+      // 같은 이름으로 로그인 중인데 백업이 다른 id → 완전 교체 제안
+      if(confirm('지금 로그인된 "' + this.user.name + '" 계정을 백업 내용으로 완전히 교체할까요?\n(이 브라우저의 기존 데이터는 지워져요)')){
+        const oldPre = 'pokecraft_u_' + this.user.id + '_';
+        const toDel = [];
+        for(let i = 0; i < localStorage.length; i++){
+          const k = localStorage.key(i);
+          if(k && k.startsWith(oldPre)) toDel.push(k);
+        }
+        toDel.forEach(k => localStorage.removeItem(k));
+        const users = this.users();
+        users[data.user.name] = data.user;
+        this._saveUsers(users);
+        this._setCurrent(data.user);
+      }
     }
     const pre = 'pokecraft_u_' + this.user.id + '_';
     let n = 0;
