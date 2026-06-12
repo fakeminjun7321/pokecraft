@@ -681,6 +681,9 @@ const UI = {
       { give: [[I.EMERALD, 10]],  get: [B.OBSIDIAN, 5], rare: true },
       { give: [[I.EMERALD, 6]],   get: [I.FLINT_STEEL, 1], rare: true },
       { give: [[I.EMERALD, 5]],   get: [B.GLOWSTONE, 4], rare: true },
+      // 🌌 엔드 탐험 물품
+      { give: [[I.EMERALD, 18]],  get: [I.ENDER_EYE, 1], rare: true },
+      { give: [[I.EMERALD, 8]],   get: [I.BLAZE_ROD, 1], rare: true },
     ];
     // 기본 거래 + 마을 시드 기반 고급 3종
     const baseTrades = ALL_TRADES.filter(t => !t.rare);

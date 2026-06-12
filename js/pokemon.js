@@ -1450,7 +1450,7 @@ class PokeInst {
   calc(){
     const bs = this.spec.bs, lv = this.level;
     // 고레벨 한방 방지: HP가 레벨에 따라 공격보다 빠르게 성장
-    this.maxHp = Math.floor(bs[0] * 2.7 * lv / 100) + Math.floor(lv * 1.5) + 10;
+    this.maxHp = Math.floor(bs[0] * 3.2 * lv / 100) + Math.floor(lv * 1.8) + 12;
     this.atk = Math.floor(bs[1] * 2 * lv / 100) + 5;
     this.def = Math.floor(bs[2] * 2 * lv / 100) + 5;
     this.spd = Math.floor(bs[3] * 2 * lv / 100) + 5;
@@ -1565,10 +1565,12 @@ function estimateDamage(att, def, moveKey, mult){
 }
 function catchChance(inst, ballMod){
   if(ballMod >= 6) return 1; // 🟣 마스터볼: 무조건 잡힌다!
-  const f = (3 * inst.maxHp - 2 * inst.hp) * inst.spec.cr * ballMod / (3 * inst.maxHp);
-  if(GOD_POKES.includes(inst.sp)) return clamp(f / 700, 0.006, 0.25);     // ⚡ 신급: 마스터볼 추천
-  if(LEGENDARIES.includes(inst.sp)) return clamp(f / 350, 0.02, 0.45);    // 👑 전설: 훨씬 어렵게
-  return clamp(f / 200, 0.08, 1);
+  // 풀피 0.15배 ~ 빈사/기절 1.0배 — 배틀로 약화시켜야 잡힌다!
+  const hpF = 1 - (inst.hp / Math.max(1, inst.maxHp)) * 0.85;
+  const f = hpF * inst.spec.cr * ballMod;
+  if(GOD_POKES.includes(inst.sp)) return clamp(f / 1100, 0.004, 0.22);    // ⚡ 신급: 마스터볼 추천
+  if(LEGENDARIES.includes(inst.sp)) return clamp(f / 550, 0.015, 0.4);    // 👑 전설
+  return clamp(f / 300, 0.02, 0.95);
 }
 
 // ---------- 야생 포켓몬 ----------
@@ -3453,6 +3455,17 @@ const TradeNPC = {
       npc._netherKitSold = true;
       SFX.play('pop');
       UI.toast('🔥 네더 여행 세트 구매! 흑요석 10개 + 화염석 — 4×5 포탈을 세워보자!', 6000);
+    }
+    // 🌌 가끔(40%) 엔드 탐험 세트도 판다
+    if(npc._endKitOffer === undefined) npc._endKitOffer = Math.random() < 0.4;
+    if(npc._endKitOffer && !npc._endKitSold && player.countItem(I.EMERALD) >= 30 &&
+       confirm('🎒 상인: ...귀한 물건도 있네. 엔드 탐험 세트(엔더의 눈 3 + 블레이즈 막대 1)를 에메랄드 30에 주지. 살 텐가?')){
+      player.removeItem(I.EMERALD, 30);
+      player.addItem(I.ENDER_EYE, 3);
+      player.addItem(I.BLAZE_ROD, 1);
+      npc._endKitSold = true;
+      SFX.play('pop');
+      UI.toast('🌌 엔드 탐험 세트 구매! 엔더의 눈으로 엔드 요새를 찾자 (/locate stronghold)', 6000);
     }
     const tn = TYPES[o.wantType].n;
     UI.toast('🎒 상인: ' + (o.inst.shiny ? '✨' : '') + o.inst.name + ' Lv.' + o.inst.level + '을(를) 주겠다! ' + tn + ' 타입 포켓몬과 바꾸자! (파티에서 선택)', 6000);
