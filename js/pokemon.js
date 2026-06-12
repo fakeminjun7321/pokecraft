@@ -1323,8 +1323,6 @@ function preloadPokeMeshes(){
       const sc = g.scene;
       const box = new THREE.Box3().setFromObject(sc);
       const size = new THREE.Vector3(); box.getSize(size);
-      const ctr = new THREE.Vector3(); box.getCenter(ctr);
-      sc.position.sub(ctr); sc.position.y += size.y / 2; // 발이 바닥(y=0)에 오게
       _meshCache[sp] = { scene: sc, h: Math.max(size.y, 0.01) };
     }, undefined, () => { _meshCache[sp] = null; });
   });
@@ -1338,7 +1336,19 @@ function pokeMeshModel(sp, shiny){
   const targetH = clamp(s * 1.7, 0.7, 4.0);
   const k = targetH / c.h;
   inst.scale.setScalar(k);
-  if(shiny) inst.traverse(o => { if(o.isMesh && o.material){ o.material = o.material.clone(); o.material.color.multiply(new THREE.Color('#a8e8ff')); } });
+  // 🎨 게임 조명에 맞게 Lambert로 변환 (PBR은 어둡게 보임)
+  inst.traverse(o => {
+    if(o.isMesh && o.material){
+      const m = new THREE.MeshLambertMaterial({ map: o.material.map || null, color: o.material.color || new THREE.Color('#ffffff') });
+      if(shiny) m.color.multiply(new THREE.Color('#a8e8ff'));
+      o.material = m;
+    }
+  });
+  // 스케일 적용 후 실제 bbox로 발을 y=0에, 중심을 x/z=0에 정렬 (가라앉음/뜸 방지)
+  const ibox = new THREE.Box3().setFromObject(inst);
+  inst.position.x -= (ibox.min.x + ibox.max.x) / 2;
+  inst.position.z -= (ibox.min.z + ibox.max.z) / 2;
+  inst.position.y -= ibox.min.y;
   const root = new THREE.Group();
   root.add(inst);
   return { root, group: root, legs: [], arms: [], wings: [], segs: [], head: inst, body: inst,
