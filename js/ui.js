@@ -974,6 +974,22 @@ const UI = {
         b.onclick = () => { ExtraFollowers.toggle(p); this.openParty(); };
         btns.appendChild(b);
       }
+      // ⭐ 파트너 지정: 이 포켓몬을 타기(G)/기술(Z·X·C·V)/배틀 선봉으로
+      if(i > 0 && p.hp > 0){
+        const b = document.createElement('button');
+        b.textContent = '⭐ 파트너 지정';
+        b.onclick = () => {
+          if(typeof ExtraFollowers !== 'undefined') ExtraFollowers.recall(p);
+          PokeMan.party[i] = PokeMan.party[0];
+          PokeMan.party[0] = p;
+          if(game.riding) game.riding = false;
+          if(typeof updateSkillBar === 'function') updateSkillBar();
+          SFX.play('pop');
+          this.toast('⭐ ' + p.name + '이(가) 파트너가 되었다! G=타기 · Z/X/C/V=기술 발사');
+          this.openParty();
+        };
+        btns.appendChild(b);
+      }
       // 멀티: 포켓몬 교환 (제안 받은 상태면 '이걸로 교환')
       if(typeof Net !== 'undefined' && Net.mode !== 'off'){
         if(typeof TradeMan !== 'undefined' && TradeMan._incoming){
@@ -1214,6 +1230,15 @@ const UI = {
     for(let i = 0; i < 10; i++){
       const need = (i + 1) * 2;
       hearts[i].style.color = player.health >= need ? '#e23b3b' : player.health >= need - 1 ? '#e88a3b' : '#3a3a3a';
+    }
+    // 🛡 갑옷 표시 (하트 위) — 포인트와 피해 감소율
+    const ab = $id('armor-bar');
+    if(ab){
+      const pts = player.armorPts();
+      if(pts > 0){
+        ab.style.display = 'block';
+        ab.textContent = '🛡'.repeat(Math.min(10, pts)) + ' −' + Math.round(Math.min(0.8, pts * 0.08) * 100) + '%';
+      } else ab.style.display = 'none';
     }
     const bub = $id('bubbles');
     if(player.air < 9.9){

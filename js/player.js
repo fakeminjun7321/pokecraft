@@ -901,10 +901,10 @@ class Player {
     if(game.mode === 'creative') return;
     if(game.inBattle) return; // 포켓몬 배틀 중에는 무적
     if(!ignoreInvuln && this.invuln > 0) return;
-    // 갑옷: 포인트당 5% 감소 (최대 60%) + 무작위 부위 내구 소모
+    // 갑옷: 포인트당 8% 감소 (최대 80% — 가죽 32%/철 56%/다이아 80%) + 무작위 부위 내구 소모
     const pts = this.armorPts();
     if(pts > 0){
-      dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.6, pts * 0.05))));
+      dmg = Math.max(1, Math.round(dmg * (1 - Math.min(0.8, pts * 0.08))));
       const worn = this.armor.map((a, i) => a ? i : -1).filter(i => i >= 0);
       const idx = worn[Math.floor(Math.random() * worn.length)];
       const piece = this.armor[idx];

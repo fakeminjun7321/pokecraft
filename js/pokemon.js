@@ -1678,12 +1678,18 @@ class WildPoke {
   }
   update(dt, world, player){
     if(this.fainted){
-      // 기절: 누워서 카운트다운, 시간 지나면 사라짐
+      // 💫 기절: 누워서 카운트다운 — 죽는 게 아니라 시간이 지나면 깨어난다!
       this.faintT -= dt;
       this.group.rotation.x = Math.PI / 2;
       if(this.faintT <= 0){
-        Particles.spawn(this.body.x, this.body.y + 0.5, this.body.z, 0xaaaaaa, 12, 2, 0.6, 1.5);
-        PokeMan.removeWild(this, false);
+        this.fainted = false;
+        this.inst.hp = Math.max(1, Math.ceil(this.inst.maxHp * 0.3));
+        this.group.rotation.x = 0;
+        if(this.built && this.built.sprite) this.built.sprite.rotation.z = 0;
+        this.angry = 0;
+        this.fleeTimer = 5; // 깨어나면 일단 도망친다
+        Particles.spawn(this.body.x, this.body.y + 0.7, this.body.z, 0xffe97a, 14, 2, 0.7, 1.4);
+        this.updateHpTag();
       }
       return;
     }
@@ -1881,7 +1887,19 @@ const PokeMan = {
     this.regenTimer += dt;
     if(this.regenTimer > 8){
       this.regenTimer = 0;
-      this.party.forEach(p => { if(p.hp > 0) p.hp = Math.min(p.maxHp, p.hp + 1); });
+      this.party.forEach(p => {
+        if(p.hp > 0){ p.hp = Math.min(p.maxHp, p.hp + 1); p._faintRest = 0; }
+        else {
+          // 💫 기절은 죽음이 아니다 — 볼 안에서 쉬면 깨어난다 (48초 후 HP 25%)
+          p._faintRest = (p._faintRest || 0) + 8;
+          if(p._faintRest >= 48){
+            p._faintRest = 0;
+            p.hp = Math.max(1, Math.ceil(p.maxHp * 0.25));
+            UI.toast('💫 ' + p.name + '이(가) 기절에서 깨어났다! (HP 25% — 물약이나 휴식으로 더 회복하자)');
+            SFX.play('pop');
+          }
+        }
+      });
     }
   },
   removeWild(w, poof){
