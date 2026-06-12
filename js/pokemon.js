@@ -1264,9 +1264,23 @@ const GYM_TEAMS = {
 // ---------- 포켓몬 모델 ----------
 // 🎨 애니 스프라이트 모드: 월드 속 포켓몬을 AI 일러스트 입간판으로!
 let _spriteMode = JSON.parse(localStorage.getItem('pokecraft_opts') || '{}').aniSprites !== false; // 기본 ON
+// file:// 실행은 크롬이 WebGL 텍스처를 차단할 수 있음 — 한 번 검사해서 안 되면 복셀 폴백
+let _spriteOK = location.protocol !== 'file:' ? true : null;
+if(_spriteOK === null){
+  const ti = new Image();
+  ti.onload = () => {
+    try {
+      const c = document.createElement('canvas'); c.width = 2; c.height = 2;
+      const x = c.getContext('2d'); x.drawImage(ti, 0, 0); x.getImageData(0, 0, 1, 1);
+      _spriteOK = true;
+    } catch(e){ _spriteOK = false; console.warn('file:// 이미지 보안 제한 — 월드는 복셀 모드 (웹 버전에서는 일러스트 가능)'); }
+  };
+  ti.onerror = () => { _spriteOK = false; };
+  ti.src = 'img/poke/' + ((typeof ART_IDS !== 'undefined' && ART_IDS[0]) || 6) + '.png';
+}
 const _artTexCache = {};
 function pokeSpriteModel(sp, shiny){
-  if(!_spriteMode) return null;
+  if(!_spriteMode || _spriteOK !== true) return null;
   const url = artURL(sp);
   if(!url) return null;
   let tex = _artTexCache[sp];
