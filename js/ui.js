@@ -408,6 +408,7 @@ const UI = {
   },
   refresh(){
     this._slots.forEach(s => renderStackEl(s.el, s.opts.output ? s.ref.get() : s.ref.get()));
+    if(this.open === 'inv') this._renderStorage();
     // 멀티플레이: 화로/상자 내용 동기화 (UI를 막 열었을 때는 전송 안 함 — 스테일 에코 방지)
     if(!this._suppressSync && typeof Net !== 'undefined' && Net.mode !== 'off'){
       if(this.open === 'furnace' && this.furnaceKey) Net.containerChanged('furnace', this.furnaceKey);
@@ -462,6 +463,92 @@ const UI = {
   },
 
   // ---------- 인벤토리/제작 ----------
+  // 📦 분류형 보관함 (슬롯 9~35를 카테고리로 정리해 표시)
+  _mergeBackpack(){
+    for(let i = 9; i < 36; i++){
+      const s = player.inventory[i];
+      if(!s || s.ench || s.dur !== undefined) continue;
+      for(let j = i + 1; j < 36; j++){
+        const t = player.inventory[j];
+        if(!t || t.id !== s.id || t.ench || t.dur !== undefined) continue;
+        const max = maxStack(s.id);
+        const take = Math.min(t.n, max - s.n);
+        s.n += take; t.n -= take;
+        if(t.n <= 0) player.inventory[j] = null;
+      }
+    }
+  },
+  _renderStorage(){
+    const list = $id('storage-list');
+    if(!list) return;
+    this._mergeBackpack();
+    const cats = { '🧱 블록': [], '⚔ 장비': [], '🍖 음식': [], '🔧 재료': [] };
+    for(let i = 9; i < 36; i++){
+      const s = player.inventory[i];
+      if(!s) continue;
+      let cat = '🔧 재료';
+      if(isBlockId(s.id)) cat = '🧱 블록';
+      else if(toolInfo(s.id) || armorInfo(s.id) || s.id === I.BOW || s.id === I.ARROW) cat = '⚔ 장비';
+      else if(foodValue(s.id) > 0) cat = '🍖 음식';
+      cats[cat].push({ slot: i, s });
+    }
+    list.innerHTML = '';
+    // 커서 아이템 내려놓기 (빈 영역 클릭)
+    list.onmousedown = (e) => {
+      if(e.target !== list || !this.cursor) return;
+      const cur = this.cursor;
+      for(let i = 9; i < 36 && cur.n > 0; i++){
+        const t = player.inventory[i];
+        if(!t){ player.inventory[i] = { ...cur }; cur.n = 0; break; }
+        if(t.id === cur.id && !t.ench && !cur.ench && t.dur === undefined){
+          const take = Math.min(cur.n, maxStack(t.id) - t.n);
+          t.n += take; cur.n -= take;
+        }
+      }
+      if(cur.n <= 0) this.cursor = null;
+      SFX.play('click');
+      this.refresh();
+    };
+    let any = false;
+    for(const cat in cats){
+      if(!cats[cat].length) continue;
+      any = true;
+      const h4 = document.createElement('div');
+      h4.className = 'storage-cat';
+      h4.textContent = cat;
+      list.appendChild(h4);
+      const row = document.createElement('div');
+      row.className = 'storage-row';
+      cats[cat].forEach(({ slot, s }) => {
+        const chip = document.createElement('div');
+        chip.className = 'storage-chip';
+        const durHtml = (s.dur !== undefined && toolInfo(s.id)) ?
+          ' <span class="dur">' + Math.round(s.dur / toolInfo(s.id).dur * 100) + '%</span>' : '';
+        chip.innerHTML = '<img src="' + getIconURL(s.id) + '">' + itemName(s.id) +
+          (s.n > 1 ? ' <span class="cnt">×' + s.n + '</span>' : '') + durHtml + (s.ench ? ' ✨' : '');
+        chip.addEventListener('mousedown', (e) => {
+          e.preventDefault(); e.stopPropagation();
+          const cur = player.inventory[slot];
+          if(!cur) { this.refresh(); return; }
+          if(e.button === 2){
+            // 우클릭: 핫바로 이동
+            this._moveToRange(cur, 0, 8);
+            if(cur.n <= 0) player.inventory[slot] = null;
+          } else {
+            // 좌클릭: 커서로 들기 (제작칸/핫바에 놓을 수 있음)
+            if(!this.cursor){ this.cursor = cur; player.inventory[slot] = null; }
+          }
+          SFX.play('click');
+          this.refresh();
+        });
+        chip.addEventListener('contextmenu', e => e.preventDefault());
+        row.appendChild(chip);
+      });
+      list.appendChild(row);
+    }
+    if(!any) list.innerHTML = '<div class="storage-empty">보관함이 비어 있어요 — 아이템을 주우면 여기 정리돼요</div>';
+  },
+
   openInventory(table){
     this.closeOnly();
     this._slots = [];
@@ -529,6 +616,7 @@ const UI = {
         { filter: s => armorInfo(s.id) && armorInfo(s.id).slot === i, quick: s => player.addItem(s.id, s.n, s.dur) });
     }
     this._buildInvGrids('inv-grid', 'invbar-grid');
+    this._renderStorage();
     this.showOverlay('inv-overlay');
     this.open = 'inv';
     this.refresh();

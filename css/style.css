@@ -430,3 +430,17 @@ body.touch #hotbar .hslot { width: 44px; height: 44px; }
 #fb-bar { position:absolute; bottom:130px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:5; }
 .fb-skill { background:rgba(20,30,44,.85); border:2px solid #3a4f66; border-radius:8px; padding:6px 12px; color:#fff; font-size:13px; }
 .fb-skill b { color:#ffd866; margin-right:5px; }
+
+/* 📦 분류형 보관함 (마크식 그리드 대체) */
+#storage-wrap { margin: 8px 0; }
+#storage-list { max-height: 250px; overflow-y: auto; background: #16202c; border: 2px solid #3a4f66;
+  border-radius: 6px; padding: 8px; margin-top: 4px; }
+.storage-cat { color: #ffd866; font-size: 12px; margin: 6px 0 4px; font-weight: bold; }
+.storage-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.storage-chip { display: flex; align-items: center; gap: 6px; background: #243447; border: 1px solid #3a4f66;
+  border-radius: 6px; padding: 4px 8px; cursor: pointer; color: #fff; font-size: 13px; user-select: none; }
+.storage-chip:hover { background: #2e4258; }
+.storage-chip img { width: 26px; height: 26px; image-rendering: pixelated; }
+.storage-chip .cnt { color: #ffd866; font-weight: bold; }
+.storage-chip .dur { font-size: 11px; color: #9adcf5; }
+.storage-empty { color: #8a9ab0; font-size: 13px; padding: 6px; }

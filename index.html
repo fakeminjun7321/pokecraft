@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>포케크래프트 - PokeCraft</title>
-<link rel="stylesheet" href="css/style.css?v=67">
+<link rel="stylesheet" href="css/style.css?v=68">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -140,7 +140,11 @@
       <span class="label">아이템 (클릭해서 가져가기)</span>
       <div id="creative-grid"></div>
     </div>
-    <div id="inv-grid" class="slot-grid"></div>
+    <div id="storage-wrap">
+      <span class="label">📦 보관함 — 핫바 밖 아이템은 자동 분류 (클릭=들기 · 우클릭=핫바로)</span>
+      <div id="storage-list"></div>
+    </div>
+    <div id="inv-grid" class="slot-grid hidden"></div>
     <div id="invbar-grid" class="slot-grid"></div>
   </div>
 </div>
@@ -387,21 +391,21 @@
 <script src="lib/three.min.js"></script>
 <script src="lib/peerjs.min.js"></script>
 <script src="lib/GLTFLoader.js"></script>
-<script src="js/util.js?v=67"></script>
-<script src="js/account.js?v=67"></script>
-<script src="js/content.js?v=67"></script>
-<script src="js/artlist.js?v=67"></script>
-<script src="js/meshlist.js?v=67"></script>
-<script src="js/world.js?v=67"></script>
-<script src="js/entities.js?v=67"></script>
-<script src="js/mobs.js?v=67"></script>
-<script src="js/pokemon.js?v=67"></script>
-<script src="js/player.js?v=67"></script>
-<script src="js/ui.js?v=67"></script>
-<script src="js/extras.js?v=67"></script>
-<script src="js/guide.js?v=67"></script>
-<script src="js/quests.js?v=67"></script>
-<script src="js/net.js?v=67"></script>
-<script src="js/main.js?v=67"></script>
+<script src="js/util.js?v=68"></script>
+<script src="js/account.js?v=68"></script>
+<script src="js/content.js?v=68"></script>
+<script src="js/artlist.js?v=68"></script>
+<script src="js/meshlist.js?v=68"></script>
+<script src="js/world.js?v=68"></script>
+<script src="js/entities.js?v=68"></script>
+<script src="js/mobs.js?v=68"></script>
+<script src="js/pokemon.js?v=68"></script>
+<script src="js/player.js?v=68"></script>
+<script src="js/ui.js?v=68"></script>
+<script src="js/extras.js?v=68"></script>
+<script src="js/guide.js?v=68"></script>
+<script src="js/quests.js?v=68"></script>
+<script src="js/net.js?v=68"></script>
+<script src="js/main.js?v=68"></script>
 </body>
 </html>
