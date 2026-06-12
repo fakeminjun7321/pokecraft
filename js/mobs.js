@@ -20,15 +20,15 @@ function makeLeg(parent, w, len, color, x, y, z){
   makeBox(p, w, len, w, color, 0, -len / 2, 0);
   return p;
 }
-// 머리 앞면(+Z)에 눈 두 개
+// 머리 앞면(+Z)에 눈 두 개 — 흰자 + 눈동자 + 반짝 하이라이트 (생기있는 얼굴!)
 function addEyes(head, hw, hd, color, pupil){
-  const e = 0.06;
-  makeBox(head, e*1.4, e*1.4, 0.02, color || '#1a1a1a', -hw*0.25, 0.05, hd/2 + 0.011);
-  makeBox(head, e*1.4, e*1.4, 0.02, color || '#1a1a1a',  hw*0.25, 0.05, hd/2 + 0.011);
-  if(pupil){
-    makeBox(head, e*0.7, e*0.7, 0.02, pupil, -hw*0.25, 0.05, hd/2 + 0.02);
-    makeBox(head, e*0.7, e*0.7, 0.02, pupil,  hw*0.25, 0.05, hd/2 + 0.02);
-  }
+  const e = 0.06, z = hd / 2;
+  [-1, 1].forEach(s => {
+    makeBox(head, e*2.0, e*2.3, 0.02, '#ffffff', s*hw*0.24, 0.06, z + 0.011);
+    makeBox(head, e*1.15, e*1.5, 0.02, color || '#26262e', s*hw*0.24 + s*0.012, 0.05, z + 0.02);
+    makeBox(head, e*0.5, e*0.5, 0.02, '#ffffff', s*hw*0.24 - s*0.008, 0.085, z + 0.028);
+    if(pupil) makeBox(head, e*0.6, e*0.8, 0.02, pupil, s*hw*0.24 + s*0.012, 0.04, z + 0.025);
+  });
 }
 
 // 네발짐승: 몸통+머리+다리4 (모델은 +Z 방향을 봄)

@@ -209,13 +209,9 @@ function autoModel(form, s, c1, c2, types, id){
     const g = m.group;
     const r2 = mulberry32((id || 0) * 104729 + 7);
     const lite = shadeHex(c1, 42), dark = shadeHex(c1, -38);
-    // 👀 또렷한 눈 (흰자+눈동자) — 머리가 있으면 머리에, 없으면 몸 앞면에
+    // 👀 눈은 빌더(addEyes)가 그림 — face 좌표는 타입 장식용으로 유지
     const face = m.head || g;
     const fy = m.head ? 0.08 : 0.55, fz = m.head ? 0.26 : 0.38;
-    [-0.13, 0.13].forEach(ex => {
-      makeBox(face, 0.11, 0.13, 0.04, '#ffffff', ex, fy, fz);
-      makeBox(face, 0.06, 0.08, 0.05, '#1a1a22', ex + (r2() < 0.5 ? 0.015 : -0.015), fy, fz + 0.005);
-    });
     // 🎨 배/가슴 밝은 패치
     makeBox(g, form === 'q' ? 0.42 * bodyW : 0.3 * bodyW, form === 'q' ? 0.22 : 0.34, 0.06, lite, 0, form === 'q' ? 0.34 : 0.5, form === 'q' ? 0.36 : 0.26);
     // 🎨 종별 무늬: 점/줄/등판 중 하나
@@ -716,10 +712,24 @@ DETAIL[4] = { form:'biped', s:0.5, o:{ body:'#f5933c', headC:'#f5a050', legH:0.3
 DETAIL[5] = { form:'biped', s:0.75, o:{ body:'#e85f3a', headC:'#f0744e', legH:0.36, bh:0.6, bw:0.48 },
   deco:m=>{ makeBox(m.group, 0.36, 0.34, 0.3, '#f8d8a8', 0, 0.68, 0.14);
     makeBox(m.group, 0.15, 0.15, 0.55, '#e85f3a', 0, 0.6, -0.42); makeBox(m.group, 0.22, 0.34, 0.22, '#ffce3d', 0, 0.8, -0.66); } };
-DETAIL[6] = { form:'biped', s:1.1, o:{ body:'#e8773a', headC:'#f08848', legH:0.4, bh:0.7, bw:0.55 },
-  deco:m=>{ makeBox(m.group, 0.42, 0.4, 0.32, '#f8d8a8', 0, 0.75, 0.16);
-    makeBox(m.group, 0.16, 0.16, 0.6, '#e8773a', 0, 0.65, -0.45); makeBox(m.group, 0.24, 0.38, 0.24, '#ffce3d', 0, 0.88, -0.72);
-    makeBox(m.group, 0.08, 0.6, 0.45, '#3a8fa8', -0.42, 1.15, -0.2); makeBox(m.group, 0.08, 0.6, 0.45, '#3a8fa8', 0.42, 1.15, -0.2); } };
+DETAIL[6] = { form:'biped', s:1.1, o:{ body:'#e8773a', headC:'#f08848', legH:0.4, bh:0.7, bw:0.55, armW:0.13 },
+  deco:m=>{ // 크림 배 + 주둥이 + 뿔 2개
+    makeBox(m.group, 0.42, 0.45, 0.12, '#f8d8a8', 0, 0.75, 0.26);
+    makeBox(m.head, 0.3, 0.22, 0.18, '#f5b06a', 0, -0.12, 0.2);
+    makeBox(m.head, 0.06, 0.05, 0.06, '#5a3a2a', -0.07, -0.07, 0.3); makeBox(m.head, 0.06, 0.05, 0.06, '#5a3a2a', 0.07, -0.07, 0.3);
+    const h1=makeBox(m.head, 0.09, 0.22, 0.09, '#e8773a', -0.14, 0.3, -0.12); h1.rotation.x=-0.4;
+    const h2=makeBox(m.head, 0.09, 0.22, 0.09, '#e8773a', 0.14, 0.3, -0.12); h2.rotation.x=-0.4;
+    // 두툼한 꼬리 + 큰 불꽃
+    const t=makeBox(m.group, 0.18, 0.18, 0.65, '#e8773a', 0, 0.55, -0.5); t.rotation.x=0.35;
+    makeBox(m.group, 0.2, 0.3, 0.2, '#f08020', 0, 0.95, -0.82);
+    makeBox(m.group, 0.13, 0.24, 0.13, '#ffce3d', 0, 1.12, -0.84);
+    makeBox(m.group, 0.07, 0.14, 0.07, '#fff3a0', 0, 1.26, -0.85);
+    // 두 톤 대형 날개 (바깥 짙은 청록 + 안쪽 밝은 막)
+    [-1,1].forEach(d=>{
+      const w=makeBox(m.group, 0.07, 0.75, 0.55, '#2e7a96', d*0.45, 1.2, -0.25); w.rotation.z=d*0.55; w.rotation.y=d*0.25;
+      const w2=makeBox(m.group, 0.05, 0.55, 0.4, '#7ec8da', d*0.52, 1.18, -0.22); w2.rotation.z=d*0.55; w2.rotation.y=d*0.25;
+      const tip=makeBox(m.group, 0.06, 0.3, 0.14, '#2e7a96', d*0.72, 1.5, -0.3); tip.rotation.z=d*0.9;
+    }); } };
 DETAIL[7] = { form:'biped', s:0.5, o:{ body:'#7ec8e8', headC:'#8ed4f0', legH:0.28, bh:0.5, bw:0.45 },
   deco:m=>{ makeBox(m.group, 0.45, 0.45, 0.28, '#b98a4a', 0, 0.55, -0.22);
     makeBox(m.group, 0.34, 0.32, 0.06, '#f5e9c8', 0, 0.55, 0.25);
