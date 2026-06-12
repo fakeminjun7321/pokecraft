@@ -2053,26 +2053,35 @@ const PokeMan = {
 
 // ---------- ⚡ 파트너 필드 기술 (X키): "리자몽, 화염방사!" ----------
 let _pfmCd = 0;
-function partnerFieldMove(){
+function partnerFieldMove(moveKey){
   if(!PokeMan.enabled || game.inBattle) return;
   const par = PokeMan.party[0];
   if(!par){ UI.toast('포켓몬이 없어요!'); return; }
   if(!Follower.ent){ UI.toast('파트너를 먼저 내보내세요 (빈 곳에 몬스터볼 던지기)'); return; }
   if(par.hp <= 0){ UI.toast(par.name + '은(는) 지쳐 있어요...'); return; }
   const now = performance.now();
-  if(now - _pfmCd < 2500) return;
+  if(now - _pfmCd < 2500){ UI.toast(par.name + '이(가) 숨을 고르고 있다... (잠시 후 다시)'); return; }
   _pfmCd = now;
-  const mvKey = par.moves[par.moves.length - 1]; // 가장 강한 기술
+  const mvKey = (moveKey && par.moves.includes(moveKey)) ? moveKey : par.moves[par.moves.length - 1];
   const mv = MOVES[mvKey];
   const col = parseInt((TYPES[mv.t] || { c: '#ffffff' }).c.slice(1), 16);
+  const lite = col | 0x555533; // 밝은 보조색
   // 파트너 위치에서 플레이어 시선 방향으로 발사
   const fb = Follower.ent.body;
   const d = player.dir();
-  UI.toast('가랏 ' + par.name + '! ' + mv.n + '!', 2500);
+  UI.toast('가랏 ' + par.name + '! ' + mv.n + '!!', 2500);
   SFX.play('hurt');
-  for(let i = 1; i <= 8; i++){
-    const px = fb.x + d.x * i, py = fb.y + 0.7 + d.y * i, pz = fb.z + d.z * i;
-    setTimeout(() => Particles.spawn(px, py, pz, col, 8, 1.4 + i * 0.15, 0.5, 0.6), i * 45);
+  // 🔥 지속 분사: 1초간 6웨이브가 점점 넓게 뿜어져 나간다
+  for(let wave = 0; wave < 6; wave++){
+    setTimeout(() => {
+      for(let i = 1; i <= 9; i++){
+        const spread = i * 0.09;
+        const px = fb.x + d.x * i + (Math.random() - 0.5) * spread * 2;
+        const py = fb.y + 0.7 + d.y * i + (Math.random() - 0.3) * spread;
+        const pz = fb.z + d.z * i + (Math.random() - 0.5) * spread * 2;
+        Particles.spawn(px, py, pz, wave % 2 ? lite : col, 5, 1.0 + i * 0.18, 0.45, 0.5);
+      }
+    }, wave * 160);
   }
   // 콘 범위 피해: 야생 포켓몬 + 몹
   const dmg = Math.floor(mv.p * 0.45 + par.level * 0.7);
@@ -2125,7 +2134,7 @@ const Follower = {
     this._pendingSummon = { x, y, z };
     Particles.spawn(x, y + 0.7, z, 0xffe97a, 18, 2.2, 0.8, 1.6);
     SFX.play('pop');
-    UI.toast('가랏! ' + par.name + '!');
+    UI.toast('가랏! ' + par.name + '! (X키 또는 채팅 "불 뿜어!"로 기술 명령)');
     return true;
   },
   clear(){

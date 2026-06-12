@@ -1002,6 +1002,7 @@ function closeChat(send){
   const inp = document.getElementById('chat-input');
   const txt = inp.value.trim();
   if(send && txt.startsWith('/')) runCommand(txt);
+  else if(send && txt && tryPartnerCommand(txt)){ /* ⚡ "리자몽 불 뿜어!" 같은 기술 명령 */ }
   else if(send && txt && Net.mode !== 'off') Net.sendChat(txt);
   else if(send && txt) UI.toast('💬 (멀티가 아니에요 — /help 로 명령어 보기)');
   inp.value = '';
@@ -1058,6 +1059,24 @@ function _findSpecies(name){
   for(let i = 1; i < SPECIES.length; i++){ if(SPECIES[i] && SPECIES[i].name === name) return i; }
   return null;
 }
+// ⚡ 채팅으로 파트너에게 기술 명령: "리자몽 불 뿜어!", "화염방사 써!", "공격해!"
+function tryPartnerCommand(txt){
+  if(!PokeMan.enabled || !PokeMan.party.length) return false;
+  if(!/뿜어|쏴|써|발사|공격|가랏|먹여/.test(txt)) return false;
+  const par = PokeMan.party[0];
+  // 기술 이름이 들어있으면 그 기술로, 아니면 가장 강한 기술
+  let moveKey = null;
+  for(const k of par.moves){ if(txt.includes(MOVES[k].n)){ moveKey = k; break; } }
+  // "불", "물", "전기" 같은 속성 단어로도 매칭
+  if(!moveKey){
+    const elem = { '불':'fire', '물':'water', '전기':'electric', '번개':'electric', '풀':'grass', '얼음':'ice', '독':'poison', '바위':'rock' }[
+      (txt.match(/불|물|전기|번개|풀|얼음|독|바위/) || [])[0]];
+    if(elem){ for(const k of [...par.moves].reverse()){ if(MOVES[k].t === elem){ moveKey = k; break; } } }
+  }
+  partnerFieldMove(moveKey || undefined);
+  return true;
+}
+
 function runCommand(raw){
   const parts = raw.slice(1).trim().split(/\s+/);
   const cmd = (parts[0] || '').toLowerCase();
