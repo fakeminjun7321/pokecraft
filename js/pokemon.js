@@ -1565,8 +1565,8 @@ function estimateDamage(att, def, moveKey, mult){
 }
 function catchChance(inst, ballMod){
   if(ballMod >= 6) return 1; // 🟣 마스터볼: 무조건 잡힌다!
-  // 풀피 0.15배 ~ 빈사/기절 1.0배 — 배틀로 약화시켜야 잡힌다!
-  const hpF = 1 - (inst.hp / Math.max(1, inst.maxHp)) * 0.85;
+  // HP가 낮을수록 급격히 잘 잡힌다 (풀피 0.10 → 50% 0.48 → 빈사 0.85+ → 기절 1.0)
+  const hpF = 1 - Math.pow(inst.hp / Math.max(1, inst.maxHp), 0.8) * 0.9;
   const f = hpF * inst.spec.cr * ballMod;
   if(GOD_POKES.includes(inst.sp)) return clamp(f / 1100, 0.004, 0.22);    // ⚡ 신급: 마스터볼 추천
   if(LEGENDARIES.includes(inst.sp)) return clamp(f / 550, 0.015, 0.4);    // 👑 전설
@@ -1603,7 +1603,10 @@ class WildPoke {
   updateHpTag(){
     const i = this.inst;
     const bars = Math.round(i.hp / i.maxHp * 8);
-    this.setTag('⚔ ' + (i.shiny ? '✨' : '') + i.name + ' ' + '█'.repeat(Math.max(0, bars)) + '░'.repeat(8 - Math.max(0, bars)));
+    // 🎯 현재 장착 볼 기준 포획률 표시
+    const ballId = (typeof PokeMan !== 'undefined' && PokeMan.bestBall) ? PokeMan.bestBall() : 0;
+    const pct = ballId ? Math.round(catchChance(i, ballBonus(ballId)) * 100) : 0;
+    this.setTag('⚔ ' + (i.shiny ? '✨' : '') + i.name + ' ' + '█'.repeat(Math.max(0, bars)) + '░'.repeat(8 - Math.max(0, bars)) + (ballId ? ' 🎯' + pct + '%' : ''));
   }
   update(dt, world, player){
     if(this.fainted){
@@ -2133,6 +2136,10 @@ function partnerFieldMove(moveKey){
   Particles.spawn(fb.x + d.x * 0.6, fb.y + 0.8, fb.z + d.z * 0.6, col, 14, 1.6, 0.4, 0.8);
   // 🚀 발사체 → 폭발 지점 범위 피해
   fireProjectile({ x: fb.x + d.x * 0.7, y: fb.y + 0.8, z: fb.z + d.z * 0.7 }, d, col, mv.p, pos => {
+    // 🧨 강한 기술은 지형도 부순다! (위력 60+ = 반경1, 90+ = 반경2, 드롭 줍기 가능)
+    if(mv.p >= 60 && typeof explode === 'function'){
+      explode(world, pos.x, pos.y, pos.z, mv.p >= 90 ? 2 : 1, true);
+    }
     const R = 3.2 + mv.p / 90; // 위력 클수록 폭발 범위↑
     const dmg = Math.floor(mv.p * 0.5 + par.level * 0.7);
     for(const w of PokeMan.wilds.slice()){
@@ -2749,7 +2756,8 @@ const Battle = {
       const cnt = player.countItem(id);
       if(cnt <= 0) return;
       const b = document.createElement('button');
-      b.innerHTML = itemName(id) + ` <span class="sub-detail">${cnt}개 보유</span>`;
+      const ballPct = ballBonus(id) ? ' · 🎯' + Math.round(catchChance(this.wild, ballBonus(id)) * 100) + '%' : '';
+      b.innerHTML = itemName(id) + ` <span class="sub-detail">${cnt}개 보유${ballPct}</span>`;
       b.onclick = () => {
         if(itemDef(id).pokeHeal) this.turn({ type:'potion', id });
         else this.turn({ type:'ball', id });
