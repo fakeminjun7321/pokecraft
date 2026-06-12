@@ -1143,9 +1143,42 @@ function startRocketBattle(npc){
 // 물 밖으로 못 나오는 종 — 수면에서만 스폰
 const WATER_ONLY = new Set([129, 116, 117, 230, 90, 91, 120, 121, 222, 223, 224, 226, 320, 321, 349, 350, 366, 367, 368, 369, 370, 382]);
 const GOD_POKES = [483, 484, 487, 493];
+
 const LEGENDARIES = [144, 145, 146, 149, 150, 151,
   243, 244, 245, 249, 250, 251,                       // 2세대: 삼견수·루기아·칠색조·세레비
-  377, 378, 379, 380, 381, 382, 383, 384, 385, 386, 483, 484, 487, 493]; // 3세대: 레지 삼총사·라티·날씨 트리오·지라치·테오키스
+  377, 378, 379, 380, 381, 382, 383, 384, 385, 386, 483, 484, 487, 493];
+
+// 🌍 바이옴 다양화: 타입에 어울리는 바이옴에 추가 출현 (낮은 가중치 — 본 서식지가 우선)
+const TYPE_BIOMES = {
+  water:['water'], ice:['snow'], grass:['forest','plains'], bug:['forest'], rock:['mountain'],
+  ground:['desert'], fire:['desert'], electric:['plains'], flying:['plains','snow'], ghost:['forest','snow'],
+  psychic:['plains'], fighting:['mountain'], poison:['forest'], dark:['forest','snow'], steel:['mountain','snow'],
+  dragon:['mountain'], fairy:['plains','snow'], normal:['plains']
+};
+for(let id = 1; id < SPECIES.length; id++){
+  const sp = SPECIES[id];
+  if(!sp || LEGENDARIES.includes(id) || !sp.spawn.biomes.length) continue;
+  if(WATER_ONLY.has(id)) continue;
+  const w = (RARE_WEIGHT[sp.spawn.rare] || 1) * 0.3;
+  sp.types.forEach(t => (TYPE_BIOMES[t] || []).forEach(b => {
+    if(sp.spawn.biomes.includes(b)) return;
+    const tbl = SPAWN_TABLES[b];
+    if(tbl && !tbl.some(e => e[0] === id)) tbl.push([id, w]);
+  }));
+}
+// ⚖ 세대 균형: 바이옴별로 1·2·3세대 출현 비중을 40:30:30으로 보정
+for(const b in SPAWN_TABLES){
+  if(b === 'nether' || b === 'end') continue;
+  const tbl = SPAWN_TABLES[b];
+  const genOf = id => id <= 151 ? 1 : (id <= 251 ? 2 : 3);
+  const sums = { 1: 0, 2: 0, 3: 0 };
+  tbl.forEach(([id, w]) => { sums[genOf(id)] += w; });
+  const total = sums[1] + sums[2] + sums[3];
+  const target = { 1: 0.4, 2: 0.3, 3: 0.3 };
+  if(!total || !sums[1] || !sums[2] || !sums[3]) continue;
+  tbl.forEach(e => { const g = genOf(e[0]); e[1] = e[1] * (target[g] * total / sums[g]); });
+}
+ // 3세대: 레지 삼총사·라티·날씨 트리오·지라치·테오키스
 // 진화의 돌: 돌 아이템 → { 현재 도감번호: 진화 도감번호 }
 const STONE_EVOS = {
   [I.FIRE_STONE]:    { 37:38, 58:59, 133:136 },
@@ -1289,17 +1322,22 @@ function pokeSpriteModel(sp, shiny){
     if(THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
     _artTexCache[sp] = tex;
   }
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.15 });
-  if(shiny) mat.color.set('#a8e8ff'); // ✨ 샤이니 틴트
-  const spr = new THREE.Sprite(mat);
   const s = (SPECIES[sp].model && SPECIES[sp].model.s) || 1;
   const sc = clamp(s * 2.0, 0.9, 4.5);
-  spr.scale.set(sc, sc, 1);
+  // 세워진 판(Y축 빌보드) — 위에서 봐도 눕지 않고 똑바로 서 있다
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, alphaTest: 0.15, side: THREE.DoubleSide });
+  if(shiny) mat.color.set('#a8e8ff'); // ✨ 샤이니 틴트
+  const spr = new THREE.Mesh(new THREE.PlaneGeometry(sc, sc), mat);
   spr.position.y = sc * 0.5;
+  // 발밑 그림자 — 땅에 붙어있는 느낌
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(sc * 0.26, 14),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }));
+  shadow.rotation.x = -Math.PI / 2;
+  shadow.position.y = 0.02;
   const root = new THREE.Group();
-  root.add(spr);
+  root.add(spr); root.add(shadow);
   return { root, group: root, legs: [], arms: [], wings: [], segs: [], head: spr, body: spr,
-    sprite: spr, scaleVal: s, isSprite: true };
+    sprite: spr, spriteH: sc, scaleVal: s, isSprite: true, billboard: true };
 }
 function buildPokeModel(spId, shiny){
   const sm = pokeSpriteModel(spId, shiny);
@@ -1603,8 +1641,22 @@ class WildPoke {
     (this.built.wings || []).forEach((w, i) => { w.rotation.z = (i === 0 ? 1 : -1) * Math.sin(this.bob * 8) * 0.4; });
     const hoverY = this.built.hover ? Math.sin(this.bob * 2) * 0.15 + 0.1 : 0;
     this.group.position.set(b.x, b.y + hoverY, b.z);
-    this.group.rotation.y = this.dir;
-    this.tag.rotation.y = -this.dir;
+    if(this.built.billboard){
+      // 🎨 일러스트 모드: 항상 카메라를 보며 똑바로 서 있기 + 모션
+      const cy = Math.atan2(camera.position.x - b.x, camera.position.z - b.z);
+      this.group.rotation.y = cy;
+      this.tag.rotation.y = -cy;
+      const m = this.built.sprite;
+      if(!this.fainted){
+        const walk = this.moving ? Math.abs(Math.sin(this.walkPhase * 6)) * 0.09 : 0;
+        m.position.y = this.built.spriteH * 0.5 + walk;
+        m.scale.y = 1 + Math.sin(this.bob * 2.2) * 0.02;            // 숨쉬기
+        m.rotation.z = this.moving ? Math.sin(this.walkPhase * 6) * 0.05 : 0; // 걷기 갸웃
+      }
+    } else {
+      this.group.rotation.y = this.dir;
+      this.tag.rotation.y = -this.dir;
+    }
     this.tag.visible = dist3(b.x, b.y, b.z, player.body.x, player.body.y, player.body.z) < 24;
   }
 }
@@ -2007,7 +2059,7 @@ function partnerFieldMove(){
       w.inst.hp = 0;
       w.fainted = true; w.faintT = 20; w.catching = false;
       w.group.rotation.x = Math.PI / 2;
-      if(w.built && w.built.sprite) w.built.sprite.material.rotation = Math.PI / 2;
+      if(w.built && w.built.sprite) w.built.sprite.rotation.z = Math.PI / 2;
       w.setTag('😵 ' + w.inst.name + ' — 볼을 던져 잡자!');
       UI.toast(w.inst.name + '을(를) 쓰러뜨렸다! 20초 안에 볼을 던지면 잡을 수 있다!');
       const evs = par.gainExp(Math.floor(w.inst.spec.bx * w.inst.level / 6) + 1);
@@ -2188,7 +2240,17 @@ const Follower = {
     (e.built.wings || []).forEach((w, i) => { w.rotation.z = (i === 0 ? 1 : -1) * Math.sin(e.bob * 8) * 0.4; });
     const hoverY = e.built.hover ? Math.sin(e.bob * 2) * 0.15 + 0.1 : 0;
     e.group.position.set(b.x, b.y + hoverY, b.z);
-    e.group.rotation.y = e.dir;
+    if(e.built.billboard){
+      e.group.rotation.y = Math.atan2(camera.position.x - b.x, camera.position.z - b.z);
+      const m = e.built.sprite;
+      const mv = Math.hypot(b.x - (e._lx || b.x), b.z - (e._lz || b.z)) > 0.01;
+      e._lx = b.x; e._lz = b.z;
+      m.position.y = e.built.spriteH * 0.5 + (mv ? Math.abs(Math.sin(e.bob * 7)) * 0.09 : 0);
+      m.scale.y = 1 + Math.sin(e.bob * 2.2) * 0.02;
+      m.rotation.z = mv ? Math.sin(e.bob * 7) * 0.05 : 0;
+    } else {
+      e.group.rotation.y = e.dir;
+    }
     // 🚶 동행 경험치: 함께 걸은 거리만큼 조금씩 경험치 (배틀 없이도 성장!)
     if(!game.inBattle && par.level < 100){
       const moved = Math.hypot(player.body.x - (this._lastPX || player.body.x), player.body.z - (this._lastPZ || player.body.z));
@@ -3028,7 +3090,7 @@ const Battle = {
         const w2 = this.wildEnt;
         w2.fainted = true; w2.faintT = 20; w2.catching = false;
         w2.group.rotation.x = Math.PI / 2;
-        if(w2.built && w2.built.sprite) w2.built.sprite.material.rotation = Math.PI / 2;
+        if(w2.built && w2.built.sprite) w2.built.sprite.rotation.z = Math.PI / 2;
         if(w2.tag){ w2.group.remove(w2.tag); disposeObject(w2.tag); }
         w2.tag = makeNameTag('😵 ' + w2.inst.name + ' — 볼을 던져 잡자!');
         // 그룹이 x축 90° 누워있으므로 로컬 -z가 월드 +y가 된다
@@ -3153,7 +3215,7 @@ const Battle = {
       this.$('b-enemy-hpfill').style.background = enemy.hp / enemy.max > 0.5 ? '#44c944' : enemy.hp / enemy.max > 0.2 ? '#e8b820' : '#e23b3b';
       this.$('b-enemy-hptext').textContent = enemy.hp + ' / ' + enemy.max;
       if(this.mE){ this.mE.root.rotation.x = enemy.hp <= 0 ? Math.PI / 2 : 0;
-        if(this.mE.sprite) this.mE.sprite.material.rotation = enemy.hp <= 0 ? Math.PI / 2 : 0; }
+        if(this.mE.sprite) this.mE.sprite.rotation.z = enemy.hp <= 0 ? Math.PI / 2 : 0; }
     }
     if(ally){
       this.$('b-ally-name').textContent = ally.n;
@@ -3241,7 +3303,7 @@ const FieldBattle = {
     wild.battling = false;
     wild.fainted = true; wild.faintT = 20; wild.catching = false;
     wild.group.rotation.x = Math.PI / 2;
-    if(wild.built && wild.built.sprite) wild.built.sprite.material.rotation = Math.PI / 2;
+    if(wild.built && wild.built.sprite) wild.built.sprite.rotation.z = Math.PI / 2;
     wild.setTag('😵 ' + wild.inst.name + ' — 볼을 던져 잡자!');
     if(wild.tag) wild.tag.position.set(0, 0, -(wild.body.h + 0.5));
     const par = PokeMan.party[0];
