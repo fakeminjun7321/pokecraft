@@ -109,6 +109,17 @@ const UI = {
         saveOpt('renderDist', v);
       };
     }
+    // 🎨 애니 그래픽(2D 일러스트) 모드
+    const an = $id('ani-toggle');
+    if(an){
+      const opts = JSON.parse(localStorage.getItem('pokecraft_opts') || '{}');
+      an.checked = opts.aniSprites !== false;
+      an.onchange = () => {
+        saveOpt('aniSprites', an.checked);
+        _spriteMode = an.checked;
+        this.toast(an.checked ? '🎨 애니 그래픽 ON — 새로 나타나는 포켓몬부터 일러스트로!' : '복셀 그래픽으로 전환 (새 스폰부터)');
+      };
+    }
     // 저사양 모드
     const pf = $id('perf-toggle');
     if(pf){

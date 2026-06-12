@@ -1262,7 +1262,34 @@ const GYM_TEAMS = {
 };
 
 // ---------- 포켓몬 모델 ----------
+// 🎨 애니 스프라이트 모드: 월드 속 포켓몬을 AI 일러스트 입간판으로!
+let _spriteMode = JSON.parse(localStorage.getItem('pokecraft_opts') || '{}').aniSprites !== false; // 기본 ON
+const _artTexCache = {};
+function pokeSpriteModel(sp, shiny){
+  if(!_spriteMode) return null;
+  const url = artURL(sp);
+  if(!url) return null;
+  let tex = _artTexCache[sp];
+  if(!tex){
+    tex = new THREE.TextureLoader().load(url);
+    if(THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
+    _artTexCache[sp] = tex;
+  }
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, alphaTest: 0.15 });
+  if(shiny) mat.color.set('#a8e8ff'); // ✨ 샤이니 틴트
+  const spr = new THREE.Sprite(mat);
+  const s = (SPECIES[sp].model && SPECIES[sp].model.s) || 1;
+  const sc = clamp(s * 2.0, 0.9, 4.5);
+  spr.scale.set(sc, sc, 1);
+  spr.position.y = sc * 0.5;
+  const root = new THREE.Group();
+  root.add(spr);
+  return { root, group: root, legs: [], arms: [], wings: [], segs: [], head: spr, body: spr,
+    sprite: spr, scaleVal: s, isSprite: true };
+}
 function buildPokeModel(spId, shiny){
+  const sm = pokeSpriteModel(spId, shiny);
+  if(sm) return sm;
   const sp = SPECIES[spId], M = sp.model;
   let m;
   switch(M.form){
@@ -1966,6 +1993,7 @@ function partnerFieldMove(){
       w.inst.hp = 0;
       w.fainted = true; w.faintT = 20; w.catching = false;
       w.group.rotation.x = Math.PI / 2;
+      if(w.built && w.built.sprite) w.built.sprite.material.rotation = Math.PI / 2;
       w.setTag('😵 ' + w.inst.name + ' — 볼을 던져 잡자!');
       UI.toast(w.inst.name + '을(를) 쓰러뜨렸다! 20초 안에 볼을 던지면 잡을 수 있다!');
       const evs = par.gainExp(Math.floor(w.inst.spec.bx * w.inst.level / 6) + 1);
@@ -2293,7 +2321,7 @@ const Battle = {
     const face = side === 'E' ? this._faceE : this._faceA;
     root.rotation.y = face || 0;
     root.rotation.x = 0;
-    const mm = { root, _temp: temp, _face: face || 0 };
+    const mm = { root, _temp: temp, _face: face || 0, sprite: (side === 'E' && this.wildEnt && this.wildEnt.built) ? this.wildEnt.built.sprite : null };
     if(side === 'E') this.mE = mm; else this.mA = mm;
   },
   // 기준 높이 근처에서 진짜 지면 찾기 (colTop은 나무 꼭대기를 줄 수 있음)
@@ -2986,6 +3014,7 @@ const Battle = {
         const w2 = this.wildEnt;
         w2.fainted = true; w2.faintT = 20; w2.catching = false;
         w2.group.rotation.x = Math.PI / 2;
+        if(w2.built && w2.built.sprite) w2.built.sprite.material.rotation = Math.PI / 2;
         if(w2.tag){ w2.group.remove(w2.tag); disposeObject(w2.tag); }
         w2.tag = makeNameTag('😵 ' + w2.inst.name + ' — 볼을 던져 잡자!');
         // 그룹이 x축 90° 누워있으므로 로컬 -z가 월드 +y가 된다
@@ -3109,7 +3138,8 @@ const Battle = {
       this.$('b-enemy-hpfill').style.width = (enemy.hp / enemy.max * 100) + '%';
       this.$('b-enemy-hpfill').style.background = enemy.hp / enemy.max > 0.5 ? '#44c944' : enemy.hp / enemy.max > 0.2 ? '#e8b820' : '#e23b3b';
       this.$('b-enemy-hptext').textContent = enemy.hp + ' / ' + enemy.max;
-      if(this.mE) this.mE.root.rotation.x = enemy.hp <= 0 ? Math.PI / 2 : 0;
+      if(this.mE){ this.mE.root.rotation.x = enemy.hp <= 0 ? Math.PI / 2 : 0;
+        if(this.mE.sprite) this.mE.sprite.material.rotation = enemy.hp <= 0 ? Math.PI / 2 : 0; }
     }
     if(ally){
       this.$('b-ally-name').textContent = ally.n;
@@ -3197,6 +3227,7 @@ const FieldBattle = {
     wild.battling = false;
     wild.fainted = true; wild.faintT = 20; wild.catching = false;
     wild.group.rotation.x = Math.PI / 2;
+    if(wild.built && wild.built.sprite) wild.built.sprite.material.rotation = Math.PI / 2;
     wild.setTag('😵 ' + wild.inst.name + ' — 볼을 던져 잡자!');
     if(wild.tag) wild.tag.position.set(0, 0, -(wild.body.h + 0.5));
     const par = PokeMan.party[0];
