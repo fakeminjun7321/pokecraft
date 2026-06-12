@@ -1312,6 +1312,13 @@ if(_spriteOK === null){
   ti.src = 'img/poke/' + ((typeof ART_IDS !== 'undefined' && ART_IDS[0]) || 6) + '.png';
 }
 // 🗿 3D 메시 모델 (Meshy 등 image-to-3D로 만든 GLB) — models/poke/<id>.glb
+// 🔄 최단 경로로 부드럽게 회전 (스냅 턴 → 뱅글뱅글 방지)
+function turnToward(cur, target, dt){
+  let d = (target - cur) % (Math.PI * 2);
+  if(d > Math.PI) d -= Math.PI * 2;
+  else if(d < -Math.PI) d += Math.PI * 2;
+  return cur + d * Math.min(1, dt * 9);
+}
 const _meshCache = {};   // sp → { scene, h } (로드 완료 시)
 let _meshLoader = null;
 function preloadPokeMeshes(){
@@ -1344,6 +1351,8 @@ function pokeMeshModel(sp, shiny){
       o.material = m;
     }
   });
+  // 🧭 Tripo 모델은 옆(+X)을 보고 생성됨 — 게임 정면(+Z)으로 90° 보정
+  inst.rotation.y = Math.PI / 2;
   // 스케일 적용 후 실제 bbox로 발을 y=0에, 중심을 x/z=0에 정렬 (가라앉음/뜸 방지)
   const ibox = new THREE.Box3().setFromObject(inst);
   inst.position.x -= (ibox.min.x + ibox.max.x) / 2;
@@ -1656,7 +1665,7 @@ class WildPoke {
       const sw3 = Math.sin(this.walkPhase) * Math.min(1, spd2) * 0.7;
       (this.built.legs || []).forEach((l, i) => { l.rotation.x = (i % 2 === 0 ? sw3 : -sw3); });
       this.group.position.set(b.x, b.y, b.z);
-      this.group.rotation.y = this.dir;
+      this.group.rotation.y = turnToward(this.group.rotation.y, this.dir, dt);
       return;
     }
     if(this.inst.shiny && Math.random() < dt * 2.5)
@@ -1707,8 +1716,8 @@ class WildPoke {
         m.rotation.z = this.moving ? Math.sin(this.walkPhase * 6) * 0.05 : 0; // 걷기 갸웃
       }
     } else {
-      this.group.rotation.y = this.dir;
-      this.tag.rotation.y = -this.dir;
+      this.group.rotation.y = turnToward(this.group.rotation.y, this.dir, dt);
+      this.tag.rotation.y = -this.group.rotation.y;
     }
     this.tag.visible = dist3(b.x, b.y, b.z, player.body.x, player.body.y, player.body.z) < 24;
   }
@@ -2359,7 +2368,7 @@ const Follower = {
       m.scale.y = 1 + Math.sin(e.bob * 2.2) * 0.02;
       m.rotation.z = mv ? Math.sin(e.bob * 7) * 0.05 : 0;
     } else {
-      e.group.rotation.y = e.dir;
+      e.group.rotation.y = turnToward(e.group.rotation.y, e.dir, dt);
     }
     // 🚶 동행 경험치: 함께 걸은 거리만큼 조금씩 경험치 (배틀 없이도 성장!)
     if(!game.inBattle && par.level < 100){
