@@ -3343,6 +3343,16 @@ const TradeNPC = {
     if(!npc.tradeOffer) this.makeOffer(npc);
     const o = npc.tradeOffer;
     if(!o) return;
+    // 🔥 네더 여행 세트도 판다 (상인당 1번)
+    if(!npc._netherKitSold && player.countItem(I.EMERALD) >= 20 &&
+       confirm('🎒 상인: 먼 길 가는가? 네더 여행 세트(흑요석 10 + 화염석 1)를 에메랄드 20에 주겠네. 살 텐가?')){
+      player.removeItem(I.EMERALD, 20);
+      player.addItem(B.OBSIDIAN, 10);
+      player.addItem(I.FLINT_STEEL, 1);
+      npc._netherKitSold = true;
+      SFX.play('pop');
+      UI.toast('🔥 네더 여행 세트 구매! 흑요석 10개 + 화염석 — 4×5 포탈을 세워보자!', 6000);
+    }
     const tn = TYPES[o.wantType].n;
     UI.toast('🎒 상인: ' + (o.inst.shiny ? '✨' : '') + o.inst.name + ' Lv.' + o.inst.level + '을(를) 주겠다! ' + tn + ' 타입 포켓몬과 바꾸자! (파티에서 선택)', 6000);
     this._activeNpc = npc;

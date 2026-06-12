@@ -677,13 +677,17 @@ const UI = {
       { give: [[I.EMERALD, 14]],  get: [I.MOON_STONE, 1], rare: true },
       { give: [[I.EMERALD, 9]],   get: [I.GOLDEN_APPLE, 1], rare: true },
       { give: [[I.EMERALD, 16]],  get: [I.ENDERPEARL, 2], rare: true },
+      // 🔥 네더 여행 물품
+      { give: [[I.EMERALD, 10]],  get: [B.OBSIDIAN, 5], rare: true },
+      { give: [[I.EMERALD, 6]],   get: [I.FLINT_STEEL, 1], rare: true },
+      { give: [[I.EMERALD, 5]],   get: [B.GLOWSTONE, 4], rare: true },
     ];
     // 기본 거래 + 마을 시드 기반 고급 3종
     const baseTrades = ALL_TRADES.filter(t => !t.rare);
     const rares = ALL_TRADES.filter(t => t.rare);
     const vseed = Math.floor(player.body.x / 64) * 31 + Math.floor(player.body.z / 64) * 17 + game.seed;
     const pick = [];
-    for(let i = 0; i < 3; i++) pick.push(rares[Math.abs((vseed * (i + 7) * 2654435761) >> 8) % rares.length]);
+    for(let i = 0; i < 4; i++) pick.push(rares[Math.abs((vseed * (i + 7) * 2654435761) >> 8) % rares.length]);
     const TRADES = baseTrades.concat([...new Set(pick)]);
     const list = $id('trade-list');
     list.innerHTML = '';
