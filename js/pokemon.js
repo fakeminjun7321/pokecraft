@@ -1450,7 +1450,7 @@ class PokeInst {
   calc(){
     const bs = this.spec.bs, lv = this.level;
     // 고레벨 한방 방지: HP가 레벨에 따라 공격보다 빠르게 성장
-    this.maxHp = Math.floor(bs[0] * 2.4 * lv / 100) + Math.floor(lv * 1.3) + 10;
+    this.maxHp = Math.floor(bs[0] * 2.7 * lv / 100) + Math.floor(lv * 1.5) + 10;
     this.atk = Math.floor(bs[1] * 2 * lv / 100) + 5;
     this.def = Math.floor(bs[2] * 2 * lv / 100) + 5;
     this.spd = Math.floor(bs[3] * 2 * lv / 100) + 5;
@@ -1547,8 +1547,9 @@ function calcDamage(att, def, moveKey, mult){
   if(eff === 0) return { dmg:0, eff:0, crit:false };
   const stab = att.spec.types.includes(mv.t) ? 1.5 : 1;
   const crit = Math.random() < 1 / 16;
-  let dmg = ((2 * att.level / 5 + 2) * mv.p * att.atk / Math.max(1, def.def)) / 55 + 2;
-  dmg *= stab * eff * (crit ? 1.5 : 1) * (0.85 + Math.random() * 0.15) * (mult || 1);
+  const ratio = clamp(att.atk / Math.max(1, def.def), 0.5, 2.0); // ⚖ 공/방 격차 폭주 방지
+  let dmg = ((2 * att.level / 5 + 2) * mv.p * ratio) / 52 + 2;
+  dmg *= stab * eff * (crit ? 1.3 : 1) * (0.85 + Math.random() * 0.15) * (mult || 1);
   return { dmg: Math.max(1, Math.floor(dmg)), eff, crit };
 }
 function estimateDamage(att, def, moveKey, mult){
@@ -1556,7 +1557,8 @@ function estimateDamage(att, def, moveKey, mult){
   const eff = typeMult(mv.t, def.spec.types);
   if(eff === 0 || mv.p === 0) return { min:0, max:0, eff };
   const stab = att.spec.types.includes(mv.t) ? 1.5 : 1;
-  let dmg = ((2 * att.level / 5 + 2) * mv.p * att.atk / Math.max(1, def.def)) / 55 + 2;
+  const ratio = clamp(att.atk / Math.max(1, def.def), 0.5, 2.0);
+  let dmg = ((2 * att.level / 5 + 2) * mv.p * ratio) / 52 + 2;
   dmg *= stab * eff * (mult || 1);
   const max = Math.max(1, Math.floor(dmg));
   return { min:Math.max(1, Math.floor(dmg * 0.85)), max, eff };
@@ -2061,8 +2063,55 @@ const PokeMan = {
   }
 };
 
-// ---------- ⚡ 파트너 필드 기술 (X키): "리자몽, 화염방사!" ----------
+// ---------- ⚡ 파트너 필드 기술: Z/X/C/V로 기술 선택 발사! ----------
 let _pfmCd = 0;
+// 🚀 발사체: 빛나는 구체가 날아가 폭발 (위력 클수록 큼)
+function fireProjectile(from, dir, color, power, onHit){
+  const size = clamp(0.16 + power / 280, 0.16, 0.6);
+  const m = new THREE.Mesh(new THREE.SphereGeometry(size, 10, 10),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 }));
+  m.position.set(from.x, from.y, from.z);
+  scene.add(m);
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(size * 1.7, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.25 }));
+  m.add(halo);
+  const speed = 17;
+  let t = 0;
+  const iv = setInterval(() => {
+    const dt = 0.03;
+    t += dt;
+    m.position.x += dir.x * speed * dt;
+    m.position.y += dir.y * speed * dt;
+    m.position.z += dir.z * speed * dt;
+    m.scale.setScalar(1 + t * 1.2);
+    Particles.spawn(m.position.x, m.position.y, m.position.z, color, 4, 1.0, 0.35, 0.3);
+    const bx = Math.floor(m.position.x), by = Math.floor(m.position.y), bz = Math.floor(m.position.z);
+    const hitSolid = world.isSolid(bx, by, bz);
+    // 🎯 야생/몹 근접 시 즉시 폭발
+    let hitEnt = false;
+    for(const w of PokeMan.wilds){
+      if(w.catching || w.fainted) continue;
+      if(dist3(w.body.x, w.body.y + 0.6, w.body.z, m.position.x, m.position.y, m.position.z) < 1.4){ hitEnt = true; break; }
+    }
+    if(!hitEnt){
+      for(const mb of MobManager.list){
+        if(mb.tamed || (mb.def && mb.def.npc)) continue;
+        if(dist3(mb.body.x, mb.body.y + 0.6, mb.body.z, m.position.x, m.position.y, m.position.z) < 1.4){ hitEnt = true; break; }
+      }
+    }
+    if(t >= 0.55 || hitSolid || hitEnt){
+      clearInterval(iv);
+      // 💥 폭발!
+      Particles.spawn(m.position.x, m.position.y, m.position.z, color, 45, 5, 1.1, 2.5);
+      Particles.spawn(m.position.x, m.position.y, m.position.z, 0xffffff, 16, 3.2, 0.7, 1.8);
+      Particles.spawn(m.position.x, m.position.y, m.position.z, 0xffe97a, 12, 2.2, 0.5, 1.2);
+      SFX.play('hurt');
+      const pos = { x: m.position.x, y: m.position.y, z: m.position.z };
+      scene.remove(m); m.geometry.dispose(); m.material.dispose();
+      if(onHit) onHit(pos);
+    }
+  }, 30);
+}
 function partnerFieldMove(moveKey){
   if(!PokeMan.enabled || game.inBattle) return;
   const par = PokeMan.party[0];
@@ -2070,64 +2119,58 @@ function partnerFieldMove(moveKey){
   if(!Follower.ent){ UI.toast('파트너를 먼저 내보내세요 (빈 곳에 몬스터볼 던지기)'); return; }
   if(par.hp <= 0){ UI.toast(par.name + '은(는) 지쳐 있어요...'); return; }
   const now = performance.now();
-  if(now - _pfmCd < 2500){ UI.toast(par.name + '이(가) 숨을 고르고 있다... (잠시 후 다시)'); return; }
+  if(now - _pfmCd < 2000){ UI.toast(par.name + '이(가) 숨을 고르고 있다...'); return; }
   _pfmCd = now;
   const mvKey = (moveKey && par.moves.includes(moveKey)) ? moveKey : par.moves[par.moves.length - 1];
   const mv = MOVES[mvKey];
   const col = parseInt((TYPES[mv.t] || { c: '#ffffff' }).c.slice(1), 16);
-  const lite = col | 0x555533; // 밝은 보조색
-  // 파트너 위치에서 플레이어 시선 방향으로 발사
   const fb = Follower.ent.body;
   const d = player.dir();
-  UI.toast('가랏 ' + par.name + '! ' + mv.n + '!!', 2500);
-  SFX.play('hurt');
-  // 🔥 지속 분사: 1초간 6웨이브가 점점 넓게 뿜어져 나간다
-  for(let wave = 0; wave < 6; wave++){
-    setTimeout(() => {
-      for(let i = 1; i <= 9; i++){
-        const spread = i * 0.09;
-        const px = fb.x + d.x * i + (Math.random() - 0.5) * spread * 2;
-        const py = fb.y + 0.7 + d.y * i + (Math.random() - 0.3) * spread;
-        const pz = fb.z + d.z * i + (Math.random() - 0.5) * spread * 2;
-        Particles.spawn(px, py, pz, wave % 2 ? lite : col, 5, 1.0 + i * 0.18, 0.45, 0.5);
+  UI.toast('가랏 ' + par.name + '! ' + mv.n + '!!', 2200);
+  // 입에서 발사 준비 플래시
+  Particles.spawn(fb.x + d.x * 0.6, fb.y + 0.8, fb.z + d.z * 0.6, col, 14, 1.6, 0.4, 0.8);
+  // 🚀 발사체 → 폭발 지점 범위 피해
+  fireProjectile({ x: fb.x + d.x * 0.7, y: fb.y + 0.8, z: fb.z + d.z * 0.7 }, d, col, mv.p, pos => {
+    const R = 3.2 + mv.p / 90; // 위력 클수록 폭발 범위↑
+    const dmg = Math.floor(mv.p * 0.5 + par.level * 0.7);
+    for(const w of PokeMan.wilds.slice()){
+      if(w.catching || w.fainted) continue;
+      if(dist3(w.body.x, w.body.y + 0.5, w.body.z, pos.x, pos.y, pos.z) > R) continue;
+      const eff = typeMult(mv.t, w.inst.spec.types);
+      const final = Math.max(1, Math.floor(dmg * eff * (par.spec.types.includes(mv.t) ? 1.2 : 1)));
+      w.inst.hp -= final;
+      Particles.spawn(w.body.x, w.body.y + 0.7, w.body.z, 0xff5544, 14, 2, 0.6, 1.2);
+      if(w.updateHpTag) w.updateHpTag();
+      if(w.inst.hp <= 0){
+        w.inst.hp = 0;
+        w.fainted = true; w.faintT = 20; w.catching = false;
+        w.group.rotation.x = Math.PI / 2;
+        if(w.built && w.built.sprite) w.built.sprite.rotation.z = Math.PI / 2;
+        w.setTag('😵 ' + w.inst.name + ' — 볼을 던져 잡자!');
+        UI.toast(w.inst.name + '을(를) 쓰러뜨렸다! 20초 안에 볼을 던지면 잡을 수 있다!');
+        const evs = par.gainExp(Math.floor(w.inst.spec.bx * w.inst.level / 6) + 1);
+        for(const ev of evs){ if(ev.type === 'level'){ UI.toast(par.name + ' 레벨 ' + ev.lv + '!'); SFX.play('level'); } }
+        if(typeof QuestMan !== 'undefined') QuestMan.onDefeatWild(w.inst);
+        if(w.boss){ player.addItem(I.RARECANDY, 2); player.addItem(I.ULTRABALL, 2); UI.toast('👑 보스 보상! 이상한사탕 2 + 하이퍼볼 2'); }
       }
-    }, wave * 160);
-  }
-  // 콘 범위 피해: 야생 포켓몬 + 몹
-  const dmg = Math.floor(mv.p * 0.45 + par.level * 0.7);
-  const inCone = (x, y, z) => {
-    const dx = x - fb.x, dy = y - fb.y, dz = z - fb.z;
-    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
-    if(dist > 8.5 || dist < 0.3) return false;
-    const dot = (dx*d.x + dy*d.y + dz*d.z) / dist;
-    return dot > 0.78;
-  };
-  for(const w of PokeMan.wilds.slice()){
-    if(w.catching || w.fainted) continue;
-    if(!inCone(w.body.x, w.body.y + 0.5, w.body.z)) continue;
-    const eff = typeMult(mv.t, w.inst.spec.types);
-    const final = Math.max(1, Math.floor(dmg * eff * (par.spec.types.includes(mv.t) ? 1.2 : 1)));
-    w.inst.hp -= final;
-    Particles.spawn(w.body.x, w.body.y + 0.7, w.body.z, 0xff5544, 14, 2, 0.6, 1.2);
-    if(w.updateHpTag) w.updateHpTag();
-    if(w.inst.hp <= 0){
-      w.inst.hp = 0;
-      w.fainted = true; w.faintT = 20; w.catching = false;
-      w.group.rotation.x = Math.PI / 2;
-      if(w.built && w.built.sprite) w.built.sprite.rotation.z = Math.PI / 2;
-      w.setTag('😵 ' + w.inst.name + ' — 볼을 던져 잡자!');
-      UI.toast(w.inst.name + '을(를) 쓰러뜨렸다! 20초 안에 볼을 던지면 잡을 수 있다!');
-      const evs = par.gainExp(Math.floor(w.inst.spec.bx * w.inst.level / 6) + 1);
-      for(const ev of evs){ if(ev.type === 'level'){ UI.toast(par.name + ' 레벨 ' + ev.lv + '!'); SFX.play('level'); } }
-      if(typeof QuestMan !== 'undefined') QuestMan.onDefeatWild(w.inst);
-      if(w.boss){ player.addItem(I.RARECANDY, 2); player.addItem(I.ULTRABALL, 2); UI.toast('👑 보스 보상! 이상한사탕 2 + 하이퍼볼 2'); }
     }
-  }
-  for(const m of MobManager.list.slice()){
-    if(m.tamed || (m.def && m.def.npc)) continue;
-    if(!inCone(m.body.x, m.body.y + 0.5, m.body.z)) continue;
-    m.hurt(Math.max(1, Math.floor(dmg * 0.55)), d.x * 4, d.z * 4);
-  }
+    for(const mb of MobManager.list.slice()){
+      if(mb.tamed || (mb.def && mb.def.npc)) continue;
+      if(dist3(mb.body.x, mb.body.y + 0.5, mb.body.z, pos.x, pos.y, pos.z) > R) continue;
+      mb.hurt(Math.max(1, Math.floor(dmg * 0.55)), d.x * 4, d.z * 4);
+    }
+  });
+}
+// 🎚 기술 바: 파트너가 나와 있으면 하단에 Z/X/C/V 기술 표시
+function updateSkillBar(){
+  const bar = document.getElementById('fb-bar');
+  if(!bar) return;
+  const par = PokeMan.party[0];
+  if(!Follower.ent || !par){ bar.classList.add('hidden'); return; }
+  const keys = ['Z', 'X', 'C', 'V'];
+  bar.innerHTML = par.moves.map((k, i) =>
+    '<span class="fb-skill"><b>' + keys[i] + '</b> ' + MOVES[k].n + '</span>').join('');
+  bar.classList.remove('hidden');
 }
 
 // ---------- 파트너 포켓몬 (파티 1번이 따라다님) ----------
@@ -2144,10 +2187,13 @@ const Follower = {
     this._pendingSummon = { x, y, z };
     Particles.spawn(x, y + 0.7, z, 0xffe97a, 18, 2.2, 0.8, 1.6);
     SFX.play('pop');
-    UI.toast('가랏! ' + par.name + '! (X키 또는 채팅 "불 뿜어!"로 기술 명령)');
+    UI.toast('가랏! ' + par.name + '! (Z/X/C/V = 기술 발사!)');
+    setTimeout(() => updateSkillBar(), 1600);
     return true;
   },
   clear(){
+    const bar = document.getElementById('fb-bar');
+    if(bar) bar.classList.add('hidden');
     if(this.ent){
       if(game.riding) game.riding = false;
       scene.remove(this.ent.group);

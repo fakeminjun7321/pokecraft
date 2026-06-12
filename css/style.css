@@ -425,3 +425,8 @@ body.touch #hotbar .hslot { width: 44px; height: 44px; }
 @keyframes splashOut { to { opacity:0; transform:scale(1.12); } }
 .party-row img { width:72px; height:72px; }
 .dex-cell img { width:84px; height:84px; }
+
+/* ⚡ 파트너 기술 바 */
+#fb-bar { position:absolute; bottom:130px; left:50%; transform:translateX(-50%); display:flex; gap:8px; z-index:5; }
+.fb-skill { background:rgba(20,30,44,.85); border:2px solid #3a4f66; border-radius:8px; padding:6px 12px; color:#fff; font-size:13px; }
+.fb-skill b { color:#ffd866; margin-right:5px; }

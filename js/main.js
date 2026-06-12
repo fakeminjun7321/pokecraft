@@ -1356,8 +1356,19 @@ function bindInput(){
       if(ki !== undefined) FieldBattle.command(ki);
     }
     if(e.code === 'KeyG') toggleRide();
-    if(e.code === 'KeyV' && !UI.isOpen() && PokeMan.enabled) UI.openBag();
-    if(e.code === 'KeyX' && !UI.isOpen() && !game.inBattle) partnerFieldMove();
+    if(e.code === 'KeyV' && !UI.isOpen() && PokeMan.enabled && !(typeof Follower !== 'undefined' && Follower.ent)) UI.openBag(); // 파트너 나와 있으면 V=기술4
+    // ⚡ Z/X/C/V = 파트너 기술 1/2/3/4 발사
+    if(['KeyZ','KeyX','KeyC','KeyV'].includes(e.code) && !UI.isOpen() && !game.inBattle && !game.chatOpen
+       && typeof Follower !== 'undefined' && Follower.ent && PokeMan.party.length){
+      if(e.code === 'KeyV' && !Follower.ent){ /* V는 가방과 겹침 — 파트너 없으면 가방 */ }
+      else {
+        const idx = { KeyZ: 0, KeyX: 1, KeyC: 2, KeyV: 3 }[e.code];
+        const par = PokeMan.party[0];
+        const mvKey = par.moves[Math.min(idx, par.moves.length - 1)];
+        partnerFieldMove(mvKey);
+        return;
+      }
+    }
     if(e.code === 'KeyM'){
       if(e.shiftKey){
         Minimap.visible = !Minimap.visible;
