@@ -2247,6 +2247,60 @@ function fireProjectile(from, dir, color, power, onHit){
     }
   }, 30);
 }
+// 🎭 기술별 시전 방식 — 근접·돌진(melee) / 대지 충격파(quake) / 발사체(projectile, 기본값)
+const MOVE_STYLE = {
+  // ⚔ 근접·돌진: 파트너가 적에게 달려들어 직접 타격 (단일 대상, 위력 1.35배)
+  tackle:'melee', scratch:'melee', quick:'melee', headbutt:'melee', bodyslam:'melee', bite:'melee',
+  slash:'melee', seismictoss:'melee', karatechop:'melee', brickbreak:'melee', closecombat:'melee',
+  firepunch:'melee', thunderpunch:'melee', icepunch:'melee', drainpunch:'melee',
+  irontail:'melee', metalclaw:'melee', steelwing:'melee', crunch:'melee', pursuit:'melee',
+  bugbite:'melee', megahorn:'melee', xscissor:'melee', poisonjab:'melee', zenheadbutt:'melee',
+  dragonclaw:'melee', outrage:'melee', dragonrush:'melee', aerialace:'melee', wingattack:'melee',
+  drill:'melee', waterfall:'melee', aquatail:'melee', leafblade:'melee', playrough:'melee',
+  shadowclaw:'melee', shadowpunch:'melee', lick:'melee', firewheel:'melee', wildcharge:'melee',
+  flareblitz:'melee', dig:'melee', vinewhip:'melee',
+  // 🌋 대지 충격파: 파트너 주변 범위 전체 타격 + 지형 균열
+  earthquake:'quake', bulldoze:'quake', rockslide:'quake', stoneedge:'quake',
+  blizzard:'quake', icywind:'quake', surf:'quake',
+  // 나머지(빔·구체·원거리)는 전부 projectile
+};
+// 공통: 한 지점 주변 야생/몹에게 기술 피해 (기절·분노·경험치 처리 포함)
+function _skillAreaHit(pos, mv, par, R, dmgMult, kdir){
+  const dmg = Math.floor((mv.p * 0.5 + par.level * 0.7) * (dmgMult || 1));
+  let hits = 0;
+  for(const w of PokeMan.wilds.slice()){
+    if(w.catching || w.fainted) continue;
+    if(dist3(w.body.x, w.body.y + 0.5, w.body.z, pos.x, pos.y, pos.z) > R) continue;
+    const eff = typeMult(mv.t, w.inst.spec.types);
+    const final = Math.max(1, Math.floor(dmg * eff * (par.spec.types.includes(mv.t) ? 1.2 : 1)));
+    w.inst.hp -= final;
+    hits++;
+    if(eff >= 2) UI.toast('효과가 굉장했다!! (' + w.inst.name + ' -' + final + ')', 1800);
+    Particles.spawn(w.body.x, w.body.y + 0.7, w.body.z, 0xff5544, 14, 2, 0.6, 1.2);
+    if(w.updateHpTag) w.updateHpTag();
+    if(w.inst.hp <= 0){
+      w.inst.hp = 0;
+      w.fainted = true; w.faintT = 20; w.catching = false;
+      w.group.rotation.x = Math.PI / 2;
+      if(w.built && w.built.sprite) w.built.sprite.rotation.z = Math.PI / 2;
+      w.setTag('😵 ' + w.inst.name + ' — 볼을 던져 잡자!');
+      UI.toast(w.inst.name + '을(를) 쓰러뜨렸다! 20초 안에 볼을 던지면 잡을 수 있다!');
+      const evs = par.gainExp(Math.floor(w.inst.spec.bx * w.inst.level / 6) + 1);
+      for(const ev of evs){ if(ev.type === 'level'){ UI.toast(par.name + ' 레벨 ' + ev.lv + '!'); SFX.play('level'); } }
+      if(typeof QuestMan !== 'undefined') QuestMan.onDefeatWild(w.inst);
+      if(w.boss){ player.addItem(I.RARECANDY, 2); player.addItem(I.ULTRABALL, 2); UI.toast('👑 보스 보상! 이상한사탕 2 + 하이퍼볼 2'); }
+    } else {
+      PokeMan.aggroAt(w, 0); // 😡 살아남은 야생은 분노해서 반격!
+    }
+  }
+  for(const mb of MobManager.list.slice()){
+    if(mb.tamed || (mb.def && mb.def.npc)) continue;
+    if(dist3(mb.body.x, mb.body.y + 0.5, mb.body.z, pos.x, pos.y, pos.z) > R) continue;
+    mb.hurt(Math.max(1, Math.floor(dmg * 0.55)), (kdir ? kdir.x : 0) * 4, (kdir ? kdir.z : 0) * 4);
+    hits++;
+  }
+  return hits;
+}
 function partnerFieldMove(moveKey){
   if(!PokeMan.enabled || game.inBattle) return;
   const par = PokeMan.party[0];
@@ -2261,46 +2315,82 @@ function partnerFieldMove(moveKey){
   const col = parseInt((TYPES[mv.t] || { c: '#ffffff' }).c.slice(1), 16);
   const fb = Follower.ent.body;
   const d = player.dir();
+  const style = MOVE_STYLE[mvKey] || 'projectile';
   UI.toast('가랏 ' + par.name + '! ' + mv.n + '!!', 2200);
-  // 입에서 발사 준비 플래시
+
+  if(style === 'melee'){
+    // ⚔ 돌진 타격: 시선 방향 가장 가까운 적에게 달려들어 직접 때린다
+    let tgt = null, td = 10;
+    const eye = player.eye ? player.eye() : { x: player.body.x, y: player.body.y + 1.5, z: player.body.z };
+    const consider = (bx, by, bz, obj) => {
+      const rel = { x: bx - eye.x, y: by - eye.y, z: bz - eye.z };
+      const dist = Math.hypot(rel.x, rel.y, rel.z);
+      if(dist > 10) return;
+      const dot = (rel.x * d.x + rel.y * d.y + rel.z * d.z) / Math.max(0.01, dist);
+      if(dot < 0.55 && dist > 3) return; // 대충 보고 있는 방향만 (가까우면 관대)
+      if(dist < td){ td = dist; tgt = obj; }
+    };
+    for(const w of PokeMan.wilds){ if(!w.catching && !w.fainted) consider(w.body.x, w.body.y + 0.6, w.body.z, w); }
+    for(const mb of MobManager.list){ if(!mb.tamed && !(mb.def && mb.def.npc) && !mb.dead) consider(mb.body.x, mb.body.y + 0.6, mb.body.z, mb); }
+    if(!tgt){
+      // 허공 가르기: 앞으로 살짝 돌진만
+      fb.vx += d.x * 7; fb.vz += d.z * 7;
+      Particles.spawn(fb.x + d.x, fb.y + 0.8, fb.z + d.z, col, 16, 2.2, 0.6, 1);
+      UI.toast(par.name + '의 ' + mv.n + '! ...허공을 갈랐다 (적을 바라보고 쓰자)', 2500);
+      return;
+    }
+    const tb = tgt.body;
+    // 돌진 궤적 이펙트
+    const steps = Math.ceil(dist3(fb.x, fb.y, fb.z, tb.x, tb.y, tb.z) * 2);
+    for(let i = 0; i <= steps; i++){
+      const f = i / Math.max(1, steps);
+      Particles.spawn(fb.x + (tb.x - fb.x) * f, fb.y + 0.7 + (tb.y - fb.y) * f, fb.z + (tb.z - fb.z) * f, col, 3, 0.8, 0.3, 0.5);
+    }
+    // 파트너가 적 옆으로 순간 돌진
+    const ang = Math.atan2(fb.x - tb.x, fb.z - tb.z);
+    fb.x = tb.x + Math.sin(ang) * 1.1; fb.z = tb.z + Math.cos(ang) * 1.1; fb.y = tb.y + 0.3;
+    fb.vx = fb.vz = 0;
+    Particles.spawn(tb.x, tb.y + 0.7, tb.z, col, 30, 3.5, 0.9, 1.6);
+    Particles.spawn(tb.x, tb.y + 0.7, tb.z, 0xffffff, 12, 2.5, 0.6, 1);
+    SFX.play('hit');
+    game.shake = Math.max(game.shake, 0.35);
+    // 단일 대상 강타 (1.35배) — 지구던지기/펀치류는 던져진 충격 넉백
+    if(tgt.body) { tgt.body.vx += d.x * 5; tgt.body.vz += d.z * 5; if(mv.p >= 80) tgt.body.vy = Math.max(tgt.body.vy || 0, 7); }
+    _skillAreaHit({ x: tb.x, y: tb.y + 0.5, z: tb.z }, mv, par, 1.8, 1.35, d);
+    return;
+  }
+
+  if(style === 'quake'){
+    // 🌋 대지 충격파: 파트너 중심 링 — 주변 전체 타격 + 전방 지형 균열
+    const R = 4.5 + mv.p / 45;
+    for(let ring = 1; ring <= 3; ring++){
+      const rr = R * ring / 3;
+      for(let a = 0; a < 14; a++){
+        const th = a / 14 * Math.PI * 2;
+        Particles.spawn(fb.x + Math.sin(th) * rr, fb.y + 0.25, fb.z + Math.cos(th) * rr, col, 4, 1.4, 0.5, 0.9);
+      }
+    }
+    Particles.spawn(fb.x, fb.y + 0.4, fb.z, 0xffffff, 20, 3.5, 0.8, 1.5);
+    game.shake = Math.max(game.shake, mv.p >= 90 ? 1.2 : 0.7);
+    SFX.play('boom');
+    if(mv.p >= 90 && typeof explode === 'function'){
+      // 전방 2.5블록 지점 균열 (파트너·플레이어 발밑은 안전)
+      explode(world, fb.x + d.x * 2.5, fb.y, fb.z + d.z * 2.5, 1, true);
+    }
+    const hits = _skillAreaHit({ x: fb.x, y: fb.y + 0.5, z: fb.z }, mv, par, R, 0.9, d);
+    if(!hits) UI.toast('대지가 울렸지만... 주변에 아무도 없다', 2000);
+    return;
+  }
+
+  // 🚀 발사체 (기본): 빛나는 구체 → 폭발 지점 범위 피해
   Particles.spawn(fb.x + d.x * 0.6, fb.y + 0.8, fb.z + d.z * 0.6, col, 14, 1.6, 0.4, 0.8);
-  // 🚀 발사체 → 폭발 지점 범위 피해
   fireProjectile({ x: fb.x + d.x * 0.7, y: fb.y + 0.8, z: fb.z + d.z * 0.7 }, d, col, mv.p, pos => {
     // 🧨 강한 기술은 지형도 부순다! (위력 60+ = 반경1, 90+ = 반경2, 드롭 줍기 가능)
     if(mv.p >= 60 && typeof explode === 'function'){
       explode(world, pos.x, pos.y, pos.z, mv.p >= 90 ? 2 : 1, true);
     }
     const R = 3.2 + mv.p / 90; // 위력 클수록 폭발 범위↑
-    const dmg = Math.floor(mv.p * 0.5 + par.level * 0.7);
-    for(const w of PokeMan.wilds.slice()){
-      if(w.catching || w.fainted) continue;
-      if(dist3(w.body.x, w.body.y + 0.5, w.body.z, pos.x, pos.y, pos.z) > R) continue;
-      const eff = typeMult(mv.t, w.inst.spec.types);
-      const final = Math.max(1, Math.floor(dmg * eff * (par.spec.types.includes(mv.t) ? 1.2 : 1)));
-      w.inst.hp -= final;
-      Particles.spawn(w.body.x, w.body.y + 0.7, w.body.z, 0xff5544, 14, 2, 0.6, 1.2);
-      if(w.updateHpTag) w.updateHpTag();
-      if(w.inst.hp <= 0){
-        w.inst.hp = 0;
-        w.fainted = true; w.faintT = 20; w.catching = false;
-        w.group.rotation.x = Math.PI / 2;
-        if(w.built && w.built.sprite) w.built.sprite.rotation.z = Math.PI / 2;
-        w.setTag('😵 ' + w.inst.name + ' — 볼을 던져 잡자!');
-        UI.toast(w.inst.name + '을(를) 쓰러뜨렸다! 20초 안에 볼을 던지면 잡을 수 있다!');
-        const evs = par.gainExp(Math.floor(w.inst.spec.bx * w.inst.level / 6) + 1);
-        for(const ev of evs){ if(ev.type === 'level'){ UI.toast(par.name + ' 레벨 ' + ev.lv + '!'); SFX.play('level'); } }
-        if(typeof QuestMan !== 'undefined') QuestMan.onDefeatWild(w.inst);
-        if(w.boss){ player.addItem(I.RARECANDY, 2); player.addItem(I.ULTRABALL, 2); UI.toast('👑 보스 보상! 이상한사탕 2 + 하이퍼볼 2'); }
-      } else {
-        // 😡 살아남은 야생은 분노해서 반격!
-        PokeMan.aggroAt(w, 0);
-      }
-    }
-    for(const mb of MobManager.list.slice()){
-      if(mb.tamed || (mb.def && mb.def.npc)) continue;
-      if(dist3(mb.body.x, mb.body.y + 0.5, mb.body.z, pos.x, pos.y, pos.z) > R) continue;
-      mb.hurt(Math.max(1, Math.floor(dmg * 0.55)), d.x * 4, d.z * 4);
-    }
+    _skillAreaHit(pos, mv, par, R, 1, d);
   });
 }
 // 🎚 기술 바: 파트너가 나와 있으면 하단에 Z/X/C/V 기술 표시
@@ -2310,8 +2400,9 @@ function updateSkillBar(){
   const par = PokeMan.party[0];
   if(!Follower.ent || !par){ bar.classList.add('hidden'); return; }
   const keys = ['Z', 'X', 'C', 'V'];
+  const styleIcon = k => ({ melee:'⚔', quake:'🌋' }[MOVE_STYLE[k]] || '💥');
   bar.innerHTML = par.moves.map((k, i) =>
-    '<span class="fb-skill"><b>' + keys[i] + '</b> ' + MOVES[k].n + '</span>').join('');
+    '<span class="fb-skill"><b>' + keys[i] + '</b> ' + styleIcon(k) + MOVES[k].n + '</span>').join('');
   bar.classList.remove('hidden');
 }
 
