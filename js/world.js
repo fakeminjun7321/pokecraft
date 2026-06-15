@@ -57,6 +57,7 @@ class Chunk {
     this.torches = new Set(); // "wx,wy,wz"
     this.meshes = null; // {solid, cutout, water}
     this._torchArr = null; // 파싱된 횃불 좌표 캐시 (torches 변경 시 무효화)
+    this.maxY = WORLD_H - 1; // ⚡ 최상단 비공기 y — 메싱이 빈 상공을 건너뛰게 (저장 안 함, 생성/수정 시 갱신)
   }
 }
 
@@ -152,11 +153,18 @@ class World {
     let temp = this.nTemp.fbm(wx * 0.0022, wz * 0.0022, 3) - (h - 30) * 0.004;
     const moist = this.nMoist.fbm(wx * 0.0025, wz * 0.0025, 3);
     if(h < SEA - 1) return 'ocean';
-    if(temp < 0.34) return 'snow';
+    // 🍄 버섯섬: 매우 드문 격리 지대 (큰 스케일 노이즈 피크)
+    const special = this.nMt.fbm(wx * 0.0016 + 700, wz * 0.0016 + 700, 2);
+    if(special > 0.80 && h > SEA && h < 42) return 'mushroom';
+    if(temp < 0.30) return 'snow';
+    if(temp < 0.42 && moist > 0.50 && h <= 42) return 'taiga';     // 🌲 침엽수림
+    if(temp > 0.70 && moist < 0.30) return 'mesa';                 // 🏜 메사/악지
     if(temp > 0.66 && moist < 0.38) return 'desert';
     if(temp > 0.60 && moist < 0.52) return 'savanna';
     if(h > 42) return 'mountain';
     if(moist > 0.68 && h <= SEA + 2) return 'swamp';
+    if(moist > 0.70 && temp > 0.55) return 'jungle';              // 🌴 정글
+    if(temp >= 0.48 && temp <= 0.57 && moist > 0.58) return 'cherry'; // 🌸 벚꽃 숲
     if(moist > 0.62 && temp < 0.45) return 'birch';
     if(moist > 0.55) return 'forest';
     if(moist > 0.50 && temp > 0.52) return 'flower';
@@ -164,7 +172,10 @@ class World {
   }
   surfaceBlockFor(biome, h){
     if(biome === 'desert') return B.SAND;
+    if(biome === 'mesa') return h > 36 ? B.TERRACOTTA : B.RED_SAND;
     if(biome === 'snow') return B.SNOWGRASS;
+    if(biome === 'taiga') return B.PODZOL;
+    if(biome === 'mushroom') return B.MYCELIUM;
     if(biome === 'mountain' && h > 48) return B.STONE;
     if(biome === 'swamp') return B.GRASS; // 늪은 물가에도 잔디
     if(h <= SEA + 1) return B.SAND; // 해변/물밑
@@ -172,14 +183,19 @@ class World {
   }
   treeAt(wx, wz){
     const b = this.biomeAt(wx, wz);
-    const dens = { forest:0.035, birch:0.035, plains:0.004, flower:0.007, snow:0.012, mountain:0.007, swamp:0.022, savanna:0.006 }[b] || 0;
+    const dens = { forest:0.035, birch:0.035, plains:0.004, flower:0.007, snow:0.012, mountain:0.007, swamp:0.022, savanna:0.006,
+                   taiga:0.05, jungle:0.07, cherry:0.03, mushroom:0.0 }[b] || 0;
     if(!dens) return null;
     const h = this.terrainH(wx, wz);
     const minH = b === 'swamp' ? SEA : SEA + 1;
     if(h <= minH || (b === 'mountain' && h > 46)) return null;
     if(rand2(wx, wz, this.seed ^ 0x5151) >= dens) return null;
-    const type = b === 'birch' ? 'birch' : b === 'savanna' ? 'acacia' : 'oak';
-    return { h, th: 4 + Math.floor(rand2(wx, wz, this.seed ^ 0x5252) * 3), type };
+    const type = b === 'birch' ? 'birch' : b === 'savanna' ? 'acacia'
+      : (b === 'taiga' || b === 'snow') ? 'spruce' : b === 'jungle' ? 'jungle' : b === 'cherry' ? 'cherry' : 'oak';
+    let th = 4 + Math.floor(rand2(wx, wz, this.seed ^ 0x5252) * 3);
+    if(type === 'spruce') th += 2;  // 침엽수는 키 큼
+    if(type === 'jungle') th += 3;  // 정글나무 더 큼
+    return { h, th, type };
   }
 
   // ---------- 청크 생성 ----------
@@ -208,7 +224,7 @@ class World {
         if(rd > 0 && baseH > SEA + 2) h = Math.max(9, Math.floor(baseH - rd * (baseH - 9)));
         const biome = this.biomeAt(wx, wz);
         let surf = this.surfaceBlockFor(biome, h);
-        const filler = (biome === 'desert' || surf === B.SAND) ? B.SAND : B.DIRT;
+        const filler = (biome === 'mesa') ? B.RED_SAND : (biome === 'desert' || surf === B.SAND) ? B.SAND : B.DIRT;
         // 🌊 자갈은 물속 바닥에만 (강/바다 밑 — 부싯돌은 잠수해서 캐자)
         // 물이 실제로 차는 조건(아래 물 채우기와 동일)일 때만 — 마른 협곡 바닥 제외
         const fillsWater = h < SEA && (baseH <= SEA + 2 || rd === 0);
@@ -217,11 +233,11 @@ class World {
           let id;
           if(y === 0) id = B.BEDROCK;
           else if(y === 1 && rand3(wx, y, wz, seed ^ 77) < 0.5) id = B.BEDROCK;
-          else if(y < h - 3) id = B.STONE;
+          else if(y < h - 3) id = y < 12 ? B.DEEPSLATE : B.STONE; // 🪨 깊은 곳은 심층암
           else if(y < h) id = filler;
           else id = surf;
-          // 광물
-          if(id === B.STONE){
+          // 광물 (돌·심층암 양쪽에 생성)
+          if(id === B.STONE || id === B.DEEPSLATE){
             const r = rand3(wx, y, wz, seed ^ 0xabc1);
             if(r < 0.024 && y < 52) id = B.COAL_ORE;
             else if(r < 0.039 && y < 38) id = B.IRON_ORE;
@@ -258,14 +274,19 @@ class World {
         const tr = this.treeAt(wx, wz);
         if(!tr) continue;
         const topY = tr.h + tr.th;
-        const logId = tr.type === 'birch' ? B.BIRCH_LOG : tr.type === 'acacia' ? B.ACACIA_LOG : B.LOG;
-        const leafId = tr.type === 'birch' ? B.BIRCH_LEAVES : B.LEAVES;
-        // 잎 (아카시아는 납작한 우산형)
-        const ly0 = tr.type === 'acacia' ? topY : topY - 2;
-        const ly1 = tr.type === 'acacia' ? topY + 1 : topY + 1;
+        const logId = tr.type === 'birch' ? B.BIRCH_LOG : tr.type === 'acacia' ? B.ACACIA_LOG
+          : tr.type === 'spruce' ? B.SPRUCE_LOG : tr.type === 'jungle' ? B.JUNGLE_LOG : tr.type === 'cherry' ? B.CHERRY_LOG : B.LOG;
+        const leafId = tr.type === 'birch' ? B.BIRCH_LEAVES : tr.type === 'spruce' ? B.SPRUCE_LEAVES
+          : tr.type === 'jungle' ? B.JUNGLE_LEAVES : tr.type === 'cherry' ? B.CHERRY_LEAVES : B.LEAVES;
+        // 잎 모양: 아카시아 우산형 / 가문비 원뿔(아래 넓고 위 좁음) / 나머지 둥근형
+        const ly0 = tr.type === 'acacia' ? topY : tr.type === 'spruce' ? topY - 4 : topY - 2;
+        const ly1 = topY + 1;
         for(let ly = ly0; ly <= ly1; ly++){
           if(ly < 0 || ly >= WORLD_H) continue;
-          const r = tr.type === 'acacia' ? (ly === topY ? 3 : 1) : (ly <= topY - 1 ? 2 : 1);
+          const r = tr.type === 'acacia' ? (ly === topY ? 3 : 1)
+            : tr.type === 'spruce' ? clamp(Math.round((topY + 1 - ly) * 0.6), 1, 2)
+            : tr.type === 'jungle' ? (ly <= topY - 1 ? 2 : 1)
+            : (ly <= topY - 1 ? 2 : 1);
           for(let dx = -r; dx <= r; dx++){
             for(let dz = -r; dz <= r; dz++){
               if(Math.abs(dx) === r && Math.abs(dz) === r && rand3(wx+dx, ly, wz+dz, seed ^ 33) < 0.6) continue;
@@ -297,14 +318,23 @@ class World {
             const ch = 1 + Math.floor(rand2(wx, wz, seed ^ 0xDEC1) * 3);
             for(let i = 1; i <= ch && h + i < WORLD_H; i++) put(lx, h + i, lz, B.CACTUS);
           }
-        } else if(ground === B.GRASS){
+        } else if(ground === B.MYCELIUM){
+          // 🍄 버섯섬: 버섯이 흩어져 자란다
+          if(r < 0.10) put(lx, h + 1, lz, B.MUSHROOM);
+        } else if(ground === B.PODZOL || ground === B.GRASS){
           // 늪: 얕은 물웅덩이
           if(biome === 'swamp' && h <= SEA + 1 && r < 0.22){
             put(lx, h, lz, B.WATER);
             continue;
           }
-          const flowerP = { flower:0.13, plains:0.012, forest:0.012, birch:0.012, swamp:0.008, savanna:0.004 }[biome] || 0.01;
-          const grassP = { plains:0.06, savanna:0.14, swamp:0.10, flower:0.05, forest:0.035, birch:0.035 }[biome] || 0.03;
+          // 🌲 침엽수림 바닥: 버섯·키큰 풀
+          if(biome === 'taiga'){
+            if(r < 0.02) put(lx, h + 1, lz, B.MUSHROOM);
+            else if(r < 0.10) put(lx, h + 1, lz, B.TALLGRASS);
+            continue;
+          }
+          const flowerP = { flower:0.13, plains:0.012, forest:0.012, birch:0.012, swamp:0.008, savanna:0.004, cherry:0.10, jungle:0.02 }[biome] || 0.01;
+          const grassP = { plains:0.06, savanna:0.14, swamp:0.10, flower:0.05, forest:0.035, birch:0.035, jungle:0.18, cherry:0.08 }[biome] || 0.03;
           if(r < 0.0015) put(lx, h + 1, lz, B.PUMPKIN);
           else if(r < 0.0015 + flowerP) put(lx, h + 1, lz, rand2(wx, wz, seed ^ 0xDEC2) < 0.5 ? B.FLOWER_R : B.FLOWER_Y);
           else if(r < 0.0015 + flowerP + grassP) put(lx, h + 1, lz, B.TALLGRASS);
@@ -335,12 +365,21 @@ class World {
         c.heights[lz*CHUNK + lx] = this._calcColTop(c, lx, lz);
       }
     }
+    c.maxY = this._calcMaxY(c);
     return c;
   }
   _calcColTop(c, lx, lz){
     for(let y = WORLD_H - 1; y >= 0; y--){
       const id = c.data[lx + lz*CHUNK + y*CHUNK*CHUNK];
       if(id !== B.AIR && BLOCKS[id].rt !== RT.CROSS) return y;
+    }
+    return 0;
+  }
+  // ⚡ 청크 전체에서 가장 높은 비공기 셀 y (위에서부터 스캔 — 첫 비공기 층에서 즉시 반환, 저렴)
+  _calcMaxY(c){
+    for(let y = WORLD_H - 1; y >= 0; y--){
+      const yb = y * CHUNK * CHUNK;
+      for(let i = 0; i < CHUNK * CHUNK; i++) if(c.data[yb + i] !== B.AIR) return y;
     }
     return 0;
   }
@@ -390,6 +429,9 @@ class World {
     } else {
       c.heights[lz*CHUNK + lx] = this._calcColTop(c, lx, lz);
     }
+    // ⚡ 메싱 cap 유지: 블록 설치는 O(1), 최상단 제거 시에만 재스캔(드묾)
+    if(id !== B.AIR){ if(wy > c.maxY) c.maxY = wy; }
+    else if(wy >= c.maxY){ c.maxY = this._calcMaxY(c); }
 
     // 물 흐름: 공기가 생기거나 물/용암이 놓이면 주변 갱신 예약
     if(id === B.AIR || id === B.WATER || id === B.LAVA){
@@ -528,7 +570,13 @@ class World {
       return this.getBlock(ox + lx, y, oz + lz);
     };
 
-    for(let y = 0; y < WORLD_H; y++){
+    // ⚡ 빈 상공은 건너뛴다: 이 청크와 4이웃 maxY 중 최댓값+1까지만 순회 (윗면·이웃 옆면 보존)
+    let topY = (chunk.maxY == null) ? WORLD_H - 1 : chunk.maxY;
+    const nbs = [this.chunks.get(ck(cx+1,cz)), this.chunks.get(ck(cx-1,cz)), this.chunks.get(ck(cx,cz+1)), this.chunks.get(ck(cx,cz-1))];
+    for(const n of nbs) if(n && n.maxY != null && n.maxY > topY) topY = n.maxY;
+    topY = Math.min(WORLD_H - 1, topY + 1);
+
+    for(let y = 0; y <= topY; y++){
       for(let lz = 0; lz < CHUNK; lz++){
         for(let lx = 0; lx < CHUNK; lx++){
           const id = data[lx + lz*CHUNK + y*CHUNK*CHUNK];
@@ -830,6 +878,7 @@ class World {
         c.heights[lz*CHUNK + lx] = h;
       }
     }
+    c.maxY = this._calcMaxY(c);
     return c;
   }
   // ---------- 엔드 청크 ----------
@@ -895,6 +944,7 @@ class World {
         c.heights[lz*CHUNK + lx] = this._calcColTop(c, lx, lz);
       }
     }
+    c.maxY = this._calcMaxY(c);
     return c;
   }
 
