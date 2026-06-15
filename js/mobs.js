@@ -186,14 +186,18 @@ const MOB_DEFS = {
     drops:[[I.RARECANDY,3,5],[I.DIAMOND,2,4],[I.ENDERPEARL,2,4]],
     model:()=> { const g = new THREE.Group();
       const body = makeBox(g, 1.6, 1.2, 3.2, '#1a1a22', 0, 1.2, 0);
-      const head = makeBox(g, 0.9, 0.8, 1.1, '#1a1a22', 0, 1.5, 2.0);
+      // 머리는 피벗에 매달아 물기(headLunge) 모션 가능
+      const headPivot = makePivot(g, 0, 1.5, 1.4);
+      const head = makeBox(headPivot, 0.9, 0.8, 1.1, '#1a1a22', 0, 0, 0.6);
       makeBox(head, 0.18, 0.18, 0.06, '#c84af0', -0.25, 0.1, 0.56); makeBox(head, 0.18, 0.18, 0.06, '#c84af0', 0.25, 0.1, 0.56);
       makeBox(head, 0.5, 0.2, 0.4, '#0e0e14', 0, -0.3, 0.45);
-      makeBox(g, 0.5, 0.5, 2.4, '#15151c', 0, 1.3, -2.6);
+      const tail = makeBox(g, 0.5, 0.5, 2.4, '#15151c', 0, 1.3, -2.6);
       makeBox(g, 0.3, 0.3, 1.4, '#15151c', 0, 1.35, -4.4);
-      const wingL = makeBox(g, 3.4, 0.12, 1.8, '#2a2a36', -2.2, 1.7, 0);
-      const wingR = makeBox(g, 3.4, 0.12, 1.8, '#2a2a36', 2.2, 1.7, 0);
-      return { group: g, legs: [wingL, wingR], head }; } },
+      // 날개는 어깨 피벗에 매달아 펄럭임이 자연스럽게
+      const wlP = makePivot(g, -0.8, 1.7, 0), wrP = makePivot(g, 0.8, 1.7, 0);
+      makeBox(wlP, 3.4, 0.12, 1.8, '#2a2a36', -1.7, 0, 0);
+      makeBox(wrP, 3.4, 0.12, 1.8, '#2a2a36', 1.7, 0, 0);
+      return { group: g, legs: [wlP, wrP], head: headPivot, body, tail, wingPivots: [wlP, wrP] }; } },
   trademan: { name:'교환 상인', hp:25, speed:0.7, w:0.3, h:1.8, npc:true, trademan:true,
     model:()=> { const m = buildBiped({ body:'#7a5ab8', headC:'#e0b08a', legC:'#4a3a78', armC:'#7a5ab8', legH:0.7, bh:0.75 });
       makeBox(m.head, 0.56, 0.16, 0.56, '#5a4398', 0, 0.32, 0);   // 보라 모자
@@ -240,6 +244,11 @@ class Mob {
     this.legs = built.legs || [];
     this.armParts = built.arms || [];
     this.wings = built.wings || [];
+    // 보스(드래곤) 전용 부위 — 다른 몹은 null
+    this.headPart = built.head || null;
+    this.bodyPart = built.body || null;
+    this.tailPart = built.tail || null;
+    this.wingPivots = built.wingPivots || this.legs;
     scene.add(this.group);
     this.hp = this.def.hp;
     this.dir = Math.random() * Math.PI * 2;
@@ -250,6 +259,19 @@ class Mob {
     this.angry = false; this.hopT = 0; this.tpT = 3; this.bobSeed = Math.random() * 10; this.lavaAcc = 0;
     this.love = 0; this.tamed = false; this.babyT = 0; // 번식/펫/아기
     if(this.def.npc) this.setTag(this.def.leader ? '체육관 관장' : this.def.trainer ? '트레이너 · 우클릭 배틀!' : this.def.rocket ? '💀 로켓단' : this.def.trademan ? '🎒 교환 상인 · 우클릭!' : '주민');
+    // 👑 보스 초기화 — 파티 최고 레벨로 HP 스케일 (전부 transient, 저장 안 함)
+    if(this.def.boss){
+      let lv = 25;
+      if(typeof PokeMan !== 'undefined' && PokeMan.party && PokeMan.party.length)
+        lv = Math.max(...PokeMan.party.map(q => q.level || 25));
+      this.maxHp = Math.round(800 + lv * 90); // 1700(L10) ~ 9800(L100)
+      this.hp = this.maxHp;
+      this.phase = 1;
+      this.bossState = 'intro'; this.stateT = 2.2;
+      this.attackCd = 4; this.pitch = 0; this.headLunge = 0; this.wingBeat = 0;
+      this.perchPillar = null; this.addsSpawned = false; this.breathZones = [];
+      if(typeof UI !== 'undefined' && UI.bossShow) UI.bossShow('💀 엔더드래곤');
+    }
   }
   makeBaby(){
     this.babyT = 180; // 3분 뒤 성체
@@ -264,6 +286,7 @@ class Mob {
   }
   update(dt, world, player){
     if(this.dead) return;
+    if(this._deathTick){ this._deathTick(dt); return; } // 👑 보스 사망 연출 중에는 AI 정지
     if(this.battledT > 0) this.battledT -= dt;
     if(this._poof){
       // 연기와 함께 사라진다
@@ -335,51 +358,32 @@ class Mob {
     const dToP = dist3(b.x, b.y, b.z, tgt.x, tgt.y, tgt.z);
     let speed = 0;
 
-    // ---- 엔더드래곤 보스 AI: 선회↔급강하, 크리스탈 회복, 노클립 비행 ----
+    // ---- 👑 엔더드래곤 보스 AI: 페이즈 상태머신 (선회→급강하/브레스/날개치기/안착) ----
     if(def.boss){
-      this._bossT = (this._bossT === undefined ? Math.random() * 12 : this._bossT) + dt;
-      this.attackCd -= dt;
-      if(world.crystals && world.crystals.size > 0){
-        this.hp = Math.min(def.hp, this.hp + dt * 1.5); // 크리스탈이 남아있으면 회복!
-        if(Math.random() < dt * 3){
+      this.attackCd -= dt; this.stateT -= dt;
+      const crystalsLeft = world.crystals && world.crystals.size > 0;
+      // 🛡️ 크리스탈 보호막: 다 부수기 전엔 빠르게 회복
+      if(crystalsLeft){
+        this.hp = Math.min(this.maxHp, this.hp + dt * (8 + this.phase * 4));
+        if(Math.random() < dt * 4){
           const pks = [...world.crystals];
           const [cx2, cy2, cz2] = pks[(Math.random() * pks.length) | 0].split(',').map(Number);
-          Particles.spawn(cx2 + 0.5, cy2 + 0.8, cz2 + 0.5, 0xf06bdc, 2, 1.5, 0.6, 1.5);
+          Particles.spawn(cx2 + 0.5, cy2 + 0.8, cz2 + 0.5, 0xf06bdc, 3, 1.5, 0.6, 1.5);
+          Particles.spawn(b.x, b.y + 1, b.z, 0xf06bdc, 2, 1, 0.6, 1);
         }
+      } else {
+        // 페이즈 전이 (크리스탈 파괴 후에만 — HP 66%/33%)
+        const frac = this.hp / this.maxHp;
+        if(this.phase === 1 && frac <= 0.66) this._bossPhase(2, world);
+        else if(this.phase === 2 && frac <= 0.33) this._bossPhase(3, world);
       }
-      const diving = (this._bossT % 12) > 8.5 && !tgt.dead;
-      let txp, typ, tzp;
-      if(diving){ txp = tgt.x; typ = tgt.y + 1; tzp = tgt.z; }
-      else {
-        const a = this._bossT * 0.25 + this.bobSeed;
-        txp = Math.cos(a) * 30; typ = 40 + Math.sin(a * 1.6) * 5; tzp = Math.sin(a) * 30;
-      }
-      const ddx = txp - b.x, ddy = typ - b.y, ddz = tzp - b.z;
-      const dl = Math.sqrt(ddx*ddx + ddy*ddy + ddz*ddz) || 1;
-      const sp = diving ? 14 : 9;
-      b.vx = lerp(b.vx, ddx/dl*sp, Math.min(1, dt*2));
-      b.vy = lerp(b.vy, ddy/dl*sp, Math.min(1, dt*2));
-      b.vz = lerp(b.vz, ddz/dl*sp, Math.min(1, dt*2));
-      this.dir = Math.atan2(b.vx, b.vz);
-      if(!tgt.dead && dToP < 3 && this.attackCd <= 0){
-        this.attackCd = 1.2;
-        tgt.hurt(6, (tgt.x - b.x) * 0.8, (tgt.z - b.z) * 0.8);
-        SFX.play('hit');
-      }
-      if(!diving && !tgt.dead && dToP < 35 && this.attackCd <= 0){
-        this.attackCd = 5;
-        const fx2 = tgt.x - b.x, fy2 = (tgt.y + 1) - b.y, fz2 = tgt.z - b.z;
-        const fl = Math.sqrt(fx2*fx2 + fy2*fy2 + fz2*fz2) || 1;
-        Projectiles.shootFireball(b.x, b.y + 0.8, b.z, fx2/fl, fy2/fl, fz2/fl, 1.5);
-        SFX.play('fuse');
-      }
-      this.walkPhase += dt * 5;
-      const flap = Math.sin(this.walkPhase) * 0.6;
-      this.legs.forEach((l, i) => { l.rotation.z = (i % 2 === 0 ? flap : -flap); });
-      b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; // 지형 통과 비행
-      if(b.y < 10) b.y = 10;
+      this._bossTickAnim(dt, crystalsLeft);
+      this._bossTickZones(dt, tgt);
+      this._bossState(dt, world, tgt, dToP, crystalsLeft);
+      if(typeof UI !== 'undefined' && UI.bossSet) UI.bossSet(this.hp / this.maxHp, crystalsLeft, this.phase);
       this.group.position.set(b.x, b.y, b.z);
       this.group.rotation.y = this.dir;
+      if(b.y < 8) b.y = 8;
       return;
     }
 
@@ -565,6 +569,163 @@ class Mob {
       this.setTint(Math.floor(this.fuse * 6) % 2 === 0 ? 0x666666 : null);
     }
   }
+  // ===== 👑 엔더드래곤 보스 헬퍼 =====
+  _bossPhase(p, world){
+    this.phase = p;
+    game.shake = Math.max(game.shake, 0.7);
+    SFX.play('evolve');
+    if(p === 2) UI.toast('🔥 엔더드래곤이 분노한다! (페이즈 2 — 더 빠르고 사납게!)', 4000);
+    if(p === 3){ UI.toast('💜 엔더드래곤 최후의 발악! 엔더맨을 소환한다!', 4500); this._bossSummonAdds(world); }
+    this.bossState = 'circle'; this.stateT = 2;
+  }
+  _fly(b, tx, ty, tz, sp, dt){
+    const dx = tx - b.x, dy = ty - b.y, dz = tz - b.z, dl = Math.hypot(dx, dy, dz) || 1;
+    b.vx = lerp(b.vx, dx / dl * sp, Math.min(1, dt * 2));
+    b.vy = lerp(b.vy, dy / dl * sp, Math.min(1, dt * 2));
+    b.vz = lerp(b.vz, dz / dl * sp, Math.min(1, dt * 2));
+    b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt; // 노클립 비행
+  }
+  _pickPillar(world){
+    if(!world.crystals || !world.crystals.size) return { x: 0, y: 46, z: 0 };
+    const ps = [...world.crystals].map(k => k.split(',').map(Number));
+    const [x, y, z] = ps[(Math.random() * ps.length) | 0]; return { x, y, z };
+  }
+  _bossState(dt, world, tgt, dToP, locked){
+    const b = this.body, sp = this.phase === 3 ? 1.35 : this.phase === 2 ? 1.15 : 1.0;
+    if(this.stateT <= 0){
+      if(this.bossState === 'intro'){ this.bossState = 'circle'; this.stateT = 4; }
+      else if(this.bossState === 'circle'){
+        const r = Math.random();
+        if(locked && r < 0.5){ this.bossState = 'perch'; this.stateT = 3; this.perchPillar = this._pickPillar(world); }
+        else if(r < 0.4){ this.bossState = 'dive'; this.stateT = 2.6; this.divePhase = 'windup'; this.diveTimer = 0.9; }
+        else if(r < 0.7){ this.bossState = 'breath'; this.stateT = 2.2; this.breathDone = false; }
+        else { this.bossState = 'buffet'; this.stateT = 1.4; this.buffetDone = false; }
+      }
+      else { this.bossState = 'circle'; this.stateT = 2.5 + Math.random() * 2; }
+    }
+    if(this.bossState === 'intro'){
+      this._fly(b, b.x, 42, b.z, 6 * sp, dt); this.dir = Math.atan2(tgt.x - b.x, tgt.z - b.z);
+    } else if(this.bossState === 'circle'){
+      const a = performance.now() * 0.0004 * sp + this.bobSeed;
+      this._fly(b, Math.cos(a) * 30, 40 + Math.sin(a * 1.6) * 5, Math.sin(a) * 30, 9 * sp, dt);
+      this.dir = Math.atan2(b.vx, b.vz);
+      if(!tgt.dead && dToP < 32 && this.attackCd <= 0){
+        this.attackCd = 3.2 / sp;
+        const fl = Math.hypot(tgt.x - b.x, (tgt.y + 1) - b.y, tgt.z - b.z) || 1;
+        Projectiles.shootFireball(b.x, b.y + 0.6, b.z, (tgt.x - b.x) / fl, ((tgt.y + 1) - b.y) / fl, (tgt.z - b.z) / fl, 1.6);
+        SFX.play('fuse');
+      }
+    } else if(this.bossState === 'dive'){
+      if(this.divePhase === 'windup'){
+        this.diveTimer -= dt; this.dir = Math.atan2(tgt.x - b.x, tgt.z - b.z);
+        this._fly(b, b.x, b.y + 3, b.z, 3, dt); // 예비동작: 솟구침
+        this.pitch = Math.min(0.5, (this.pitch || 0) + dt * 1.2);
+        if(Math.random() < dt * 30) Particles.spawn(b.x, b.y + 1, b.z, 0xc84af0, 2, 1.2, 0.5, 1);
+        if(this.diveTimer <= 0){ this.divePhase = 'lunge'; this.diveTx = tgt.x; this.diveTy = tgt.y + 0.5; this.diveTz = tgt.z; SFX.play('throw'); }
+      } else {
+        this.pitch = -0.7;
+        this._fly(b, this.diveTx, this.diveTy, this.diveTz, 22 * sp, dt);
+        this.dir = Math.atan2(b.vx, b.vz);
+        if(!tgt.dead && dToP < 3.2 && this.attackCd <= 0){
+          this.attackCd = 0.6; this.headLunge = 0.6;
+          tgt.hurt(10 + this.phase * 2, (tgt.x - b.x) * 0.9, (tgt.z - b.z) * 0.9);
+          game.shake = Math.max(game.shake, 0.5); SFX.play('hit');
+        }
+        if(dist3(b.x, b.y, b.z, this.diveTx, this.diveTy, this.diveTz) < 3){ this.bossState = 'circle'; this.stateT = 1.5; this.pitch = 0; }
+      }
+    } else if(this.bossState === 'breath'){
+      this.dir = Math.atan2(tgt.x - b.x, tgt.z - b.z);
+      this._fly(b, tgt.x - Math.sin(this.dir) * 10, tgt.y + 8, tgt.z - Math.cos(this.dir) * 10, 8 * sp, dt);
+      if(!this.breathDone && this.stateT < 1.4){ this.breathDone = true; this._bossBreath(world, tgt); }
+    } else if(this.bossState === 'buffet'){
+      this.dir = Math.atan2(tgt.x - b.x, tgt.z - b.z);
+      this._fly(b, tgt.x, tgt.y + 6, tgt.z, 12 * sp, dt);
+      this.wingBeat = 1;
+      if(!this.buffetDone && dToP < 9 && this.stateT < 0.7){
+        this.buffetDone = true;
+        game.shake = Math.max(game.shake, 0.6); SFX.play('boom');
+        Particles.spawn(tgt.x, tgt.y + 0.5, tgt.z, 0xddddff, 18, 5, 0.6, 2);
+        if(!tgt.dead) tgt.hurt(6 + this.phase, (tgt.x - b.x) * 2.4 || (Math.random() - 0.5), (tgt.z - b.z) * 2.4 || (Math.random() - 0.5));
+      }
+    } else if(this.bossState === 'perch'){
+      const pp = this.perchPillar || { x: 0, y: 46, z: 0 };
+      this._fly(b, pp.x, pp.y + 4, pp.z, 10, dt);
+      this.dir = Math.atan2(tgt.x - b.x, tgt.z - b.z);
+      if(Math.random() < dt * 10) Particles.spawn(b.x, b.y, b.z, 0xf06bdc, 1, 1, 0.5, 1);
+    }
+  }
+  _bossTickAnim(dt, locked){
+    const fast = this.bossState === 'dive' || this.bossState === 'buffet';
+    const base = this.bossState === 'perch' ? 2 : fast ? 14 : 7;
+    this.walkPhase += dt * (base + this.phase * 1.5);
+    const amp = this.wingBeat ? 0.9 : (this.bossState === 'perch' ? 0.15 : 0.55);
+    this.wingBeat = 0;
+    const flap = Math.sin(this.walkPhase) * amp;
+    if(this.wingPivots){ this.wingPivots[0].rotation.z = flap; this.wingPivots[1].rotation.z = -flap; }
+    this.group.rotation.x = lerp(this.group.rotation.x || 0, this.pitch || 0, Math.min(1, dt * 6));
+    if(this.headPart){ this.headLunge = Math.max(0, (this.headLunge || 0) - dt * 3); this.headPart.rotation.x = -this.headLunge; }
+    if(locked && Math.random() < dt * 6) this.setTint(0x44225a);
+    else if(!locked && this.hurtFlash <= 0) this.setTint(null);
+  }
+  _bossBreath(world, tgt){
+    SFX.play('fuse');
+    const gx = tgt.x, gz = tgt.z, gy = Math.round(tgt.y);
+    if(!this.breathZones) this.breathZones = [];
+    this.breathZones.push({ x: gx, y: gy, z: gz, t: 5 + this.phase, r: 3.2 });
+    for(let i = 0; i < 22; i++){ const a = Math.random() * 6.283, rr = Math.random() * 3.2;
+      Particles.spawn(gx + Math.cos(a) * rr, gy + 0.3, gz + Math.sin(a) * rr, 0xc84af0, 1, 1, 1.2, 1.5); }
+  }
+  _bossTickZones(dt, tgt){
+    if(!this.breathZones || !this.breathZones.length) return;
+    for(let i = this.breathZones.length - 1; i >= 0; i--){
+      const z = this.breathZones[i]; z.t -= dt;
+      if(z.t <= 0){ this.breathZones.splice(i, 1); continue; }
+      if(Math.random() < dt * 14) Particles.spawn(z.x + (Math.random() - 0.5) * z.r * 2, z.y + 0.4, z.z + (Math.random() - 0.5) * z.r * 2, 0xc84af0, 1, 0.6, 0.8, 1.2);
+      if(!tgt.dead){ const d = Math.hypot(tgt.x - z.x, tgt.z - z.z);
+        if(d < z.r && Math.abs(tgt.y - z.y) < 2){ z.dmgT = (z.dmgT || 0) - dt; if(z.dmgT <= 0){ z.dmgT = 0.6; tgt.hurt(3, 0, 0); } } }
+    }
+  }
+  _bossSummonAdds(world){
+    if(this.addsSpawned) return; this.addsSpawned = true;
+    for(let i = 0; i < 3; i++){
+      const a = i / 3 * 6.283, ex = Math.cos(a) * 12, ez = Math.sin(a) * 12, ey = (world.colTop(ex, ez) || 32) + 1;
+      if(ey <= 2) continue;
+      const em = new Mob('enderman', Math.round(ex) + 0.5, ey + 0.1, Math.round(ez) + 0.5);
+      em.angry = true; MobManager.list.push(em);
+      Particles.spawn(ex, ey + 1, ez, 0x8a3ae8, 14, 2.5, 0.6, 1);
+    }
+    SFX.play('throw');
+  }
+  _playBossDeath(){
+    const b = this.body; SFX.play('faint');
+    game.shake = Math.max(game.shake, 0.6);
+    const startY = b.y, self = this; let t = 0; const DUR = 4.5;
+    this._deathTick = (dt) => {
+      t += dt; const k = Math.min(1, t / DUR);
+      b.x += Math.cos(t * 4) * 0.06; b.z += Math.sin(t * 4) * 0.06;
+      b.y = lerp(startY, ((world.colTop(0, 0) || 32) + 6), k * k);
+      self.group.position.set(b.x, b.y, b.z);
+      self.group.rotation.y += dt * (2 + t);
+      self.group.rotation.x = lerp(self.group.rotation.x || 0, 0.8, dt * 2);
+      if(self.wingPivots){ const f = Math.sin(t * 18) * 0.5; self.wingPivots[0].rotation.z = f; self.wingPivots[1].rotation.z = -f; }
+      if(Math.random() < dt * 40) Particles.spawn(b.x + (Math.random() - 0.5) * 3, b.y + (Math.random() - 0.5) * 2, b.z + (Math.random() - 0.5) * 3, 0xc84af0, 4, 2, 0.8, 2);
+      if(Math.random() < dt * 8) Particles.spawn(b.x, b.y + Math.random() * 6, b.z, 0xffffff, 2, 0.4, 1.2, 4);
+      if(t > DUR){
+        self._deathTick = null;
+        for(let i = 0; i < 8; i++) setTimeout(() => { Particles.spawn(b.x + (Math.random() - 0.5) * 5, b.y + (Math.random() - 0.5) * 4, b.z + (Math.random() - 0.5) * 5, 0xc84af0, 24, 4, 1, 2); SFX.play('boom'); }, i * 90);
+        game.shake = Math.max(game.shake, 1.2);
+        if(typeof UI !== 'undefined' && UI.bossHide) UI.bossHide();
+        self._finishBossDeath();
+      }
+    };
+  }
+  _finishBossDeath(){
+    this.dead = true;
+    if(typeof dragonDefeated === 'function') dragonDefeated(this);
+    if(this.def.drops) this.def.drops.forEach(([id, lo, hi]) => { const n = lo + Math.floor(Math.random() * (hi - lo + 1)); if(n > 0) ItemDrops.spawn(this.body.x, (world.colTop(0, 0) || 32) + 2, this.body.z, id, n); });
+    scene.remove(this.group); disposeObject(this.group);
+    const i = MobManager.list.indexOf(this); if(i >= 0) MobManager.list.splice(i, 1);
+  }
   setTint(c){
     this.group.traverse(m => {
       if(m.isMesh && m.material && m.material.emissive) m.material.emissive.setHex(c === null ? 0 : c);
@@ -587,6 +748,20 @@ class Mob {
   }
   hurt(dmg, kx, kz){
     if(this.dead) return;
+    // 👑 보스: 크리스탈 보호막 + 한 방 최대 6% 제한 + 사망은 연출로
+    if(this.def.boss){
+      if(this._deathSeq) return;
+      if(world.crystals && world.crystals.size > 0){
+        this.hurtFlash = 0.15; this.setTint(0x884488);
+        Particles.spawn(this.body.x, this.body.y + 1, this.body.z, 0xc84af0, 4, 1.5, 0.4, 1);
+        if(Math.random() < 0.2) UI.toast('🛡️ 크리스탈이 드래곤을 지키고 있다! 먼저 부수자!', 2000);
+        return;
+      }
+      this.hp -= Math.min(dmg, this.maxHp * 0.06);
+      this.hurtFlash = 0.2; this.setTint(0xaa0000);
+      if(this.hp <= 0) this.die(true);
+      return;
+    }
     if(this.def.leader) return; // 관장은 배틀로만 상대
     if(this.def.neutral) this.angry = true;
     if(this.def.teleporter && Math.random() < 0.5){
@@ -604,6 +779,14 @@ class Mob {
   }
   die(withDrops){
     if(this.dead) return;
+    // 👑 보스는 즉사 대신 다단계 사망 연출 후 _finishBossDeath에서 실제 제거
+    if(this.def.boss && !this._deathSeq){
+      this._deathSeq = true;
+      this.hp = 0; this.bossState = 'dead';
+      if(typeof UI !== 'undefined' && UI.bossSet) UI.bossSet(0, false, this.phase);
+      this._playBossDeath();
+      return;
+    }
     this.dead = true;
     if(this.def.boss && typeof dragonDefeated === 'function') dragonDefeated(this);
     if(withDrops && this.def.drops){

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>포케크래프트 - PokeCraft</title>
-<link rel="stylesheet" href="css/style.css?v=73">
+<link rel="stylesheet" href="css/style.css?v=74">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -89,6 +89,11 @@
   <div id="crosshair">+</div>
   <div id="coords"></div>
   <div id="fps-hud" style="position:fixed;top:30px;left:6px;font:bold 13px monospace;background:rgba(0,0,0,.45);padding:2px 6px;border-radius:4px;display:none;z-index:50;pointer-events:none"></div>
+  <div id="boss-bar" class="hidden">
+    <div id="boss-name">엔더드래곤</div>
+    <div id="boss-track"><div id="boss-fill"></div></div>
+    <div id="boss-lock" class="hidden">🛡️ 크리스탈을 먼저 부숴라!</div>
+  </div>
   <div id="armor-bar"></div>
   <div id="hearts"></div>
   <div id="bubbles"></div>
@@ -389,26 +394,26 @@
 <div id="flash"></div>
 <div id="water-tint"></div>
 <div id="cursor-stack" class="hidden"></div>
-<div id="version">PokeCraft 빌드 v73</div>
+<div id="version">PokeCraft 빌드 v74</div>
 
 <script src="lib/three.min.js"></script>
 <script src="lib/peerjs.min.js"></script>
 <script src="lib/GLTFLoader.js"></script>
-<script src="js/util.js?v=73"></script>
-<script src="js/account.js?v=73"></script>
-<script src="js/content.js?v=73"></script>
-<script src="js/artlist.js?v=73"></script>
-<script src="js/meshlist.js?v=73"></script>
-<script src="js/world.js?v=73"></script>
-<script src="js/entities.js?v=73"></script>
-<script src="js/mobs.js?v=73"></script>
-<script src="js/pokemon.js?v=73"></script>
-<script src="js/player.js?v=73"></script>
-<script src="js/ui.js?v=73"></script>
-<script src="js/extras.js?v=73"></script>
-<script src="js/guide.js?v=73"></script>
-<script src="js/quests.js?v=73"></script>
-<script src="js/net.js?v=73"></script>
-<script src="js/main.js?v=73"></script>
+<script src="js/util.js?v=74"></script>
+<script src="js/account.js?v=74"></script>
+<script src="js/content.js?v=74"></script>
+<script src="js/artlist.js?v=74"></script>
+<script src="js/meshlist.js?v=74"></script>
+<script src="js/world.js?v=74"></script>
+<script src="js/entities.js?v=74"></script>
+<script src="js/mobs.js?v=74"></script>
+<script src="js/pokemon.js?v=74"></script>
+<script src="js/player.js?v=74"></script>
+<script src="js/ui.js?v=74"></script>
+<script src="js/extras.js?v=74"></script>
+<script src="js/guide.js?v=74"></script>
+<script src="js/quests.js?v=74"></script>
+<script src="js/net.js?v=74"></script>
+<script src="js/main.js?v=74"></script>
 </body>
 </html>

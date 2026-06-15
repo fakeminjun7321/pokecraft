@@ -1284,6 +1284,19 @@ const UI = {
       f.style.opacity = 0;
     }, 80);
   },
+  // ===== 👑 보스 HP 바 =====
+  bossShow(name){ const w = $id('boss-bar'); if(!w) return; const n = $id('boss-name'); if(n) n.textContent = name; w.classList.remove('hidden'); },
+  bossHide(){ const w = $id('boss-bar'); if(w) w.classList.add('hidden'); },
+  bossSet(frac, locked, phase){
+    const f = $id('boss-fill'); if(!f) return;
+    frac = Math.max(0, Math.min(1, frac));
+    f.style.width = (frac * 100).toFixed(1) + '%';
+    f.style.background = locked ? 'linear-gradient(90deg,#7a5a8a,#c89adf)'
+      : phase >= 3 ? 'linear-gradient(90deg,#b01818,#ff4d4d)'
+      : phase === 2 ? 'linear-gradient(90deg,#c85a18,#ffa64d)'
+      : 'linear-gradient(90deg,#7a18b0,#c84af0)';
+    const lk = $id('boss-lock'); if(lk) lk.classList.toggle('hidden', !locked);
+  },
   toast(msg, dur){
     const t = $id('toasts');
     const d = document.createElement('div');

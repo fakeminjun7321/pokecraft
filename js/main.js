@@ -853,6 +853,7 @@ function swapWorldTo(to){
   MobManager.list = MobManager.list.filter(mb => mb.tamed);
   PokeMan.wilds.slice().forEach(w2 => PokeMan.removeWild(w2, false));
   Projectiles.clear(); TNTs.clear();
+  if(typeof UI !== 'undefined' && UI.bossHide) UI.bossHide(); // 👑 차원 이동 시 보스 바 숨김
   game.dim = to;
   world = getWorld(to);
   scene.add(world.group);

@@ -448,3 +448,11 @@ body.touch #hotbar .hslot { width: 44px; height: 44px; }
 /* 🛡 갑옷 표시 */
 #armor-bar { position: absolute; bottom: 92px; left: 50%; transform: translateX(-50%) translateX(-120px);
   font-size: 13px; color: #cfe3f5; text-shadow: 1px 1px 0 #000; display: none; }
+
+/* 👑 보스 HP 바 (엔더드래곤) */
+#boss-bar { position:absolute; top:42px; left:50%; transform:translateX(-50%); width:min(560px,72vw); text-align:center; pointer-events:none; z-index:5; }
+#boss-name { color:#e8d8ff; font-size:15px; letter-spacing:1px; text-shadow:2px 2px 0 #000; margin-bottom:3px; }
+#boss-track { height:14px; border:2px solid #000; background:#1a1020; box-shadow:0 0 0 2px #3a2a4a, 0 2px 8px rgba(0,0,0,.6); border-radius:2px; overflow:hidden; }
+#boss-fill { height:100%; width:100%; background:linear-gradient(90deg,#7a18b0,#c84af0); transition:width .25s ease, background .3s; box-shadow:inset 0 -3px 0 rgba(0,0,0,.25); }
+#boss-lock { color:#ffce5a; font-size:12px; margin-top:3px; text-shadow:1px 1px 0 #000; }
+#boss-bar.hidden { display:none; }
