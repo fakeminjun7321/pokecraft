@@ -146,7 +146,7 @@ const UI = {
 
   isOpen(){ return !!this.open; },
   showOverlay(id){
-    ['inv-overlay','furnace-overlay','chest-overlay','party-overlay','dex-overlay','pause-overlay','help-overlay','recipe-overlay','ench-overlay','trade-overlay','ach-overlay','guide-overlay','bag-overlay','quest-overlay'].forEach(o => $id(o).classList.add('hidden'));
+    ['inv-overlay','furnace-overlay','chest-overlay','party-overlay','dex-overlay','pause-overlay','help-overlay','recipe-overlay','ench-overlay','anvil-overlay','brewing-overlay','trade-overlay','ach-overlay','guide-overlay','bag-overlay','quest-overlay'].forEach(o => { const el = $id(o); if(el) el.classList.add('hidden'); });
     if(id) $id(id).classList.remove('hidden');
   },
 
@@ -769,6 +769,80 @@ const UI = {
     this._buildInvGrids('ench-inv-grid', 'ench-bar-grid');
     this.showOverlay('ench-overlay');
     this.open = 'ench';
+    this.refresh();
+    if(document.exitPointerLock) document.exitPointerLock();
+  },
+
+  // ---------- 🛠 모루 (도구 수리) ----------
+  anvilSlot: null,
+  openAnvil(){
+    this.closeOnly();
+    this._slots = [];
+    const c = $id('anvil-slot'); c.innerHTML = '';
+    this._makeSlot(c, { get: () => this.anvilSlot, set: v => { this.anvilSlot = v; } },
+      { quick: s => player.addItem(s.id, s.n, s.dur, s.ench) });
+    const msg = $id('anvil-msg');
+    msg.textContent = '닳은 도구를 올리고 철로 수리하세요';
+    const btns = $id('anvil-btns'); btns.innerHTML = '';
+    const repairBtn = document.createElement('button');
+    repairBtn.className = 'big-btn'; repairBtn.textContent = '🔧 수리';
+    repairBtn.onclick = () => {
+      const it = this.anvilSlot;
+      if(!it){ msg.textContent = '도구를 먼저 올려주세요!'; return; }
+      const tool = toolInfo(it.id) || armorInfo(it.id);
+      if(!tool || it.dur === undefined){ msg.textContent = '닳은 도구/갑옷만 수리할 수 있어요'; return; }
+      if(it.dur >= tool.dur){ msg.textContent = '이미 완전한 상태예요'; return; }
+      const cost = Math.max(1, Math.ceil((tool.dur - it.dur) / tool.dur * 3)); // 손상 비례 철 1~3
+      if(player.countItem(I.IRON_INGOT) < cost){ msg.textContent = '철 주괴가 부족해요 (' + cost + '개 필요)'; return; }
+      player.removeItem(I.IRON_INGOT, cost);
+      it.dur = tool.dur;
+      SFX.play('place'); Particles && Particles.spawn(player.body.x, player.body.y + 1.5, player.body.z, 0xcfcfcf, 14, 2, 0.6, 1);
+      msg.textContent = '🔧 ' + itemName(it.id) + ' 완전 수리! (철 ' + cost + '개 사용)';
+      this.refresh();
+    };
+    btns.appendChild(repairBtn);
+    this._buildInvGrids('anvil-inv-grid', 'anvil-bar-grid');
+    this.showOverlay('anvil-overlay');
+    this.open = 'anvil';
+    this.refresh();
+    if(document.exitPointerLock) document.exitPointerLock();
+  },
+
+  // ---------- ⚗ 양조기 ----------
+  openBrewing(){
+    this.closeOnly();
+    this._slots = [];
+    const msg = $id('brewing-msg');
+    const btns = $id('brewing-btns'); btns.innerHTML = '';
+    // 양조 레시피: [결과, 이름, 재료들]
+    const BREWS = [
+      [I.POTION_SPEED, '💨 신속 물약', [[I.GLOWDUST, 1], [I.WHEAT, 1]]],
+      [I.POTION_JUMP,  '🐇 도약 물약', [[I.GLOWDUST, 1], [I.FEATHER, 1]]],
+      [I.POTION_REGEN, '💗 재생 물약', [[I.GLOWDUST, 1], [I.APPLE, 1]]],
+      [I.GOLDEN_APPLE, '🍏 황금 사과', [[I.GOLD_INGOT, 4], [I.APPLE, 1]]],
+    ];
+    const refreshBtns = () => {
+      btns.innerHTML = '';
+      BREWS.forEach(([out, name, ings]) => {
+        const have = ings.every(([id, k]) => player.countItem(id) >= k);
+        const b = document.createElement('button');
+        b.className = 'big-btn'; b.style.opacity = have ? '1' : '0.5';
+        b.textContent = name + ' (' + ings.map(([id, k]) => itemName(id) + '×' + k).join(' + ') + ')';
+        b.onclick = () => {
+          if(!ings.every(([id, k]) => player.countItem(id) >= k)){ msg.textContent = '재료가 부족해요'; return; }
+          ings.forEach(([id, k]) => player.removeItem(id, k));
+          player.addItem(out, 1);
+          SFX.play('eat'); Particles && Particles.spawn(player.body.x, player.body.y + 1.5, player.body.z, 0xc83a8a, 12, 1.6, 0.6, 1);
+          msg.textContent = '⚗ ' + itemName(out) + ' 완성!';
+          refreshBtns();
+        };
+        btns.appendChild(b);
+      });
+    };
+    refreshBtns();
+    this._buildInvGrids('brewing-inv-grid', 'brewing-bar-grid');
+    this.showOverlay('brewing-overlay');
+    this.open = 'brewing';
     this.refresh();
     if(document.exitPointerLock) document.exitPointerLock();
   },

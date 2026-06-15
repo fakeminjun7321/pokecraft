@@ -19,8 +19,9 @@ const B = {
   // 🌲 지형 바이옴 블록 68-79
   SPRUCE_LOG:68, SPRUCE_LEAVES:69, JUNGLE_LOG:70, JUNGLE_LEAVES:71, CHERRY_LOG:72, CHERRY_LEAVES:73,
   MYCELIUM:74, RED_SAND:75, TERRACOTTA:76, DEEPSLATE:77, PODZOL:78, MUSHROOM:79,
-  // 🧱 MC 장식·작물 80-91 (다음 배치 예약)
-  // 92-99 버퍼
+  // 🧱 MC 시스템 블록 80-85
+  ANVIL:80, BUTTON:81, BUTTON_ON:82, PLATE:83, PLATE_ON:84, BREWING:85,
+  // 86-99 버퍼
 };
 // 렌더 타입
 const RT = { SOLID:0, CROSS:1, WATER:2, GLASS:3 };
@@ -70,7 +71,9 @@ const T = {
   // 🌲 지형 바이옴 타일 77+
   SPRUCE_SIDE:77, SPRUCE_TOP:78, SPRUCE_LEAVES_T:79, JUNGLE_SIDE:80, JUNGLE_LEAVES_T:81,
   CHERRY_SIDE:82, CHERRY_TOP:83, CHERRY_LEAVES_T:84, MYCELIUM_TOP:85, MYCELIUM_SIDE:86,
-  RED_SAND_T:87, TERRACOTTA_T:88, DEEPSLATE_T:89, PODZOL_TOP:90, PODZOL_SIDE:91, MUSHROOM_T:92
+  RED_SAND_T:87, TERRACOTTA_T:88, DEEPSLATE_T:89, PODZOL_TOP:90, PODZOL_SIDE:91, MUSHROOM_T:92,
+  // 🧱 MC 시스템 타일 93+
+  ANVIL_TOP:93, ANVIL_SIDE:94, BUTTON_T:95, PLATE_T:96, BREWING_T:97
 };
 
 // ----- 블록 정의 -----
@@ -174,6 +177,14 @@ defBlock(B.TERRACOTTA,    { name:'테라코타', tiles:{top:T.TERRACOTTA_T, bott
 defBlock(B.DEEPSLATE,     { name:'심층암', tiles:{top:T.DEEPSLATE_T, bottom:T.DEEPSLATE_T, side:T.DEEPSLATE_T}, hard:3.2, tool:'pick', drop:()=>[[B.COBBLE,1]] });
 defBlock(B.PODZOL,        { name:'팟졸', tiles:{top:T.PODZOL_TOP, bottom:T.DIRT, side:T.PODZOL_SIDE}, hard:0.7, tool:'shovel', drop:()=>[[B.DIRT,1]] });
 defBlock(B.MUSHROOM,      { name:'버섯', rt:RT.CROSS, solid:false, tiles:{top:T.MUSHROOM_T, bottom:T.MUSHROOM_T, side:T.MUSHROOM_T}, hard:0.05, light:0.2, drop:()=>[[B.MUSHROOM,1]] });
+
+// ===== 🧱 MC 시스템 블록 (80-85) =====
+defBlock(B.ANVIL,    { name:'모루', tiles:{top:T.ANVIL_TOP, bottom:T.ANVIL_SIDE, side:T.ANVIL_SIDE}, hard:3, tool:'pick', drop:()=>[[B.ANVIL,1]] });
+defBlock(B.BUTTON,   { name:'버튼', rt:RT.CROSS, solid:false, tiles:{top:T.BUTTON_T, bottom:T.BUTTON_T, side:T.BUTTON_T}, hard:0.3, drop:()=>[[B.BUTTON,1]] });
+defBlock(B.BUTTON_ON,{ name:'버튼(켜짐)', rt:RT.CROSS, solid:false, tiles:{top:T.BUTTON_T, bottom:T.BUTTON_T, side:T.BUTTON_T}, hard:0.3, light:0.3, drop:()=>[[B.BUTTON,1]] });
+defBlock(B.PLATE,    { name:'압력판', rt:RT.CROSS, solid:false, tiles:{top:T.PLATE_T, bottom:T.PLATE_T, side:T.PLATE_T}, hard:0.3, drop:()=>[[B.PLATE,1]] });
+defBlock(B.PLATE_ON, { name:'압력판(눌림)', rt:RT.CROSS, solid:false, tiles:{top:T.PLATE_T, bottom:T.PLATE_T, side:T.PLATE_T}, hard:0.3, light:0.3, drop:()=>[[B.PLATE,1]] });
+defBlock(B.BREWING,  { name:'양조기', tiles:{top:T.BREWING_T, bottom:T.STONE, side:T.BREWING_T}, hard:2, tool:'pick', light:0.4, drop:()=>[[B.BREWING,1]] });
 
 // ----- 아이템 정의 -----
 const ITEMS = {};
@@ -287,7 +298,8 @@ const CREATIVE_ITEMS = [
   I.POKEBALL,I.GREATBALL,I.ULTRABALL,I.MASTERBALL,I.GOD_ORB,I.POTION,I.SUPERPOTION,I.HYPERPOTION,I.RARECANDY,I.GOLDEN_APPLE,I.EMERALD,I.ENDERPEARL,
   I.LEATHER,I.L_HELM,I.L_CHEST,I.L_LEGS,I.I_HELM,I.I_CHEST,I.I_LEGS,I.D_HELM,I.D_CHEST,I.D_LEGS,
   I.POTION_SPEED,I.POTION_JUMP,I.POTION_REGEN,I.FLINT_STEEL,I.QUARTZ,I.GLOWDUST,I.BLAZE_ROD,I.ENDER_EYE,B.END_CRYSTAL,
-  B.SPRUCE_LOG,B.SPRUCE_LEAVES,B.JUNGLE_LOG,B.JUNGLE_LEAVES,B.CHERRY_LOG,B.CHERRY_LEAVES,B.MYCELIUM,B.RED_SAND,B.TERRACOTTA,B.DEEPSLATE,B.PODZOL,B.MUSHROOM
+  B.SPRUCE_LOG,B.SPRUCE_LEAVES,B.JUNGLE_LOG,B.JUNGLE_LEAVES,B.CHERRY_LOG,B.CHERRY_LEAVES,B.MYCELIUM,B.RED_SAND,B.TERRACOTTA,B.DEEPSLATE,B.PODZOL,B.MUSHROOM,
+  B.ANVIL,B.BUTTON,B.PLATE,B.BREWING
 ];
 
 // ===== 텍스처 아틀라스 =====
@@ -415,6 +427,12 @@ function buildAtlas(){
   paint(T.PODZOL_TOP, p=>{ p.fill('#5a3e22'); p.speck('#4a3219', 55); p.speck('#6e4e2e', 45); p.speck('#3a2814', 25); });
   paint(T.PODZOL_SIDE, p=>{ p.fill('#866043'); p.rect(0,0,16,4,'#5a3e22'); p.speck('#79553a', 40); });
   paint(T.MUSHROOM_T, p=>{ p.rect(6,9,4,6,'#e8e0d0'); p.rect(4,5,8,5,'#c83a2a'); p.px(6,6,'#f0e8d8'); p.px(9,7,'#f0e8d8'); p.px(8,5,'#f0e8d8'); });
+  // 🧱 MC 시스템 텍스처
+  paint(T.ANVIL_TOP, p=>{ p.fill('#3a3a40'); p.rect(2,2,12,12,'#4a4a52'); p.rect(4,4,8,8,'#2e2e34'); p.speck('#555', 20); });
+  paint(T.ANVIL_SIDE, p=>{ p.fill('#3a3a40'); p.rect(3,1,10,4,'#4a4a52'); p.rect(5,5,6,5,'#2e2e34'); p.rect(4,11,8,4,'#46464c'); p.speck('#555', 20); });
+  paint(T.BUTTON_T, p=>{ p.rect(5,6,6,4,'#8a8a8a'); p.rect(6,7,4,2,'#a8a8a8'); });
+  paint(T.PLATE_T, p=>{ p.rect(2,6,12,4,'#9a9a9a'); p.rect(3,7,10,2,'#b0b0b0'); });
+  paint(T.BREWING_T, p=>{ p.fill('#3a3038'); p.rect(6,2,4,8,'#8a8088'); p.rect(5,10,6,4,'#5a5058'); p.rect(7,3,2,3,'#c83a2a'); p.px(8,4,'#f0a050'); });
 
   ATLAS.canvas = cv;
   ATLAS.texture = new THREE.CanvasTexture(cv);
@@ -659,6 +677,11 @@ const RECIPES = [
   { sl:[[I.ENDERPEARL,1],[I.BLAZE_ROD,1]], out:[I.ENDER_EYE,1] },
   // 🔮 엔드 크리스탈: 유리7 + 엔더의 눈 + 블레이즈 막대 (엔더드래곤 부활용 — 귀환 포탈 4변에 설치)
   { p:['GGG','GEG','GBG'], k:{G:B.GLASS, E:I.ENDER_EYE, B:I.BLAZE_ROD}, out:[B.END_CRYSTAL,1] },
+  // 🧱 MC 시스템 제작법 (빈칸은 공백)
+  { p:['III',' I ','III'], k:{I:I.IRON_INGOT}, out:[B.ANVIL,1] },         // 모루: 철 8
+  { sl:[[B.STONE,2]], out:[B.BUTTON,1] },                                 // 버튼: 돌 2
+  { sl:[[B.STONE,3]], out:[B.PLATE,1] },                                  // 압력판: 돌 3
+  { p:[' B ','CCC'], k:{B:I.BLAZE_ROD, C:B.COBBLE}, out:[B.BREWING,1] },  // 양조기: 블레이즈막대 + 조약돌3
   { p:['IDI','IRI','III'], k:{I:I.IRON_INGOT, D:I.DIAMOND, R:I.REDSTONE}, out:[B.HEAL_MACHINE,1] },
   { p:['IGI','IRI','III'], k:{I:I.IRON_INGOT, G:B.GLASS, R:I.REDSTONE}, out:[B.FOSSIL_MACHINE,1] },
   { p:['GGG','IRI','IPI'], k:{G:B.GLASS, I:I.IRON_INGOT, R:I.REDSTONE, P:B.PLANKS}, out:[B.PC_BLOCK,1] },

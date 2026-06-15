@@ -459,20 +459,27 @@ class Player {
       if(hit.id === B.FURNACE || hit.id === B.FURNACE_LIT){ UI.openFurnace(hit.bx + ',' + hit.by + ',' + hit.bz); return; }
       if(hit.id === B.CHEST){ UI.openChest(hit.bx + ',' + hit.by + ',' + hit.bz); return; }
       if(hit.id === B.ENCHANT){ UI.openEnchant(); return; }
-      // 레버: 토글 + 주변 3블록 내 철문/램프 작동
+      // 레버: 토글 + 주변 철문/램프 작동
       if(hit.id === B.LEVER_OFF || hit.id === B.LEVER_ON){
         const on = hit.id === B.LEVER_OFF;
         this.world.setBlock(hit.bx, hit.by, hit.bz, on ? B.LEVER_ON : B.LEVER_OFF);
         SFX.play('click');
-        for(let dx = -3; dx <= 3; dx++) for(let dy = -3; dy <= 3; dy++) for(let dz = -3; dz <= 3; dz++){
-          const id2 = this.world.getBlock(hit.bx + dx, hit.by + dy, hit.bz + dz);
-          if(id2 === B.LAMP_OFF && on) this.world.setBlock(hit.bx + dx, hit.by + dy, hit.bz + dz, B.LAMP_ON);
-          else if(id2 === B.LAMP_ON && !on) this.world.setBlock(hit.bx + dx, hit.by + dy, hit.bz + dz, B.LAMP_OFF);
-          else if(id2 === B.IRON_DOOR && on) this.world.setBlock(hit.bx + dx, hit.by + dy, hit.bz + dz, B.IRON_DOOR_OPEN);
-          else if(id2 === B.IRON_DOOR_OPEN && !on) this.world.setBlock(hit.bx + dx, hit.by + dy, hit.bz + dz, B.IRON_DOOR);
-        }
+        this.world.redstoneActivate(hit.bx, hit.by, hit.bz, on);
         return;
       }
+      // 🔘 버튼: 누르면 잠깐(1.4초) 켜졌다가 자동 해제
+      if(hit.id === B.BUTTON || hit.id === B.BUTTON_ON){
+        this.world.setBlock(hit.bx, hit.by, hit.bz, B.BUTTON_ON);
+        this.world.redstoneActivate(hit.bx, hit.by, hit.bz, true);
+        SFX.play('click');
+        game.pulses = game.pulses || [];
+        game.pulses.push({ x: hit.bx, y: hit.by, z: hit.bz, t: 1.4 });
+        return;
+      }
+      // 🛠 모루: 도구 수리/강화 UI
+      if(hit.id === B.ANVIL){ UI.openAnvil && UI.openAnvil(); return; }
+      // ⚗ 양조기
+      if(hit.id === B.BREWING){ UI.openBrewing && UI.openBrewing(hit.bx + ',' + hit.by + ',' + hit.bz); return; }
       if(hit.id === B.DOOR || hit.id === B.DOOR_OPEN){
         const to = hit.id === B.DOOR ? B.DOOR_OPEN : B.DOOR;
         this.world.setBlock(hit.bx, hit.by, hit.bz, to);

@@ -1452,6 +1452,29 @@ const skyNight = new THREE.Color(0x0b1026);
 const skySunset = new THREE.Color(0xe8915a);
 const _skyColor = new THREE.Color();
 
+// 🔌 레드스톤: 버튼 자동 해제 + 압력판 밟기 감지
+function tickRedstone(dt){
+  // 버튼 펄스 만료
+  if(game.pulses && game.pulses.length){
+    for(let i = game.pulses.length - 1; i >= 0; i--){
+      const p = game.pulses[i]; p.t -= dt;
+      if(p.t <= 0){
+        if(world.getBlock(p.x, p.y, p.z) === B.BUTTON_ON){ world.setBlock(p.x, p.y, p.z, B.BUTTON); world.redstoneActivate(p.x, p.y, p.z, false); }
+        game.pulses.splice(i, 1);
+      }
+    }
+  }
+  // 압력판: 플레이어(또는 몹)가 위에 서 있으면 ON
+  const b = player.body, fx = Math.floor(b.x), fy = Math.floor(b.y), fz = Math.floor(b.z);
+  const standId = world.getBlock(fx, fy, fz);
+  if(standId === B.PLATE){ world.setBlock(fx, fy, fz, B.PLATE_ON); world.redstoneActivate(fx, fy, fz, true); game._plateOn = fx + ',' + fy + ',' + fz; }
+  // 이전에 눌렀던 판에서 벗어나면 OFF
+  if(game._plateOn){
+    const [px, py, pz] = game._plateOn.split(',').map(Number);
+    const stillOn = (px === fx && py === fy && pz === fz);
+    if(!stillOn && world.getBlock(px, py, pz) === B.PLATE_ON){ world.setBlock(px, py, pz, B.PLATE); world.redstoneActivate(px, py, pz, false); game._plateOn = null; }
+  }
+}
 // 🌧 날씨 상태머신 + 비/번개 연출 (오버월드만)
 function updateWeather(dt){
   if(game.dim !== 'over'){ game.weather = 'clear'; return; }
@@ -1672,6 +1695,7 @@ function tick(t){
     Minimap.render(dt);
     game.time = (game.time + dt / 600) % 1;
     updateWeather(dt);
+    tickRedstone(dt);
     updateSky();
     updateHighlight();
     UI.tickOpenUI();

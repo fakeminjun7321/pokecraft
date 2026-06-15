@@ -405,6 +405,16 @@ class World {
     return c.heights[(wz - cz*CHUNK)*CHUNK + (wx - cx*CHUNK)];
   }
   static isFurnaceId(id){ return id === B.FURNACE || id === B.FURNACE_LIT; }
+  // 🔌 레드스톤 신호: 주변 3블록 내 램프/철문을 켜고 끔 (레버·버튼·압력판 공용)
+  redstoneActivate(bx, by, bz, on){
+    for(let dx = -3; dx <= 3; dx++) for(let dy = -3; dy <= 3; dy++) for(let dz = -3; dz <= 3; dz++){
+      const id2 = this.getBlock(bx + dx, by + dy, bz + dz);
+      if(id2 === B.LAMP_OFF && on) this.setBlock(bx + dx, by + dy, bz + dz, B.LAMP_ON);
+      else if(id2 === B.LAMP_ON && !on) this.setBlock(bx + dx, by + dy, bz + dz, B.LAMP_OFF);
+      else if(id2 === B.IRON_DOOR && on) this.setBlock(bx + dx, by + dy, bz + dz, B.IRON_DOOR_OPEN);
+      else if(id2 === B.IRON_DOOR_OPEN && !on) this.setBlock(bx + dx, by + dy, bz + dz, B.IRON_DOOR);
+    }
+  }
 
   setBlock(wx, wy, wz, id, fromNet){
     if(!Number.isFinite(wx) || !Number.isFinite(wy) || !Number.isFinite(wz)) return;

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>포케크래프트 - PokeCraft</title>
-<link rel="stylesheet" href="css/style.css?v=80">
+<link rel="stylesheet" href="css/style.css?v=81">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -248,6 +248,31 @@
   </div>
 </div>
 
+<!-- ===== 🛠 모루 ===== -->
+<div id="anvil-overlay" class="overlay hidden">
+  <div class="window">
+    <h3>🛠 모루 — 도구 수리 <button class="overlay-close" data-close="anvil-overlay">✕</button></h3>
+    <div style="display:flex; gap:16px; align-items:center;">
+      <div id="anvil-slot" class="slot-grid" style="grid-template-columns:46px"></div>
+      <div id="anvil-btns" style="display:flex; flex-direction:column; gap:6px; flex:1"></div>
+    </div>
+    <div id="anvil-msg" class="label"></div>
+    <div id="anvil-inv-grid" class="slot-grid"></div>
+    <div id="anvil-bar-grid" class="slot-grid"></div>
+  </div>
+</div>
+
+<!-- ===== ⚗ 양조기 ===== -->
+<div id="brewing-overlay" class="overlay hidden">
+  <div class="window">
+    <h3>⚗ 양조기 <button class="overlay-close" data-close="brewing-overlay">✕</button></h3>
+    <div id="brewing-msg" class="label">재료로 물약을 만드세요</div>
+    <div id="brewing-btns" style="display:flex; flex-direction:column; gap:6px"></div>
+    <div id="brewing-inv-grid" class="slot-grid"></div>
+    <div id="brewing-bar-grid" class="slot-grid"></div>
+  </div>
+</div>
+
 <!-- ===== 주민 거래 ===== -->
 <div id="trade-overlay" class="overlay hidden">
   <div class="window">
@@ -397,26 +422,26 @@
 <div id="flash"></div>
 <div id="water-tint"></div>
 <div id="cursor-stack" class="hidden"></div>
-<div id="version">PokeCraft 빌드 v80</div>
+<div id="version">PokeCraft 빌드 v81</div>
 
 <script src="lib/three.min.js"></script>
 <script src="lib/peerjs.min.js"></script>
 <script src="lib/GLTFLoader.js"></script>
-<script src="js/util.js?v=80"></script>
-<script src="js/account.js?v=80"></script>
-<script src="js/content.js?v=80"></script>
-<script src="js/artlist.js?v=80"></script>
-<script src="js/meshlist.js?v=80"></script>
-<script src="js/world.js?v=80"></script>
-<script src="js/entities.js?v=80"></script>
-<script src="js/mobs.js?v=80"></script>
-<script src="js/pokemon.js?v=80"></script>
-<script src="js/player.js?v=80"></script>
-<script src="js/ui.js?v=80"></script>
-<script src="js/extras.js?v=80"></script>
-<script src="js/guide.js?v=80"></script>
-<script src="js/quests.js?v=80"></script>
-<script src="js/net.js?v=80"></script>
-<script src="js/main.js?v=80"></script>
+<script src="js/util.js?v=81"></script>
+<script src="js/account.js?v=81"></script>
+<script src="js/content.js?v=81"></script>
+<script src="js/artlist.js?v=81"></script>
+<script src="js/meshlist.js?v=81"></script>
+<script src="js/world.js?v=81"></script>
+<script src="js/entities.js?v=81"></script>
+<script src="js/mobs.js?v=81"></script>
+<script src="js/pokemon.js?v=81"></script>
+<script src="js/player.js?v=81"></script>
+<script src="js/ui.js?v=81"></script>
+<script src="js/extras.js?v=81"></script>
+<script src="js/guide.js?v=81"></script>
+<script src="js/quests.js?v=81"></script>
+<script src="js/net.js?v=81"></script>
+<script src="js/main.js?v=81"></script>
 </body>
 </html>
