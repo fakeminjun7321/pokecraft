@@ -730,6 +730,8 @@ class Player {
       this.world.setBlock(cx, cy, cz, item.id);
       SFX.play('place');
       if(game.mode !== 'creative') this.consumeSelected();
+      // 🔮 엔드 크리스탈을 귀환 포탈 변에 놓으면 드래곤 부활 시도 (마크 방식)
+      if(item.id === B.END_CRYSTAL && this.world.dim === 'end' && typeof tryDragonRespawn === 'function') tryDragonRespawn(this.world);
     }
   }
   _intersectsEntity(bx, by, bz){

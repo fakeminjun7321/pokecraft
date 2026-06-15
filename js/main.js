@@ -950,10 +950,43 @@ function dragonDefeated(mob){
   w.setBlock(0, ty + 2, 0, B.BEDROCK);
   w.setBlock(0, ty + 3, 0, B.BEDROCK);
   w.setBlock(0, ty + 4, 0, B.DRAGON_EGG);
+  w.flags.endPortalY = ty + 2; // 🔮 부활용: 크리스탈을 놓을 포탈 변 높이 저장
   if(mob) explodeFx(mob.body.x, mob.body.y + 1, mob.body.z);
-  UI.toast('🏆 엔더드래곤을 물리쳤다!! 섬 중앙의 귀환 포탈로 돌아가자!', 8000);
+  UI.toast('🏆 엔더드래곤을 물리쳤다!! 섬 중앙의 귀환 포탈로 돌아가자!\n(엔드 크리스탈 4개를 포탈 4변에 놓으면 다시 부활시킬 수 있다!)', 9000);
   SFX.play('evolve');
   if(typeof Ach !== 'undefined') Ach.unlock('dragon');
+  saveGame();
+}
+// 🔮 엔더드래곤 부활: 귀환 포탈 4변에 엔드 크리스탈 4개를 놓으면 재소환 (마크 방식)
+function tryDragonRespawn(world){
+  if(world.dim !== 'end' || !world.flags.dragonDead) return;
+  const Y = world.flags.endPortalY;
+  if(Y == null) return;
+  const spots = [[2, 0], [-2, 0], [0, 2], [0, -2]];
+  for(const [sx, sz] of spots){
+    if(world.getBlock(sx, Y, sz) !== B.END_CRYSTAL) return; // 4변이 다 차야 발동
+  }
+  // 🐉 부활!
+  world.flags.dragonDead = false;
+  // 놓은 크리스탈 4개 소모 + 빛기둥
+  for(const [sx, sz] of spots){
+    world.setBlock(sx, Y, sz, B.AIR);
+    for(let i = 0; i < 5; i++) Particles.spawn(sx, Y + i * 1.5, sz, 0xc84af0, 6, 1, 1.2, 4);
+  }
+  // 알 제거 (있으면)
+  if(world.getBlock(0, Y + 2, 0) === B.DRAGON_EGG) world.setBlock(0, Y + 2, 0, B.AIR);
+  // 기둥 크리스탈 6개 재생성 (다시 보호막 — 진짜 재대결)
+  for(let k = 0; k < 6; k++){
+    const a = k / 6 * Math.PI * 2;
+    const px = Math.round(Math.cos(a) * 27), pz = Math.round(Math.sin(a) * 27), hTop = 40 + (k % 3) * 4;
+    if(world.getBlock(px, hTop + 1, pz) !== B.END_CRYSTAL) world.setBlock(px, hTop + 1, pz, B.END_CRYSTAL);
+  }
+  // 새 드래곤 소환
+  const dr = new Mob('dragon', 0, 60, 0);
+  MobManager.list.push(dr);
+  game.shake = Math.max(game.shake, 1.0);
+  SFX.play('evolve');
+  UI.toast('🐉 엔더드래곤이 부활했다!! 기둥의 크리스탈을 먼저 부숴라!', 7000);
   saveGame();
 }
 function explodeFx(x, y, z){
