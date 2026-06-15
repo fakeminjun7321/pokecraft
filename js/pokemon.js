@@ -3112,6 +3112,24 @@ const Battle = {
     this.menuEnabled(true);
     return true;
   },
+  // 🏆 사천왕 도전: 5명 연속 게이틀릿 (각 라운드 사이 회복, 챔피언 격파 시 대박 보상)
+  startEliteFour(){
+    if(this.active || game.inBattle){ UI.toast('지금은 도전할 수 없어요'); return false; }
+    if(PokeMan.badges.size < 4){ UI.toast('🏅 체육관 배지가 4개 이상 필요해요! (현재 ' + PokeMan.badges.size + '개)', 5000); return false; }
+    if(!PokeMan.party.length || !PokeMan.partyAlive()){ UI.toast('내 포켓몬이 모두 지쳐 있다...'); return false; }
+    const lv = Math.max(40, PokeMan.party.length ? Math.max(...PokeMan.party.map(q => q.level)) : 40);
+    const T = (name, line, team) => ({ name, introLine: line, eliteFour: true, team });
+    const trainers = [
+      T('사천왕 강나리', '얼음의 사천왕 강나리! 차갑게 얼려주마!', [[124, lv], [91, lv], [87, lv], [144, lv + 1]]),
+      T('사천왕 시바', '격투의 사천왕 시바다! 정면승부!', [[68, lv], [107, lv], [62, lv], [106, lv + 1]]),
+      T('사천왕 기쿠코', '유령의 사천왕 기쿠코... 어둠 속으로...', [[94, lv], [93, lv], [24, lv], [49, lv + 1]]),
+      T('사천왕 한카타', '드래곤의 사천왕 한카타! 용의 힘을 보여주마!', [[130, lv + 1], [142, lv + 1], [6, lv + 1], [149, lv + 2]]),
+      T('챔피언 그린', '내가 포켓몬 리그 챔피언이다! 진짜 실력을 보여주마!!', [[149, lv + 2], [65, lv + 2], [112, lv + 2], [59, lv + 2], [103, lv + 2], [9, lv + 3]]),
+    ];
+    this._gauntlet = { trainers, idx: 0, name: '포켓몬 리그' };
+    UI.toast('🏆 포켓몬 리그 도전 시작! 사천왕 4명 + 챔피언을 연속으로 격파하라! (라운드 사이 회복)', 7000);
+    return this.startTrainer(trainers[0], null);
+  },
   async start(wildEnt){
     if(this.active || wildEnt.catching || wildEnt.fainted) return false; // 포획 연출/기절 상태와는 배틀 불가
     if(!PokeMan.party.length || !PokeMan.partyAlive()){ UI.toast('내 포켓몬이 모두 지쳐 있다...'); return false; }
@@ -3771,6 +3789,32 @@ const Battle = {
         this.wildEnt.fleeTimer = 4;
       }
       this.wildEnt = null;
+    }
+    // 🏆 사천왕 게이틀릿: 이겼고 다음 상대가 남았으면 회복 후 이어서 도전
+    const g = this._gauntlet;
+    if(g){
+      if(result === 'win'){
+        g.idx++;
+        if(g.idx < g.trainers.length){
+          setTimeout(() => {
+            PokeMan.party.forEach(q => { q.hp = q.maxHp; q.status = null; q.statusT = 0; }); // 다음 라운드 전 완전 회복
+            UI.toast('🏅 ' + g.idx + '/' + g.trainers.length + ' 격파! 회복 완료 — 다음 상대가 나온다!', 4000);
+            this.startTrainer(g.trainers[g.idx], null);
+          }, 1300);
+          return; // 게이틀릿 계속 — 오버레이 숨기지 않음
+        }
+        // 챔피언까지 격파!
+        this._gauntlet = null;
+        setTimeout(() => {
+          player.addItem(I.MASTERBALL, 1); player.addItem(I.RARECANDY, 5); player.addItem(I.GOD_ORB, 1); player.addItem(I.EMERALD, 30);
+          if(typeof Ach !== 'undefined') Ach.unlock && Ach.unlock('champion');
+          UI.toast('🏆🏆 포켓몬 리그 챔피언 등극!! 보상: 마스터볼 + 이상한사탕5 + 신의오브 + 에메랄드30 🏆🏆', 9000);
+          SFX.play('evolve');
+        }, 1200);
+      } else {
+        this._gauntlet = null;
+        UI.toast('💧 포켓몬 리그 도전 실패... 더 강해져서 다시 도전하자!', 5000);
+      }
     }
     setTimeout(() => {
       this.$('battle-overlay').classList.add('hidden');

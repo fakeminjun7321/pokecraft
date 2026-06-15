@@ -1134,8 +1134,11 @@ function runCommand(raw){
   };
   switch(cmd){
     case 'help': case '도움말':
-      say('🟢 서바이벌: /sethome · /home · /locate village|gym|stronghold|fortress|ruin|monument · /seed');
+      say('🟢 서바이벌: /sethome · /home · /locate village|gym|stronghold|fortress|ruin|monument · /seed · /사천왕 (배지 4개+ 포켓몬 리그 도전!)');
       setTimeout(() => say('🟡 크리에이티브: /give 이름 [개수] · /tp x z|spawn · /time set day|noon|night|midnight · /heal · /summon 포켓몬 [레벨] [shiny]' + (isGuest ? '' : ' · /gamemode')), 120);
+      break;
+    case 'elite': case '사천왕': case '리그': case 'league':
+      if(typeof Battle !== 'undefined' && Battle.startEliteFour) Battle.startEliteFour();
       break;
     case 'ask': case '질문': {
       const q = parts.slice(1).join(' ');
