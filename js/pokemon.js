@@ -1909,7 +1909,10 @@ const PokeMan = {
     // ⚡ 거리 LOD: 먼 야생은 4Hz로 묶어서 갱신 (포획/기절/배틀/분노 중인 야생은 풀레이트)
     const _wpx = player.body.x, _wpz = player.body.z;
     const _wFarD2 = (typeof game !== 'undefined' && game.perfMode) ? 900 : 2025;
+    const _wcull = (world.renderDist * 16 + 8); const _wcullD2 = _wcull * _wcull;
     for(const w of this.wilds){
+      const _wvdx = w.body.x - _wpx, _wvdz = w.body.z - _wpz, _wvd2 = _wvdx * _wvdx + _wvdz * _wvdz;
+      if(w.group) w.group.visible = _wvd2 < _wcullD2; // 안개 너머는 렌더 안 함
       if(w.catching || w.fainted || w.battling || w.angry > 0){ w.update(dt, world, player); continue; }
       const _wdx = w.body.x - _wpx, _wdz = w.body.z - _wpz;
       if(_wdx * _wdx + _wdz * _wdz > _wFarD2){

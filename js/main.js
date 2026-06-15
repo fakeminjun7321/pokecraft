@@ -1623,9 +1623,19 @@ function updateHighlight(){
 }
 
 // ---------- 디버그 ----------
+let _adaptAcc = 0;
 function updateDebug(dt){
   fpsAcc += dt; fpsCnt++;
   if(fpsAcc > 0.5){ fpsShow = Math.round(fpsCnt / fpsAcc); fpsAcc = 0; fpsCnt = 0; }
+  // ⚡ 적응형 렌더거리: FPS가 낮으면 자동으로 시야를 줄이고, 충분히 높으면 다시 늘린다 (저사양 모드 상한 존중)
+  _adaptAcc += dt;
+  if(_adaptAcc > 1.5 && world && fpsShow > 0){
+    _adaptAcc = 0;
+    let base = 4; try { base = clamp((JSON.parse(localStorage.getItem('pokecraft_opts') || '{}').renderDist) || 4, 3, 6); } catch(e){}
+    if(game.perfMode) base = Math.min(base, 3);
+    if(fpsShow < 24 && world.renderDist > 3) world.renderDist--;
+    else if(fpsShow > 52 && world.renderDist < base) world.renderDist++;
+  }
   // ⚡ 가벼운 FPS HUD (디버그 오버레이와 별개 토글) — 최적화 효과 측정용
   const fh = document.getElementById('fps-hud');
   if(fh){

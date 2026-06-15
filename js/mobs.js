@@ -886,7 +886,11 @@ const MobManager = {
     // ⚡ 거리 LOD: 멀리 있는 몹은 5Hz로 묶어서 갱신 (보스/길들인/NPC는 항상 풀레이트)
     const _px = player.body.x, _pz = player.body.z;
     const _farD2 = (typeof game !== 'undefined' && game.perfMode) ? 900 : 1600;
+    // 안개 너머 엔티티는 렌더하지 않는다 (드로우콜 절약)
+    const _cull = (world.renderDist * 16 + 8); const _cullD2 = _cull * _cull;
     for(const m of this.list.slice()){
+      const _vdx = m.body.x - _px, _vdz = m.body.z - _pz, _vd2 = _vdx * _vdx + _vdz * _vdz;
+      if(m.group) m.group.visible = _vd2 < _cullD2;
       if(m.def.boss || m.tamed || m.def.npc || m._bossAdd){ m.update(dt, world, player); continue; }
       const _ddx = m.body.x - _px, _ddz = m.body.z - _pz;
       if(_ddx * _ddx + _ddz * _ddz > _farD2){
