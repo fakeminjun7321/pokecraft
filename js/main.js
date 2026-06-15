@@ -556,6 +556,7 @@ function startGame(opts){
   world = getWorld(game.dim);
   const userOpts = JSON.parse(localStorage.getItem('pokecraft_opts') || '{}');
   if(userOpts.renderDist) world.renderDist = clamp(userOpts.renderDist, 3, 6);
+  if(userOpts.perf) applyPerfMode(true); // ⚡ 저사양 모드면 렌더거리 캡 재적용 (world 생성 후)
   scene.add(world.group);
   ItemDrops.init(scene);
   Particles.init(scene);
@@ -846,6 +847,8 @@ function getWorld(dim){
 function swapWorldTo(to){
   // 이전 차원 정리 (펫은 같이 이동)
   scene.remove(world.group);
+  // 👑 사망 연출 중인 보스가 있으면 처치를 먼저 확정 (차원 이동/사망으로 보상·포탈 유실 방지)
+  MobManager.list.forEach(mb => { if(mb.def.boss && mb._deathSeq && !mb.dead && typeof mb._finishBossDeath === 'function') mb._finishBossDeath(); });
   MobManager.list.slice().forEach(mb => {
     if(mb.tamed) return;
     mb.dead = true; scene.remove(mb.group); disposeObject(mb.group);
@@ -1575,10 +1578,12 @@ function tick(t){
   lastT = t;
   if(!game.started) return;
 
-  // 💥 히트스톱: 큰 타격 직후 월드 시뮬레이션을 잠깐 멈춰 묵직함을 준다 (화면·파티클은 계속 렌더)
+  // 💥 히트스톱: 큰 타격 직후 월드 시뮬레이션을 잠깐 멈춰 묵직함을 준다 (화면·파티클·넷동기·셰이크는 계속)
   if(game.hitstop > 0){
     game.hitstop -= dt;
     if(game.hitstop > 0){
+      if(game.shake > 0) game.shake = Math.max(0, game.shake - dt); // 셰이크 감쇠 멈추지 않게
+      if(typeof Net !== 'undefined' && Net.mode !== 'off' && Net.tick) Net.tick(dt); // 멀티플레이 동기화 유지
       if(typeof Particles !== 'undefined') Particles.update(dt * 0.25);
       if(renderer && scene && camera) renderer.render(scene, camera);
       return;

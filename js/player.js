@@ -529,14 +529,21 @@ class Player {
         return;
       }
       if(hit.id === B.FOSSIL_MACHINE){
+        // 화석은 포켓몬 가방으로 자동 수납되므로 가방에서 찾아 부활 (핫바 우선, 없으면 가방)
         const held1 = this.currentItem();
-        if(held1 && FOSSIL_POKES[held1.id]){
-          held1.n--; if(held1.n <= 0) this.inventory[this.selected] = null;
-          UI.updateHotbar();
+        let fid = (held1 && FOSSIL_POKES[held1.id]) ? held1.id : null;
+        let fromBag = false;
+        if(!fid && typeof PokeMan !== 'undefined' && PokeMan.bag){
+          fid = Object.keys(PokeMan.bag).map(Number).find(id => FOSSIL_POKES[id] && PokeMan.bag[id] > 0) || null;
+          fromBag = !!fid;
+        }
+        if(fid){
+          if(fromBag) PokeMan.bagRemove(fid, 1);
+          else { held1.n--; if(held1.n <= 0) this.inventory[this.selected] = null; UI.updateHotbar(); }
           Particles.spawn(hit.bx + 0.5, hit.by + 1.2, hit.bz + 0.5, 0x7ad0c8, 20, 2, 1, 2);
-          PokeMan.reviveFossil(held1.id);
+          PokeMan.reviveFossil(fid);
         } else {
-          UI.toast('화석을 들고 우클릭하세요 (화석 광석: 지하 y20 아래)');
+          UI.toast('화석이 없어요! 화석 광석(지하 y20 아래)을 캐면 가방에 들어와요');
         }
         return;
       }
@@ -939,6 +946,7 @@ class Player {
     this.charging = -1;
     this.clearBobber();
     UI.closeOnly(); // 열려 있던 메뉴 정리 (리스폰 후 소프트락 방지)
+    if(typeof UI !== 'undefined' && UI.bossHide) UI.bossHide(); // 👑 사망 시 보스 바 정리
     if(document.exitPointerLock) document.exitPointerLock();
     document.getElementById('death-overlay').classList.remove('hidden');
   }

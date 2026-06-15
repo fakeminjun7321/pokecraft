@@ -1881,7 +1881,7 @@ const PokeMan = {
       if(_wdx * _wdx + _wdz * _wdz > _wFarD2){
         w._lodAcc = (w._lodAcc || 0) + dt;
         if(w._lodAcc < 0.25) continue;
-        w.update(Math.min(w._lodAcc, 0.1), world, player); w._lodAcc = 0;
+        const used = Math.min(w._lodAcc, 0.1); w.update(used, world, player); w._lodAcc -= used; // 누적 시간 보존
       } else w.update(dt, world, player);
     }
     for(const w of this.wilds.slice()){
@@ -2202,7 +2202,8 @@ const PokeMan = {
     if(UI.open === 'bag') UI.close();
   },
   bestBall(){
-    for(const id of [this.activeBall, I.ULTRABALL, I.GREATBALL, I.POKEBALL]){
+    // 마스터볼은 최후의 수단 (자동 낭비 방지)
+    for(const id of [this.activeBall, I.ULTRABALL, I.GREATBALL, I.POKEBALL, I.MASTERBALL]){
       if(this.bagCount(id) > 0) return id;
     }
     return 0;
@@ -2423,8 +2424,10 @@ function partnerFieldMove(moveKey){
       _meleeCharge(fb, col);
       const sx0 = fb.x, sy0 = fb.y, sz0 = fb.z;
       setTimeout(() => {
-        fb.vx += d.x * 9; fb.vz += d.z * 9;
+        if(game.inBattle || !Follower.ent || player.dead) return; // 상태 바뀌면 취소
+        const lfb = Follower.ent.body; lfb.vx += d.x * 9; lfb.vz += d.z * 9;
         _meleeStreak(sx0, sy0 + 0.7, sz0, sx0 + d.x * 3, sy0 + 0.7, sz0 + d.z * 3, col, () => {
+          if(game.inBattle || !Follower.ent || player.dead) return;
           const ix = sx0 + d.x * 2.6, iz = sz0 + d.z * 2.6;
           Particles.spawn(ix, sy0 + 0.8, iz, col, 24, 2.9, 0.7, 1.3);
           spawnRingShock(ix, sy0 + 0.05, iz, col, 3, 0.4);
@@ -2441,12 +2444,16 @@ function partnerFieldMove(moveKey){
     // PHASE A: 충전 플래시
     _meleeCharge(fb, col);
     setTimeout(() => {
+      if(game.inBattle || !Follower.ent || player.dead) return; // 상태 바뀌면 취소
       // PHASE B: 돌진 잔상 (파트너 → 적)
       _meleeStreak(sx, sy + 0.7, sz, tb.x, tb.y + 0.7, tb.z, col, () => {
-        // PHASE C: 임팩트!
+        // PHASE C: 임팩트! — 상태/대상 재검증 (배틀 시작·파트너 회수·대상 기절/제거 시 취소)
+        if(game.inBattle || !Follower.ent || player.dead) return;
+        if(tgt.fainted || tgt.dead || (tgt.body && !tgt.group)) return;
+        const lfb = Follower.ent.body;
         const ang = Math.atan2(sx - tb.x, sz - tb.z);
-        fb.x = tb.x + Math.sin(ang) * 1.1; fb.z = tb.z + Math.cos(ang) * 1.1; fb.y = tb.y + 0.3;
-        fb.vx = fb.vz = 0;
+        lfb.x = tb.x + Math.sin(ang) * 1.1; lfb.z = tb.z + Math.cos(ang) * 1.1; lfb.y = tb.y + 0.3;
+        lfb.vx = lfb.vz = 0;
         Particles.spawn(tb.x, tb.y + 0.7, tb.z, col, 42, 4.2, 0.95, 1.8);
         Particles.spawn(tb.x, tb.y + 0.7, tb.z, 0xffffff, 16, 3, 0.6, 1.2);
         Particles.spawn(tb.x, tb.y + 0.7, tb.z, 0xffe97a, 10, 2, 0.5, 1);
@@ -2496,6 +2503,7 @@ function partnerFieldMove(moveKey){
   // 🚀 발사체 (기본): 빛나는 구체 → 폭발 지점 범위 피해
   Particles.spawn(fb.x + d.x * 0.6, fb.y + 0.8, fb.z + d.z * 0.6, col, 14, 1.6, 0.4, 0.8);
   fireProjectile({ x: fb.x + d.x * 0.7, y: fb.y + 0.8, z: fb.z + d.z * 0.7 }, d, col, mv.p, pos => {
+    if(game.inBattle || !PokeMan.enabled) return; // 비행 중 배틀 시작 등 상태 변경 시 취소
     // 🧨 강한 기술은 지형도 부순다! (위력 60+ = 반경1, 90+ = 반경2, 드롭 줍기 가능)
     if(mv.p >= 60 && typeof explode === 'function'){
       explode(world, pos.x, pos.y, pos.z, mv.p >= 90 ? 2 : 1, true);

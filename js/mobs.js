@@ -655,6 +655,7 @@ class Mob {
     }
   }
   _bossTickAnim(dt, locked){
+    if(this.hurtFlash > 0){ this.hurtFlash -= dt; if(this.hurtFlash <= 0) this.setTint(null); } // 피격 빨강 틴트 감쇠
     const fast = this.bossState === 'dive' || this.bossState === 'buffet';
     const base = this.bossState === 'perch' ? 2 : fast ? 14 : 7;
     this.walkPhase += dt * (base + this.phase * 1.5);
@@ -691,7 +692,7 @@ class Mob {
       const a = i / 3 * 6.283, ex = Math.cos(a) * 12, ez = Math.sin(a) * 12, ey = (world.colTop(ex, ez) || 32) + 1;
       if(ey <= 2) continue;
       const em = new Mob('enderman', Math.round(ex) + 0.5, ey + 0.1, Math.round(ez) + 0.5);
-      em.angry = true; MobManager.list.push(em);
+      em.angry = true; em._bossAdd = true; MobManager.list.push(em); // 보스 졸개 — 디스폰/LOD 면제
       Particles.spawn(ex, ey + 1, ez, 0x8a3ae8, 14, 2.5, 0.6, 1);
     }
     SFX.play('throw');
@@ -721,6 +722,9 @@ class Mob {
   }
   _finishBossDeath(){
     this.dead = true;
+    // 보스 졸개(엔더맨)도 함께 사라진다
+    MobManager.list.slice().forEach(m => { if(m._bossAdd && !m.dead){ m.dead = true; scene.remove(m.group); disposeObject(m.group); } });
+    MobManager.list = MobManager.list.filter(m => !m._bossAdd || !m.dead);
     if(typeof dragonDefeated === 'function') dragonDefeated(this);
     if(this.def.drops) this.def.drops.forEach(([id, lo, hi]) => { const n = lo + Math.floor(Math.random() * (hi - lo + 1)); if(n > 0) ItemDrops.spawn(this.body.x, (world.colTop(0, 0) || 32) + 2, this.body.z, id, n); });
     scene.remove(this.group); disposeObject(this.group);
@@ -783,6 +787,8 @@ class Mob {
     if(this.def.boss && !this._deathSeq){
       this._deathSeq = true;
       this.hp = 0; this.bossState = 'dead';
+      // ⚠ 처치는 죽는 순간 즉시 확정 — 연출 도중 차원이동/사망해도 포탈·보상·플래그 보존 (dragonDefeated는 중복 방지 가드 있음)
+      if(typeof dragonDefeated === 'function') dragonDefeated(this);
       if(typeof UI !== 'undefined' && UI.bossSet) UI.bossSet(0, false, this.phase);
       this._playBossDeath();
       return;
@@ -817,12 +823,12 @@ const MobManager = {
     const _px = player.body.x, _pz = player.body.z;
     const _farD2 = (typeof game !== 'undefined' && game.perfMode) ? 900 : 1600;
     for(const m of this.list.slice()){
-      if(m.def.boss || m.tamed || m.def.npc){ m.update(dt, world, player); continue; }
+      if(m.def.boss || m.tamed || m.def.npc || m._bossAdd){ m.update(dt, world, player); continue; }
       const _ddx = m.body.x - _px, _ddz = m.body.z - _pz;
       if(_ddx * _ddx + _ddz * _ddz > _farD2){
         m._lodAcc = (m._lodAcc || 0) + dt;
         if(m._lodAcc < 0.2) continue;
-        m.update(Math.min(m._lodAcc, 0.1), world, player); m._lodAcc = 0;
+        const used = Math.min(m._lodAcc, 0.1); m.update(used, world, player); m._lodAcc -= used; // 누적 시간 보존(반토막 방지)
       } else m.update(dt, world, player);
     }
     // 번식: 사랑에 빠진 같은 종 2마리가 가까우면 아기
@@ -843,7 +849,7 @@ const MobManager = {
     }
     // 너무 먼 몹 디스폰 (NPC/펫 제외)
     for(const m of this.list.slice()){
-      if(m.def.npc || m.tamed || m.def.boss) continue;
+      if(m.def.npc || m.tamed || m.def.boss || m._bossAdd) continue; // 보스 졸개는 거리로 디스폰 안 됨
       if(m.body.y < -20 || dist3(m.body.x, m.body.y, m.body.z, player.body.x, player.body.y, player.body.z) > 90){
         m.dead = true;
         scene.remove(m.group);

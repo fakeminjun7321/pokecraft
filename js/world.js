@@ -804,7 +804,7 @@ class World {
   // ---------- 저장 ----------
   serialize(){
     const furn = {}, chst = {};
-    for(const [k, f] of this.furnaces) furn[k] = f;
+    for(const [k, f] of this.furnaces){ const { _lastIn, ...rest } = f; furn[k] = rest; } // 임시 필드 _lastIn 제외
     for(const [k, c] of this.chests) chst[k] = c;
     return { seed: this.seed, edits: this.edits, furnaces: furn, chests: chst, spawn: this.spawnPoint, gyms: [...this.gymsBeaten], flags: this.flags };
   }
