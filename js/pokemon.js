@@ -1872,7 +1872,18 @@ const PokeMan = {
         }
       }
     }
-    for(const w of this.wilds) w.update(dt, world, player);
+    // ⚡ 거리 LOD: 먼 야생은 4Hz로 묶어서 갱신 (포획/기절/배틀/분노 중인 야생은 풀레이트)
+    const _wpx = player.body.x, _wpz = player.body.z;
+    const _wFarD2 = (typeof game !== 'undefined' && game.perfMode) ? 900 : 2025;
+    for(const w of this.wilds){
+      if(w.catching || w.fainted || w.battling || w.angry > 0){ w.update(dt, world, player); continue; }
+      const _wdx = w.body.x - _wpx, _wdz = w.body.z - _wpz;
+      if(_wdx * _wdx + _wdz * _wdz > _wFarD2){
+        w._lodAcc = (w._lodAcc || 0) + dt;
+        if(w._lodAcc < 0.25) continue;
+        w.update(Math.min(w._lodAcc, 0.1), world, player); w._lodAcc = 0;
+      } else w.update(dt, world, player);
+    }
     for(const w of this.wilds.slice()){
       if(w.catching) continue; // 포획 연출/배틀 중에는 디스폰 금지
       if(dist3(w.body.x, w.body.y, w.body.z, player.body.x, player.body.y, player.body.z) > 75){
@@ -2276,6 +2287,9 @@ function _skillAreaHit(pos, mv, par, R, dmgMult, kdir){
     w.inst.hp -= final;
     hits++;
     if(eff >= 2) UI.toast('효과가 굉장했다!! (' + w.inst.name + ' -' + final + ')', 1800);
+    // 💢 떠오르는 데미지 숫자 (효과가 굉장하면 빨갛고 크게)
+    const _tc = parseInt((TYPES[mv.t] || { c: '#ffffff' }).c.slice(1), 16);
+    spawnFloatNumber(w.body.x, w.body.y + 1.3, w.body.z, '-' + final, eff >= 2 ? 0xff3344 : _tc, eff >= 2 || final >= 40);
     Particles.spawn(w.body.x, w.body.y + 0.7, w.body.z, 0xff5544, 14, 2, 0.6, 1.2);
     if(w.updateHpTag) w.updateHpTag();
     if(w.inst.hp <= 0){
@@ -2296,11 +2310,83 @@ function _skillAreaHit(pos, mv, par, R, dmgMult, kdir){
   for(const mb of MobManager.list.slice()){
     if(mb.tamed || (mb.def && mb.def.npc)) continue;
     if(dist3(mb.body.x, mb.body.y + 0.5, mb.body.z, pos.x, pos.y, pos.z) > R) continue;
-    mb.hurt(Math.max(1, Math.floor(dmg * 0.55)), (kdir ? kdir.x : 0) * 4, (kdir ? kdir.z : 0) * 4);
+    const mdmg = Math.max(1, Math.floor(dmg * 0.55));
+    mb.hurt(mdmg, (kdir ? kdir.x : 0) * 4, (kdir ? kdir.z : 0) * 4);
+    spawnFloatNumber(mb.body.x, mb.body.y + 1.3, mb.body.z, '-' + mdmg, 0xff7744, false);
     hits++;
   }
   return hits;
 }
+
+// ===== 🎆 기술 시전 VFX 프리미티브 (melee/quake/투사체 공용) =====
+let _floatLayer = null;
+function _ensureFloatLayer(){
+  if(_floatLayer) return _floatLayer;
+  const d = document.createElement('div');
+  d.id = 'dmg-layer';
+  d.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:30;overflow:hidden';
+  document.body.appendChild(d); _floatLayer = d; return d;
+}
+// 떠오르는 데미지 숫자 (월드 좌표 → 화면 투영)
+function spawnFloatNumber(x, y, z, text, colorHex, big){
+  if(typeof camera === 'undefined' || !camera) return;
+  if(typeof game !== 'undefined' && game.perfMode) return; // 저사양 모드에선 생략
+  const v = new THREE.Vector3(x, y, z).project(camera);
+  if(v.z > 1) return; // 카메라 뒤
+  const el = document.createElement('div');
+  const col = '#' + ('000000' + (colorHex >>> 0).toString(16)).slice(-6);
+  el.textContent = text;
+  el.style.cssText = 'position:absolute;left:' + ((v.x * 0.5 + 0.5) * 100) + '%;top:' + ((-v.y * 0.5 + 0.5) * 100) + '%;' +
+    'transform:translate(-50%,-50%);font:900 ' + (big ? 36 : 23) + 'px sans-serif;color:' + col + ';' +
+    '-webkit-text-stroke:2.5px #000;text-shadow:0 2px 5px #000;will-change:transform,opacity;' +
+    'transition:transform .75s cubic-bezier(.2,.8,.3,1),opacity .75s';
+  _ensureFloatLayer().appendChild(el);
+  requestAnimationFrame(() => { el.style.transform = 'translate(-50%,-190%) scale(1.18)'; el.style.opacity = '0'; });
+  setTimeout(() => el.remove(), 760);
+}
+// 바닥에 퍼지는 충격파 링
+function spawnRingShock(x, y, z, colorHex, maxR, dur){
+  if(typeof scene === 'undefined' || !scene) return;
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.5, 28),
+    new THREE.MeshBasicMaterial({ color: colorHex, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.set(x, y, z); scene.add(ring);
+  const t0 = performance.now(); dur = dur || 0.45;
+  const iv = setInterval(() => {
+    const f = (performance.now() - t0) / 1000 / dur;
+    if(f >= 1){ clearInterval(iv); scene.remove(ring); ring.geometry.dispose(); ring.material.dispose(); return; }
+    const s = 0.25 + f * maxR; ring.scale.set(s, s, s); ring.material.opacity = 0.85 * (1 - f);
+  }, 16);
+}
+function triggerHitstop(sec){
+  if(typeof game !== 'undefined') game.hitstop = Math.max(game.hitstop || 0, sec);
+}
+// melee 충전 플래시 (파트너 발밑에서 기운 모으기)
+function _meleeCharge(fb, col){
+  for(let i = 0; i < 3; i++) setTimeout(() => Particles.spawn(fb.x, fb.y + 0.7, fb.z, col, 10, 1.2, 0.5, 1.4), i * 45);
+  if(typeof SFX !== 'undefined' && SFX.tone) SFX.tone(420, 0.12, 'square', 0.08, 720);
+}
+// melee 돌진 잔상: 빛나는 구체가 a→b로 날아가며 궤적을 그림 (도착 시 onArrive)
+function _meleeStreak(ax, ay, az, bx, by, bz, col, onArrive){
+  if(typeof scene === 'undefined' || !scene){ if(onArrive) onArrive(); return; }
+  const streak = new THREE.Mesh(new THREE.SphereGeometry(0.34, 8, 8),
+    new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.95 }));
+  const halo = new THREE.Mesh(new THREE.SphereGeometry(0.58, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 }));
+  streak.add(halo); streak.position.set(ax, ay, az); scene.add(streak);
+  const t0 = performance.now(), dur = 0.18;
+  const iv = setInterval(() => {
+    const f = Math.min(1, (performance.now() - t0) / 1000 / dur);
+    streak.position.set(ax + (bx - ax) * f, ay + (by - ay) * f, az + (bz - az) * f);
+    Particles.spawn(streak.position.x, streak.position.y, streak.position.z, col, 3, 0.8, 0.3, 0.4);
+    if(f >= 1){
+      clearInterval(iv);
+      scene.remove(streak); streak.geometry.dispose(); streak.material.dispose();
+      halo.geometry.dispose(); halo.material.dispose();
+      if(onArrive) onArrive();
+    }
+  }, 16);
+}
+
 function partnerFieldMove(moveKey){
   if(!PokeMan.enabled || game.inBattle) return;
   const par = PokeMan.party[0];
@@ -2333,30 +2419,46 @@ function partnerFieldMove(moveKey){
     for(const w of PokeMan.wilds){ if(!w.catching && !w.fainted) consider(w.body.x, w.body.y + 0.6, w.body.z, w); }
     for(const mb of MobManager.list){ if(!mb.tamed && !(mb.def && mb.def.npc) && !mb.dead) consider(mb.body.x, mb.body.y + 0.6, mb.body.z, mb); }
     if(!tgt){
-      // 허공 가르기: 앞으로 살짝 돌진만
-      fb.vx += d.x * 7; fb.vz += d.z * 7;
-      Particles.spawn(fb.x + d.x, fb.y + 0.8, fb.z + d.z, col, 16, 2.2, 0.6, 1);
-      UI.toast(par.name + '의 ' + mv.n + '! ...허공을 갈랐다 (적을 바라보고 쓰자)', 2500);
+      // 허공 가르기: 충전 → 앞으로 돌진 잔상 → 작은 충격
+      _meleeCharge(fb, col);
+      const sx0 = fb.x, sy0 = fb.y, sz0 = fb.z;
+      setTimeout(() => {
+        fb.vx += d.x * 9; fb.vz += d.z * 9;
+        _meleeStreak(sx0, sy0 + 0.7, sz0, sx0 + d.x * 3, sy0 + 0.7, sz0 + d.z * 3, col, () => {
+          const ix = sx0 + d.x * 2.6, iz = sz0 + d.z * 2.6;
+          Particles.spawn(ix, sy0 + 0.8, iz, col, 24, 2.9, 0.7, 1.3);
+          spawnRingShock(ix, sy0 + 0.05, iz, col, 3, 0.4);
+          game.shake = Math.max(game.shake, 0.4);
+          SFX.play('hit');
+          // 돌진 경로에 닿는 적은 맞는다 (정확히 안 봐도 헛치지 않게)
+          _skillAreaHit({ x: ix, y: sy0 + 0.5, z: iz }, mv, par, 2.2, 1.2, d);
+        });
+      }, 140);
       return;
     }
     const tb = tgt.body;
-    // 돌진 궤적 이펙트
-    const steps = Math.ceil(dist3(fb.x, fb.y, fb.z, tb.x, tb.y, tb.z) * 2);
-    for(let i = 0; i <= steps; i++){
-      const f = i / Math.max(1, steps);
-      Particles.spawn(fb.x + (tb.x - fb.x) * f, fb.y + 0.7 + (tb.y - fb.y) * f, fb.z + (tb.z - fb.z) * f, col, 3, 0.8, 0.3, 0.5);
-    }
-    // 파트너가 적 옆으로 순간 돌진
-    const ang = Math.atan2(fb.x - tb.x, fb.z - tb.z);
-    fb.x = tb.x + Math.sin(ang) * 1.1; fb.z = tb.z + Math.cos(ang) * 1.1; fb.y = tb.y + 0.3;
-    fb.vx = fb.vz = 0;
-    Particles.spawn(tb.x, tb.y + 0.7, tb.z, col, 30, 3.5, 0.9, 1.6);
-    Particles.spawn(tb.x, tb.y + 0.7, tb.z, 0xffffff, 12, 2.5, 0.6, 1);
-    SFX.play('hit');
-    game.shake = Math.max(game.shake, 0.35);
-    // 단일 대상 강타 (1.35배) — 지구던지기/펀치류는 던져진 충격 넉백
-    if(tgt.body) { tgt.body.vx += d.x * 5; tgt.body.vz += d.z * 5; if(mv.p >= 80) tgt.body.vy = Math.max(tgt.body.vy || 0, 7); }
-    _skillAreaHit({ x: tb.x, y: tb.y + 0.5, z: tb.z }, mv, par, 1.8, 1.35, d);
+    const sx = fb.x, sy = fb.y, sz = fb.z;
+    // PHASE A: 충전 플래시
+    _meleeCharge(fb, col);
+    setTimeout(() => {
+      // PHASE B: 돌진 잔상 (파트너 → 적)
+      _meleeStreak(sx, sy + 0.7, sz, tb.x, tb.y + 0.7, tb.z, col, () => {
+        // PHASE C: 임팩트!
+        const ang = Math.atan2(sx - tb.x, sz - tb.z);
+        fb.x = tb.x + Math.sin(ang) * 1.1; fb.z = tb.z + Math.cos(ang) * 1.1; fb.y = tb.y + 0.3;
+        fb.vx = fb.vz = 0;
+        Particles.spawn(tb.x, tb.y + 0.7, tb.z, col, 42, 4.2, 0.95, 1.8);
+        Particles.spawn(tb.x, tb.y + 0.7, tb.z, 0xffffff, 16, 3, 0.6, 1.2);
+        Particles.spawn(tb.x, tb.y + 0.7, tb.z, 0xffe97a, 10, 2, 0.5, 1);
+        spawnRingShock(tb.x, tb.y + 0.05, tb.z, col, 4, 0.45);
+        triggerHitstop(mv.p >= 90 ? 0.11 : 0.07);
+        game.shake = Math.max(game.shake, mv.p >= 90 ? 0.9 : 0.6);
+        SFX.play('hit');
+        if(SFX.tone) SFX.tone(90, 0.12, 'square', 0.14, 40); // 묵직한 충격음
+        if(tgt.body){ tgt.body.vx += d.x * 5; tgt.body.vz += d.z * 5; if(mv.p >= 80) tgt.body.vy = Math.max(tgt.body.vy || 0, 7); }
+        _skillAreaHit({ x: tb.x, y: tb.y + 0.5, z: tb.z }, mv, par, 1.8, 1.35, d);
+      });
+    }, 140);
     return;
   }
 
@@ -2371,8 +2473,17 @@ function partnerFieldMove(moveKey){
       }
     }
     Particles.spawn(fb.x, fb.y + 0.4, fb.z, 0xffffff, 20, 3.5, 0.8, 1.5);
+    // 🌋 충격파 링 2겹 + 가장자리 흙먼지 기둥
+    spawnRingShock(fb.x, fb.y + 0.05, fb.z, col, R * 1.1, 0.55);
+    spawnRingShock(fb.x, fb.y + 0.05, fb.z, 0xffffff, R * 0.7, 0.4);
+    for(let a = 0; a < 10; a++){
+      const th = a / 10 * Math.PI * 2;
+      Particles.spawn(fb.x + Math.cos(th) * R * 0.8, fb.y + 0.2, fb.z + Math.sin(th) * R * 0.8, 0xa08060, 6, 1, 0.8, 2.2);
+    }
+    triggerHitstop(mv.p >= 90 ? 0.1 : 0.06);
     game.shake = Math.max(game.shake, mv.p >= 90 ? 1.2 : 0.7);
     SFX.play('boom');
+    if(SFX.tone) SFX.tone(45, 0.5, 'sine', 0.25, 28); // 낮은 울림
     if(mv.p >= 90 && typeof explode === 'function'){
       // 전방 2.5블록 지점 균열 (파트너·플레이어 발밑은 안전)
       explode(world, fb.x + d.x * 2.5, fb.y, fb.z + d.z * 2.5, 1, true);

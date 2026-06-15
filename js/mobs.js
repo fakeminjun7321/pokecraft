@@ -630,7 +630,18 @@ const MobManager = {
   },
   count(hostile){ return this.list.filter(m => !!m.def.hostile === hostile).length; },
   update(dt, world, player){
-    for(const m of this.list.slice()) m.update(dt, world, player);
+    // ⚡ 거리 LOD: 멀리 있는 몹은 5Hz로 묶어서 갱신 (보스/길들인/NPC는 항상 풀레이트)
+    const _px = player.body.x, _pz = player.body.z;
+    const _farD2 = (typeof game !== 'undefined' && game.perfMode) ? 900 : 1600;
+    for(const m of this.list.slice()){
+      if(m.def.boss || m.tamed || m.def.npc){ m.update(dt, world, player); continue; }
+      const _ddx = m.body.x - _px, _ddz = m.body.z - _pz;
+      if(_ddx * _ddx + _ddz * _ddz > _farD2){
+        m._lodAcc = (m._lodAcc || 0) + dt;
+        if(m._lodAcc < 0.2) continue;
+        m.update(Math.min(m._lodAcc, 0.1), world, player); m._lodAcc = 0;
+      } else m.update(dt, world, player);
+    }
     // 번식: 사랑에 빠진 같은 종 2마리가 가까우면 아기
     const lovers = this.list.filter(x => x.love > 0 && !x.dead && x.babyT <= 0);
     for(let i = 0; i < lovers.length; i++){

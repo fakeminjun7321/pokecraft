@@ -43,6 +43,12 @@ function makeBlockGeometry(id, size){
   return g;
 }
 
+// ⚡ CROSS(풀·꽃) 십자 평면 정점 템플릿 — 셀마다 재할당하던 리터럴을 모듈 상수로 (GC 부담↓)
+const CROSS_QUADS = [
+  [[0.1,0,0.1],[0.9,0,0.9],[0.9,1,0.9],[0.1,1,0.1]],
+  [[0.9,0,0.1],[0.1,0,0.9],[0.1,1,0.9],[0.9,1,0.1]],
+];
+
 class Chunk {
   constructor(cx, cz){
     this.cx = cx; this.cz = cz;
@@ -50,6 +56,7 @@ class Chunk {
     this.heights = new Uint8Array(CHUNK * CHUNK); // 컬럼별 최상단 블록 y (스카이라이트용)
     this.torches = new Set(); // "wx,wy,wz"
     this.meshes = null; // {solid, cutout, water}
+    this._torchArr = null; // 파싱된 횃불 좌표 캐시 (torches 변경 시 무효화)
   }
 }
 
@@ -395,8 +402,8 @@ class World {
     }
 
     const pk = wx + ',' + wy + ',' + wz;
-    if(BLOCKS[old].light >= 1) c.torches.delete(pk);
-    if(BLOCKS[id].light >= 1) c.torches.add(pk);
+    if(BLOCKS[old].light >= 1){ c.torches.delete(pk); c._torchArr = null; }
+    if(BLOCKS[id].light >= 1){ c.torches.add(pk); c._torchArr = null; }
     if(old === B.END_CRYSTAL) this.crystals.delete(pk);
     if(id === B.END_CRYSTAL) this.crystals.add(pk);
     if(old === B.PORTAL) this.portals.delete(pk);
@@ -451,13 +458,16 @@ class World {
     for(let dx = -1; dx <= 1; dx++){
       for(let dz = -1; dz <= 1; dz++){
         const c = this.chunks.get(ck(cx + dx, cz + dz));
-        if(!c) continue;
-        c.torches.forEach(s => {
-          const [x, y, z] = s.split(',').map(Number);
-          arr.push([x + 0.5, y + 0.5, z + 0.5]);
-        });
-        // 가동 중 화로도 빛
-        c.data && null;
+        if(!c || c.torches.size === 0) continue;
+        // ⚡ 파싱된 좌표 캐시 (리메시마다 문자열 split 반복 방지, setBlock에서 무효화)
+        if(!c._torchArr){
+          c._torchArr = [];
+          c.torches.forEach(s => {
+            const p = s.split(',');
+            c._torchArr.push([+p[0] + 0.5, +p[1] + 0.5, +p[2] + 0.5]);
+          });
+        }
+        for(let i = 0; i < c._torchArr.length; i++) arr.push(c._torchArr[i]);
       }
     }
     return arr;
@@ -473,10 +483,14 @@ class World {
       const top = this.colTop(wx, wz);
       l = wy >= top ? 1 : Math.max(0.18, 1 - 0.13 * (top - wy));
     }
+    // ⚡ 횃불 없는 청크(낮 지표면 — 대부분)는 루프 자체를 건너뛴다. 제곱거리로 sqrt 최소화.
     for(let i = 0; i < torches.length; i++){
       const t = torches[i];
-      const d = dist3(wx + 0.5, wy + 0.5, wz + 0.5, t[0], t[1], t[2]);
-      if(d < 14) l = Math.max(l, 0.55 + (1 - d / 14) * 1.25); // 더 밝고 멀리
+      const ddx = wx + 0.5 - t[0], ddy = wy + 0.5 - t[1], ddz = wz + 0.5 - t[2];
+      const d2 = ddx * ddx + ddy * ddy + ddz * ddz;
+      if(d2 >= 196) continue; // 14²
+      const d = Math.sqrt(d2);
+      l = Math.max(l, 0.55 + (1 - d / 14) * 1.25);
     }
     return Math.min(l, 1.45);
   }
@@ -525,11 +539,7 @@ class World {
             const L = layers.cutout;
             const light = Math.min(this._faceLight(ox+lx, y, oz+lz, torches) + (def.light ? 0.35 : 0), 1.35);
             const [u0, v0, u1, v1] = tileUV(def.tiles.side);
-            const quads = [
-              [[0.1,0,0.1],[0.9,0,0.9],[0.9,1,0.9],[0.1,1,0.1]],
-              [[0.9,0,0.1],[0.1,0,0.9],[0.1,1,0.9],[0.9,1,0.1]],
-            ];
-            quads.forEach(q => {
+            CROSS_QUADS.forEach(q => {
               const base = L.pos.length / 3;
               q.forEach((p, i) => {
                 L.pos.push(lx + p[0], y + p[1], lz + p[2]);
@@ -615,11 +625,10 @@ class World {
       g.setAttribute('uv', new THREE.Float32BufferAttribute(L.uv, 2));
       g.setAttribute('color', new THREE.Float32BufferAttribute(L.col, 3));
       g.setIndex(L.idx);
+      g.computeBoundingSphere(); // ⚡ 프러스텀 컬링 — 화면 밖 청크는 드로우 콜 생략
       const m = new THREE.Mesh(g, mats[name]);
       m.position.set(ox, 0, oz);
       m.matrixAutoUpdate = false; // 정적 청크 — 행렬 갱신 생략
-      m.updateMatrix();
-      m.matrixAutoUpdate = false;
       m.updateMatrix();
       if(name === 'water') m.renderOrder = 2;
       if(name === 'lava') m.renderOrder = 1;
@@ -640,16 +649,18 @@ class World {
   update(px, pz){
     const ccx = Math.floor(px / CHUNK), ccz = Math.floor(pz / CHUNK);
     const R = this.renderDist;
-    let meshBudget = 2;
+    // ⚡ 시간 분할 메싱: 빈(높은) 청크는 빨리, 빽빽한 청크는 느리게 — 항상 최소 1개는 짓고 프레임 예산(6ms/저사양 3ms) 소진 시 중단
+    const t0 = performance.now(); let built = 0;
+    const budgetMs = (typeof game !== 'undefined' && game.perfMode) ? 3 : 6;
     for(const [dx, dz, dist] of this._offsets){
       if(dist > R) break;
       const cx = ccx + dx, cz = ccz + dz;
       const c = this.ensureChunk(cx, cz);
-      if(!c.meshes && meshBudget > 0){
+      if(!c.meshes){
         this.buildChunkMesh(c);
-        meshBudget--;
+        built++;
+        if(built >= 1 && performance.now() - t0 > budgetMs) break;
       }
-      if(meshBudget <= 0) break;
     }
     // 수정된 청크 리메시
     if(this.dirty.size){

@@ -131,6 +131,17 @@ const UI = {
         this.toast(pf.checked ? '저사양 모드 ON — 해상도·파티클·스폰을 줄입니다' : '저사양 모드 OFF');
       };
     }
+    // 📊 FPS 표시
+    const fpsT = $id('fps-toggle');
+    if(fpsT){
+      const opts = JSON.parse(localStorage.getItem('pokecraft_opts') || '{}');
+      fpsT.checked = !!opts.fpsHud;
+      if(typeof game !== 'undefined') game.fpsHud = !!opts.fpsHud;
+      fpsT.onchange = () => {
+        if(typeof game !== 'undefined') game.fpsHud = fpsT.checked;
+        saveOpt('fpsHud', fpsT.checked);
+      };
+    }
   },
 
   isOpen(){ return !!this.open; },

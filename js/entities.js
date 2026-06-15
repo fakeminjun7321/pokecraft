@@ -1,6 +1,10 @@
 // ===== entities.js : 물리, 드롭 아이템, 파티클, 투사체(포켓볼/화살), TNT, 폭발 =====
 'use strict';
 
+// ⚡ 핫루프용 스크래치 벡터 (프레임마다 new THREE.Vector3() 재할당 방지)
+let _scratchV = null;
+function _sv(){ return _scratchV || (_scratchV = new THREE.Vector3()); }
+
 // ---------- AABB 물리 바디 ----------
 class PhysBody {
   constructor(x, y, z, halfW, height){
@@ -128,7 +132,7 @@ const ItemDrops = {
       Net.sendSpawnDrop(x, y, z, id, n, dur, ench);
       return;
     }
-    if(this.list.length > 200) return;
+    if(this.list.length > ((typeof game !== 'undefined' && game.perfMode) ? 80 : 200)) return;
     let mesh;
     if(isBlockId(id) && BLOCKS[id].rt !== RT.CROSS){
       mesh = new THREE.Mesh(this.geom(id), world.matSolid);
@@ -207,9 +211,10 @@ const Particles = {
   },
   spawn(x, y, z, hex, n, spread, life, up){
     if(typeof game !== 'undefined' && game.perfMode) n = Math.max(1, Math.ceil(n * 0.4));
+    const cap = (typeof game !== 'undefined' && game.perfMode) ? 220 : this.MAX;
     const r = ((hex >> 16) & 255) / 255, g = ((hex >> 8) & 255) / 255, b = (hex & 255) / 255;
     for(let i = 0; i < n; i++){
-      if(this.list.length >= this.MAX) this.list.shift();
+      if(this.list.length >= cap) this.list.shift();
       this.list.push({
         x, y, z,
         vx: (Math.random() - 0.5) * spread,
@@ -401,7 +406,7 @@ const Projectiles = {
           continue;
         }
       } else { // arrow
-        const dir = new THREE.Vector3(e.vx, e.vy, e.vz).normalize();
+        const dir = _sv().set(e.vx, e.vy, e.vz).normalize();
         e.mesh.lookAt(e.x + dir.x, e.y + dir.y, e.z + dir.z);
         if(e.fromPlayer){
           // 플레이어가 쏜 화살 → 몹 명중

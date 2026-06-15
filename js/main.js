@@ -13,7 +13,7 @@ const game = {
   started: false, mode: 'survival', seed: 1, seedStr: '',
   time: 0.06, // 0 = 일출
   keys: {}, locked: false, inBattle: false, paused: false,
-  shake: 0, swing: 0, sprint: false,
+  shake: 0, swing: 0, sprint: false, hitstop: 0, fpsHud: false,
   followerOn: true, chatOpen: false, camMode: 0, riding: false, touch: false,
   dim: 'over', portalCd: 0, healCd: 0,
   get uiOpen(){ return typeof UI !== 'undefined' && UI.isOpen(); },
@@ -389,6 +389,12 @@ function ensurePokeBag(){
 function applyPerfMode(on){
   game.perfMode = !!on;
   if(renderer) renderer.setPixelRatio(on ? 1 : Math.min(window.devicePixelRatio, 1.5));
+  // ⚡ 저사양 모드는 렌더 거리도 함께 낮춘다 (스폰/파티클/메싱 예산은 game.perfMode를 직접 읽음)
+  if(typeof world !== 'undefined' && world){
+    let base = 4;
+    try { base = clamp((JSON.parse(localStorage.getItem('pokecraft_opts') || '{}').renderDist) || 4, 3, 6); } catch(e){}
+    world.renderDist = on ? Math.min(base, 3) : base;
+  }
 }
 
 // ---------- three.js 환경 ----------
@@ -1499,6 +1505,15 @@ function updateHighlight(){
 function updateDebug(dt){
   fpsAcc += dt; fpsCnt++;
   if(fpsAcc > 0.5){ fpsShow = Math.round(fpsCnt / fpsAcc); fpsAcc = 0; fpsCnt = 0; }
+  // ⚡ 가벼운 FPS HUD (디버그 오버레이와 별개 토글) — 최적화 효과 측정용
+  const fh = document.getElementById('fps-hud');
+  if(fh){
+    if(game.fpsHud){
+      fh.style.display = 'block';
+      fh.textContent = fpsShow + ' FPS · ' + world.chunks.size + 'c';
+      fh.style.color = fpsShow >= 50 ? '#7fff7f' : fpsShow >= 30 ? '#ffe066' : '#ff6666';
+    } else fh.style.display = 'none';
+  }
   if(!debugOn) return;
   const b = player.body;
   document.getElementById('debug').textContent =
@@ -1525,6 +1540,16 @@ function tick(t){
   if(dt <= 0) return;
   lastT = t;
   if(!game.started) return;
+
+  // 💥 히트스톱: 큰 타격 직후 월드 시뮬레이션을 잠깐 멈춰 묵직함을 준다 (화면·파티클은 계속 렌더)
+  if(game.hitstop > 0){
+    game.hitstop -= dt;
+    if(game.hitstop > 0){
+      if(typeof Particles !== 'undefined') Particles.update(dt * 0.25);
+      if(renderer && scene && camera) renderer.render(scene, camera);
+      return;
+    }
+  }
 
   // 일시정지/조작법 화면은 진짜 일시정지 (인벤토리 등은 마인크래프트처럼 월드 계속 진행)
   // 멀티플레이 중에는 호스트가 멈추면 게스트도 같이 멈추므로 일시정지를 적용하지 않음
