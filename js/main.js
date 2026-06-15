@@ -769,6 +769,12 @@ function tryBattle(classic){
     UI.toast('근처에 야생 포켓몬이 없어요 (9블록 이내)');
     return;
   }
+  // 🎭 더블 배틀: 처음 만난 야생 근처(5블록)에 또 다른 야생이 있고 내 포켓몬이 2마리 이상이면 2v2!
+  if(PokeMan.party.filter(p => p.hp > 0).length >= 2){
+    const second = PokeMan.wilds.find(w => w !== best && !w.catching && !w.fainted &&
+      dist3(w.body.x, w.body.y, w.body.z, best.body.x, best.body.y, best.body.z) < 5);
+    if(second){ Battle.startDouble(best, second); return; }
+  }
   Battle.start(best);
 }
 
@@ -1140,6 +1146,18 @@ function runCommand(raw){
     case 'elite': case '사천왕': case '리그': case 'league':
       if(typeof Battle !== 'undefined' && Battle.startEliteFour) Battle.startEliteFour();
       break;
+    case 'double': case '더블': {
+      // 🎭 더블 배틀 테스트: 야생 2마리 소환 후 2v2
+      if(!PokeMan.enabled){ say('포켓몬 모드가 꺼져 있어요'); break; }
+      if(PokeMan.party.filter(p => p.hp > 0).length < 2){ say('🎭 살아있는 포켓몬이 2마리 이상 필요해요!'); break; }
+      const b0 = player.body, d0 = player.dir();
+      const lv0 = Math.max(5, PokeMan.party[0].level - 2);
+      const w1 = new WildPoke(16, lv0, b0.x + d0.x * 4, b0.y + 1, b0.z + d0.z * 4);
+      const w2 = new WildPoke(19, lv0, b0.x + d0.x * 4 + 1.5, b0.y + 1, b0.z + d0.z * 4);
+      PokeMan.wilds.push(w1, w2);
+      Battle.startDouble(w1, w2);
+      break;
+    }
     case 'ask': case '질문': {
       const q = parts.slice(1).join(' ');
       if(!q){ Guide.open(); break; }

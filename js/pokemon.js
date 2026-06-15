@@ -3167,6 +3167,89 @@ const Battle = {
     this.menuEnabled(true);
     return true;
   },
+  // ===== 🎭 더블 배틀 (2v2) — 완전 격리. 단일/PvP/트레이너 경로 미변경 =====
+  async startDouble(wildEnt, wildEnt2){
+    if(this.active || game.inBattle) return false;
+    const alive = PokeMan.party.filter(p => p.hp > 0);
+    if(alive.length < 2){ UI.toast('🎭 더블 배틀은 살아있는 포켓몬이 2마리 이상 필요해요!'); return false; }
+    this.initDom();
+    this.active = true; this.busy = true; this.double = true;
+    game.inBattle = true;
+    if(document.exitPointerLock) document.exitPointerLock();
+    this.wildEnt = wildEnt; this.wildEnt2 = wildEnt2 || null;
+    if(wildEnt) wildEnt.catching = true;
+    if(wildEnt2) wildEnt2.catching = true;
+    this.wild = wildEnt.inst;
+    this.enemyB = wildEnt2 ? wildEnt2.inst : new PokeInst(this.wild.sp, this.wild.level);
+    this.ally = alive[0]; this.allyB = alive[1];
+    this.allyIdx = PokeMan.party.indexOf(this.ally);
+    this._firstTurn = false;
+    PokeMan.seen.add(this.wild.sp); PokeMan.seen.add(this.enemyB.sp);
+    this._setupField();
+    this.setModel('E', this.wild.sp, this.wild.shiny);
+    this.setModel('A', this.ally.sp, this.ally.shiny);
+    this.$('battle-overlay').classList.remove('hidden');
+    this.hideSub();
+    this._allyAtkMod = 1; this._enemyAtkMod = 1;
+    this.updateBars();
+    this.menuEnabled(false);
+    await this.say('🎭 더블 배틀! 야생 ' + this.wild.name + '와(과) ' + this.enemyB.name + '이(가) 함께 덤벼든다!');
+    await this.say('가랏! ' + this.ally.name + '와(과) ' + this.allyB.name + '!');
+    this.busy = false;
+    this.menuEnabled(true);
+    return true;
+  },
+  async doubleTurn(action){
+    if(this.busy) return;
+    if(action.type === 'ball'){ UI.toast('🎭 더블 배틀에선 포획할 수 없어요'); return; }
+    this.busy = true; this.hideSub(); this.menuEnabled(false);
+    const livingEnemies = () => [this.wild, this.enemyB].filter(e => e && e.hp > 0);
+    const livingAllies = () => [this.ally, this.allyB].filter(a => a && a.hp > 0);
+    const pickMove = (u) => u.moves[Math.floor(Math.random() * u.moves.length)];
+    try {
+      if(action.type === 'run'){
+        if(Math.random() < 0.7){ await this.say('무사히 도망쳤다!'); this.end('run'); return; }
+        await this.say('도망칠 수 없었다!');
+      } else if(action.type === 'potion'){
+        const heal = itemDef(action.id || I.POTION).pokeHeal || 25;
+        if(player.countItem(action.id || I.POTION) > 0){ player.removeItem(action.id || I.POTION, 1); this.ally.hp = Math.min(this.ally.maxHp, this.ally.hp + heal); await this.say(this.ally.name + '의 체력이 회복됐다!'); }
+      }
+      // 4명(또는 그 이하)의 행동을 스피드 순으로 — 선두만 플레이어가 기술 지정
+      const actors = [];
+      if(action.type === 'move' && this.ally.hp > 0) actors.push({ u: this.ally, mk: action.move, ally: true });
+      if(this.allyB && this.allyB.hp > 0) actors.push({ u: this.allyB, mk: pickMove(this.allyB), ally: true });
+      if(this.wild.hp > 0) actors.push({ u: this.wild, mk: pickMove(this.wild), ally: false });
+      if(this.enemyB && this.enemyB.hp > 0) actors.push({ u: this.enemyB, mk: pickMove(this.enemyB), ally: false });
+      actors.sort((a, b) => b.u.spd - a.u.spd);
+      for(const act of actors){
+        if(!this.active) return;
+        if(act.u.hp <= 0) continue;
+        const opp = act.ally ? livingEnemies() : livingAllies();
+        if(!opp.length) break;
+        const target = opp[Math.floor(Math.random() * opp.length)];
+        await this.useMove(act.u, target, act.mk, act.ally);
+        this.updateBars();
+        if(!livingEnemies().length){ SFX.play('faint'); await this.say('상대를 모두 쓰러뜨렸다!'); return this._doubleWin(); }
+        // 쓰러진 아군 교체 (벤치에 살아있는 포켓몬)
+        for(const slot of ['ally', 'allyB']){
+          if(this[slot] && this[slot].hp <= 0){
+            const next = PokeMan.party.find(p => p.hp > 0 && p !== this.ally && p !== this.allyB);
+            if(next){ await this.say('😵 ' + this[slot].name + '은(는) 쓰러졌다! ' + next.name + ', 가랏!'); this[slot] = next; if(slot === 'ally') this.setModel('A', next.sp, next.shiny); this.updateBars(); }
+          }
+        }
+        if(!livingAllies().length){ await this.say('내 포켓몬이 모두 쓰러졌다...'); this.end('lose'); return; }
+      }
+    } finally {
+      this.updateBars();
+      if(this.active){ this.busy = false; this.menuEnabled(true); }
+    }
+  },
+  _doubleWin(){
+    const exp = Math.floor((this.wild.spec.bx * this.wild.level + this.enemyB.spec.bx * this.enemyB.level) / 7) + 2;
+    for(const a of [this.ally, this.allyB]){ if(a && a.hp > 0){ const evs = a.gainExp(exp); for(const ev of evs){ if(ev.type === 'level') UI.toast(a.name + ' 레벨 ' + ev.lv + '!'); } } }
+    UI.toast('🎭 더블 배틀 승리! 두 포켓몬이 경험치를 얻었다!', 4000);
+    this.end('win');
+  },
   say(text){
     if(this.pvp && !this.pvpMirror && this._pvpOpp) Net.sendTo(this._pvpOpp, { t: 'pvpEvt', e: { k: 'say', text } });
     const el = this.$('b-msg');
@@ -3203,16 +3286,18 @@ const Battle = {
         e: { n: w.name, lv: w.level, hp: w.hp, max: w.maxHp } } });
     }
     const stChip = (inst) => inst.status && STATUS_DEFS[inst.status] ? ' <span class="status-chip">' + STATUS_DEFS[inst.status].icon + STATUS_DEFS[inst.status].n + '</span>' : '';
+    // 🎭 더블 배틀: 짝 포켓몬 HP를 이름 옆에 표시
+    const partner = (inst) => this.double && inst ? ' <span class="status-chip" style="background:rgba(80,40,80,.5)">🤝' + inst.name + ' ' + Math.max(0, inst.hp) + '/' + inst.maxHp + '</span>' : '';
     const eArt = this.$('b-enemy-art'), eSrc = artURL(w.sp);
     if(eArt){ eArt.classList.toggle('hidden', !eSrc); if(eSrc) eArt.src = eSrc; eArt.classList.toggle('shiny', !!w.shiny); }
-    this.$('b-enemy-name').innerHTML = w.name + ' ' + typeTagsHTML(w.spec.types) + stChip(w);
+    this.$('b-enemy-name').innerHTML = w.name + ' ' + typeTagsHTML(w.spec.types) + stChip(w) + partner(this.enemyB);
     this.$('b-enemy-lv').textContent = 'Lv.' + w.level;
     this.$('b-enemy-hpfill').style.width = (w.hp / w.maxHp * 100) + '%';
     this.$('b-enemy-hpfill').style.background = w.hp / w.maxHp > 0.5 ? '#44c944' : w.hp / w.maxHp > 0.2 ? '#e8b820' : '#e23b3b';
     this.$('b-enemy-hptext').textContent = w.hp + ' / ' + w.maxHp;
     const aArt = this.$('b-ally-art'), aSrc = artURL(a.sp);
     if(aArt){ aArt.classList.toggle('hidden', !aSrc); if(aSrc) aArt.src = aSrc; aArt.classList.toggle('shiny', !!a.shiny); }
-    this.$('b-ally-name').innerHTML = a.name + ' ' + typeTagsHTML(a.spec.types) + stChip(a);
+    this.$('b-ally-name').innerHTML = a.name + ' ' + typeTagsHTML(a.spec.types) + stChip(a) + partner(this.allyB);
     this.$('b-ally-lv').textContent = 'Lv.' + a.level;
     this.$('b-ally-hpfill').style.width = (a.hp / a.maxHp * 100) + '%';
     this.$('b-ally-hpfill').style.background = a.hp / a.maxHp > 0.5 ? '#44c944' : a.hp / a.maxHp > 0.2 ? '#e8b820' : '#e23b3b';
@@ -3292,6 +3377,7 @@ const Battle = {
     });
   },
   async turn(action){
+    if(this.double) return this.doubleTurn(action); // 🎭 더블 배틀은 격리된 흐름으로
     if(this.busy) return;
     // 미러(대전 상대 화면): 행동을 시뮬레이터에게 보내기만 한다
     if(this.pvpMirror){
@@ -3755,6 +3841,15 @@ const Battle = {
     }
     PokeMan.party.forEach(q => q.revertMega && q.revertMega());
     this._megaUsed = false;
+    // 🎭 더블 배틀 정리 (둘째 야생도 처리)
+    if(this.double){
+      this.double = false; this.allyB = null; this.enemyB = null;
+      if(this.wildEnt2){
+        if(result === 'win'){ try { PokeMan.removeWild(this.wildEnt2, true); } catch(e){} }
+        else { this.wildEnt2.catching = false; this.wildEnt2.fleeTimer = 4; }
+        this.wildEnt2 = null;
+      }
+    }
     this.active = false;
     this.busy = false;
     this.trainer = null;
