@@ -1102,6 +1102,22 @@ const UI = {
         };
         btns.appendChild(b);
       }
+      // 🎒 지닌 물건 장착/해제 (가방의 held 아이템 ↔ 포켓몬)
+      {
+        const b = document.createElement('button');
+        b.textContent = p.held ? ('🎒 ' + itemName(p.held) + ' ✕') : '🎒 지닌물건';
+        b.onclick = () => {
+          if(p.held){ PokeMan.bagAdd(p.held, 1); p.held = 0; this.toast('지닌 물건을 가방에 넣었어요'); this.openParty(); return; }
+          const heldIds = Object.keys(PokeMan.bag).map(Number).filter(id => PokeMan.bag[id] > 0 && itemDef(id) && itemDef(id).held);
+          if(!heldIds.length){ this.toast('가방에 지닐 수 있는 물건이 없어요 (먹다남은음식·목탄·기합의띠 등을 만들어보세요)'); return; }
+          // 가장 작은 id부터 순환 장착
+          const pick = heldIds.sort((a, c) => a - c)[0];
+          PokeMan.bagRemove(pick, 1); p.held = pick;
+          SFX.play('pop'); this.toast('🎒 ' + p.name + '에게 ' + itemName(pick) + '을(를) 들렸어요!');
+          this.openParty();
+        };
+        btns.appendChild(b);
+      }
       // 멀티: 포켓몬 교환 (제안 받은 상태면 '이걸로 교환')
       if(typeof Net !== 'undefined' && Net.mode !== 'off'){
         if(typeof TradeMan !== 'undefined' && TradeMan._incoming){

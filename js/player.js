@@ -518,7 +518,7 @@ class Player {
         if(!PokeMan.enabled || !PokeMan.party.length){ UI.toast('회복할 포켓몬이 없어요'); return; }
         if(game.healCd > 0){ UI.toast('회복 머신 충전 중... ' + Math.ceil(game.healCd) + '초'); return; }
         game.healCd = 60;
-        PokeMan.party.forEach(q => { q.hp = q.maxHp; });
+        PokeMan.party.forEach(q => { q.hp = q.maxHp; q.status = null; q.statusT = 0; }); // 🌡 회복 머신: 상태이상도 치료
         Particles.spawn(hit.bx + 0.5, hit.by + 1.2, hit.bz + 0.5, 0x48e0c8, 18, 2, 0.8, 1.5);
         SFX.play('level');
         UI.toast('💖 포켓몬들이 모두 회복했다! 삐리리~');

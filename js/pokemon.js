@@ -142,6 +142,29 @@ const MOVES = {
   shadowclaw:  { n:'섀도클로',     t:'ghost',   p:70,  a:100 },
 };
 
+// ===== 🌡 상태이상 시스템 =====
+const STATUS_DEFS = {
+  burn:     { n:'화상', icon:'🔥', col:0xff6644 },
+  paralyze: { n:'마비', icon:'⚡', col:0xf5d327 },
+  sleep:    { n:'잠듦', icon:'💤', col:0x8aa0c8 },
+  freeze:   { n:'얼음', icon:'❄', col:0x9adcf5 },
+  poison:   { n:'독',   icon:'☠', col:0xb06ae8 },
+};
+// 기술 → 부가 상태이상 (확률) — 자속/이름 기준
+const MOVE_STATUS = {
+  ember:['burn',0.1], flamethrower:['burn',0.12], fireblast:['burn',0.18], firewheel:['burn',0.1], firepunch:['burn',0.12], flareblitz:['burn',0.1], sludge:['poison',0.3], sludgebomb:['poison',0.3], poisonsting:['poison',0.2], poisonjab:['poison',0.3], thundershock:['paralyze',0.1], spark:['paralyze',0.3], thunderbolt:['paralyze',0.12], thunder:['paralyze',0.3], thunderpunch:['paralyze',0.12], wildcharge:['paralyze',0.1], bodyslam:['paralyze',0.2], icebeam:['freeze',0.1], blizzard:['freeze',0.12], icepunch:['freeze',0.1], icywind:['freeze',0.05], lick:['paralyze',0.2],
+};
+// 상태이상 적용 (이미 걸려있으면 무시)
+function applyStatus(inst, st){
+  if(!inst || inst.status || !STATUS_DEFS[st]) return false;
+  if(st === 'burn' && inst.spec.types.includes('fire')) return false;     // 불꽃은 화상 면역
+  if(st === 'freeze' && inst.spec.types.includes('ice')) return false;    // 얼음은 빙결 면역
+  if((st === 'poison') && (inst.spec.types.includes('poison') || inst.spec.types.includes('steel'))) return false;
+  inst.status = st;
+  inst.statusT = st === 'sleep' ? 1 + Math.floor(Math.random() * 3) : 0;  // 잠은 1~3턴
+  return true;
+}
+
 // ---------- 추가 모델 빌더 ----------
 function buildBlob(o){
   const g = new THREE.Group();
@@ -1512,6 +1535,8 @@ class PokeInst {
     this.calc();
     this.hp = this.maxHp;
     this.updateMoves();
+    this.status = null; this.statusT = 0; // 🌡 상태이상
+    this.held = 0;                        // 🎒 지닌 물건 (아이템 id, 0=없음)
   }
   get spec(){ return SPECIES[this.sp]; }
   calc(){
@@ -1599,11 +1624,12 @@ class PokeInst {
     this._preMega = null;
   }
   get name(){ return (this.mega ? '메가 ' : '') + this.spec.name; }
-  serialize(){ return { sp:this.sp, level:this.level, exp:this.exp, hp:this.hp, sh:this.shiny ? 1 : 0 }; }
+  serialize(){ return { sp:this.sp, level:this.level, exp:this.exp, hp:this.hp, sh:this.shiny ? 1 : 0, st:this.status || 0, stT:this.statusT || 0, hl:this.held || 0 }; }
   static from(d){
     const p = new PokeInst(d.sp, d.level);
     p.exp = d.exp; p.hp = clamp(d.hp, 0, p.maxHp);
     p.shiny = !!d.sh;
+    p.status = d.st || null; p.statusT = d.stT || 0; p.held = d.hl || 0; // 상태이상·지닌물건 (기본값)
     return p;
   }
 }
@@ -1906,6 +1932,7 @@ const PokeMan = {
           if(p._faintRest >= 48){
             p._faintRest = 0;
             p.hp = Math.max(1, Math.ceil(p.maxHp * 0.25));
+            p.status = null; p.statusT = 0; // 깨어나면 상태이상 회복
             UI.toast('💫 ' + p.name + '이(가) 기절에서 깨어났다! (HP 25% — 물약이나 휴식으로 더 회복하자)');
             SFX.play('pop');
           }
@@ -3149,16 +3176,17 @@ const Battle = {
         a: { n: a.name, lv: a.level, hp: a.hp, max: a.maxHp },
         e: { n: w.name, lv: w.level, hp: w.hp, max: w.maxHp } } });
     }
+    const stChip = (inst) => inst.status && STATUS_DEFS[inst.status] ? ' <span class="status-chip">' + STATUS_DEFS[inst.status].icon + STATUS_DEFS[inst.status].n + '</span>' : '';
     const eArt = this.$('b-enemy-art'), eSrc = artURL(w.sp);
     if(eArt){ eArt.classList.toggle('hidden', !eSrc); if(eSrc) eArt.src = eSrc; eArt.classList.toggle('shiny', !!w.shiny); }
-    this.$('b-enemy-name').innerHTML = w.name + ' ' + typeTagsHTML(w.spec.types);
+    this.$('b-enemy-name').innerHTML = w.name + ' ' + typeTagsHTML(w.spec.types) + stChip(w);
     this.$('b-enemy-lv').textContent = 'Lv.' + w.level;
     this.$('b-enemy-hpfill').style.width = (w.hp / w.maxHp * 100) + '%';
     this.$('b-enemy-hpfill').style.background = w.hp / w.maxHp > 0.5 ? '#44c944' : w.hp / w.maxHp > 0.2 ? '#e8b820' : '#e23b3b';
     this.$('b-enemy-hptext').textContent = w.hp + ' / ' + w.maxHp;
     const aArt = this.$('b-ally-art'), aSrc = artURL(a.sp);
     if(aArt){ aArt.classList.toggle('hidden', !aSrc); if(aSrc) aArt.src = aSrc; aArt.classList.toggle('shiny', !!a.shiny); }
-    this.$('b-ally-name').innerHTML = a.name + ' ' + typeTagsHTML(a.spec.types);
+    this.$('b-ally-name').innerHTML = a.name + ' ' + typeTagsHTML(a.spec.types) + stChip(a);
     this.$('b-ally-lv').textContent = 'Lv.' + a.level;
     this.$('b-ally-hpfill').style.width = (a.hp / a.maxHp * 100) + '%';
     this.$('b-ally-hpfill').style.background = a.hp / a.maxHp > 0.5 ? '#44c944' : a.hp / a.maxHp > 0.2 ? '#e8b820' : '#e23b3b';
@@ -3376,6 +3404,25 @@ const Battle = {
           u.hp = Math.min(u.maxHp, u.hp + Math.max(1, Math.round(u.maxHp * 0.06)));
         }
       }
+      // 🎒 지닌 물건: 먹다남은음식 — 매 턴 HP 1/16 회복
+      for(const u of [this.ally, this.wild]){
+        if(u && u.hp > 0 && u.held === I.LEFTOVERS && u.hp < u.maxHp){
+          u.hp = Math.min(u.maxHp, u.hp + Math.max(1, Math.round(u.maxHp / 16)));
+        }
+      }
+      // 🌡 상태이상 지속 피해 (화상 1/16, 독 1/8)
+      if(this.active){
+        for(const [u, isA] of [[this.ally, true], [this.wild, false]]){
+          if(!u || u.hp <= 0) continue;
+          if(u.status === 'burn' || u.status === 'poison'){
+            const dmg = Math.max(1, Math.round(u.maxHp / (u.status === 'burn' ? 16 : 8)));
+            u.hp = Math.max(0, u.hp - dmg);
+            this.updateBars();
+            await this.say(STATUS_DEFS[u.status].icon + ' ' + u.name + '은(는) ' + STATUS_DEFS[u.status].n + '으로 피해를 입었다!');
+            if(u.hp <= 0){ if(isA) await this.allyFaintFlow(); else await this.enemyFaintFlow(); }
+          }
+        }
+      }
       this.updateBars();
       if(this.active){
         this.busy = false;
@@ -3393,6 +3440,16 @@ const Battle = {
   },
   async useMove(user, target, mk, isAlly){
     const mv = MOVES[mk];
+    // 🌡 상태이상: 행동 불가 판정 (얼음/잠/마비)
+    if(user.status === 'freeze'){
+      if(Math.random() < 0.2){ user.status = null; await this.say(user.name + '의 얼음이 녹았다!'); }
+      else { await this.say(user.name + '은(는) 얼어붙어 움직일 수 없다!'); this.updateBars(); return; }
+    }
+    if(user.status === 'sleep'){
+      if(user.statusT > 0){ user.statusT--; await this.say('💤 ' + user.name + '은(는) 새근새근 잠들어 있다...'); return; }
+      else { user.status = null; await this.say(user.name + '은(는) 잠에서 깨어났다!'); }
+    }
+    if(user.status === 'paralyze' && Math.random() < 0.25){ await this.say('⚡ ' + user.name + '은(는) 몸이 저려서 움직일 수 없다!'); return; }
     await this.say(user.name + '의 ' + mv.n + '!');
     if(mv.p === 0){
       await this.say('하지만 아무 일도 일어나지 않았다!');
@@ -3420,7 +3477,10 @@ const Battle = {
     if(isAlly) mult *= this._allyAtkMod || 1; else mult *= this._enemyAtkMod || 1;
     // 특성: 근성 — 위기에서 같은 타입 기술 강화
     if(abilityOf(user.sp) === 'pinch' && user.hp < user.maxHp / 3 && user.spec.types.includes(mv.t)) mult *= 1.35;
+    // 🎒 지닌 물건: 타입 강화(목탄/신비의물방울 등) 1.2배
+    if(user.held && itemDef(user.held) && itemDef(user.held).held === mv.t) mult *= 1.2;
     const r = calcDamage(user, target, mk, mult);
+    if(user.status === 'burn') r.dmg = Math.max(1, Math.round(r.dmg * 0.67)); // 🔥 화상: 공격력 ↓
     if(r.eff === 0){
       await this.say('효과가 없는 것 같다...');
       return;
@@ -3432,6 +3492,13 @@ const Battle = {
       this.flashSide(isAlly ? 'E' : 'A');
       this.updateBars();
       await this.say(target.name + '은(는) 옹골참으로 버텼다!!');
+      return;
+    }
+    // 🎒 기합의 띠 — 12% 확률로 쓰러질 공격을 1로 버틴다
+    if(r.dmg >= target.hp && target.held === I.FOCUS_BAND && Math.random() < 0.12){
+      target.hp = 1;
+      SFX.play('hit'); this.flashSide(isAlly ? 'E' : 'A'); this.updateBars();
+      await this.say('🎽 ' + target.name + '은(는) 기합의 띠로 버텼다!');
       return;
     }
     target.hp = Math.max(0, target.hp - r.dmg);
@@ -3446,6 +3513,12 @@ const Battle = {
     if(r.crit) await this.say('급소에 맞았다!');
     if(r.eff >= 2) await this.say('효과가 굉장했다!');
     else if(r.eff < 1) await this.say('효과가 별로인 듯하다...');
+    // 🌡 부가 상태이상 적용
+    const stx = MOVE_STATUS[mk];
+    if(stx && target.hp > 0 && Math.random() < stx[1] && applyStatus(target, stx[0])){
+      this.updateBars();
+      await this.say(target.name + '은(는) ' + STATUS_DEFS[stx[0]].n + ' 상태가 되었다!');
+    }
   },
   async allyAttack(mk){
     await this.useMove(this.ally, this.wild, mk, true);

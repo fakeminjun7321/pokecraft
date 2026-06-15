@@ -50,7 +50,9 @@ const I = {
   FLINT_STEEL:193, QUARTZ:194, GLOWDUST:195, BLAZE_ROD:196, ENDER_EYE:197,
   FIRE_STONE:198, WATER_STONE:199, THUNDER_STONE:200, LEAF_STONE:201, MOON_STONE:202,
   FOSSIL_HELIX:203, FOSSIL_DOME:204, FOSSIL_AMBER:205, POKE_BAG:211,
-  BUCKET:206, WATER_BUCKET:207, LAVA_BUCKET:208, LINK_CABLE:209, MEGA_STONE:210
+  BUCKET:206, WATER_BUCKET:207, LAVA_BUCKET:208, LINK_CABLE:209, MEGA_STONE:210,
+  // 🎒 포켓몬 지닌 물건 213+
+  LEFTOVERS:213, FOCUS_BAND:214, CHARCOAL:217, MYSTIC_WATER:218, MIRACLE_SEED:219, MAGNET:220,
 };
 
 // ----- 타일 인덱스 (아틀라스 16x16 그리드) -----
@@ -258,6 +260,13 @@ defItem(I.QUARTZ,    { name:'네더 석영' });
 defItem(I.GLOWDUST,  { name:'발광석 가루' });
 defItem(I.BLAZE_ROD, { name:'블레이즈 막대' });
 defItem(I.ENDER_EYE, { name:'엔더의 눈', stack:16 });
+// 🎒 포켓몬 지닌 물건
+defItem(I.LEFTOVERS,    { name:'먹다남은음식', stack:1, held:'leftovers' });
+defItem(I.FOCUS_BAND,   { name:'기합의 띠', stack:1, held:'focus' });
+defItem(I.CHARCOAL,     { name:'목탄', stack:1, held:'fire' });
+defItem(I.MYSTIC_WATER, { name:'신비의물방울', stack:1, held:'water' });
+defItem(I.MIRACLE_SEED, { name:'기적의씨앗', stack:1, held:'grass' });
+defItem(I.MAGNET,       { name:'자석', stack:1, held:'electric' });
 defItem(I.FIRE_STONE,    { name:'불꽃의 돌', stack:16 });
 defItem(I.WATER_STONE,   { name:'물의 돌', stack:16 });
 defItem(I.THUNDER_STONE, { name:'천둥의 돌', stack:16 });
@@ -299,7 +308,8 @@ const CREATIVE_ITEMS = [
   I.LEATHER,I.L_HELM,I.L_CHEST,I.L_LEGS,I.I_HELM,I.I_CHEST,I.I_LEGS,I.D_HELM,I.D_CHEST,I.D_LEGS,
   I.POTION_SPEED,I.POTION_JUMP,I.POTION_REGEN,I.FLINT_STEEL,I.QUARTZ,I.GLOWDUST,I.BLAZE_ROD,I.ENDER_EYE,B.END_CRYSTAL,
   B.SPRUCE_LOG,B.SPRUCE_LEAVES,B.JUNGLE_LOG,B.JUNGLE_LEAVES,B.CHERRY_LOG,B.CHERRY_LEAVES,B.MYCELIUM,B.RED_SAND,B.TERRACOTTA,B.DEEPSLATE,B.PODZOL,B.MUSHROOM,
-  B.ANVIL,B.BUTTON,B.PLATE,B.BREWING
+  B.ANVIL,B.BUTTON,B.PLATE,B.BREWING,
+  I.LEFTOVERS,I.FOCUS_BAND,I.CHARCOAL,I.MYSTIC_WATER,I.MIRACLE_SEED,I.MAGNET
 ];
 
 // ===== 텍스처 아틀라스 =====
@@ -608,6 +618,12 @@ function drawItemIcon(ctx, id){
     case I.WATER_BUCKET: P(4,6,'#b8b8c0',8,1); P(4,7,'#9a9aa5',1,5); P(11,7,'#9a9aa5',1,5); P(5,11,'#9a9aa5',6,2); P(5,6,'#3f76e4',6,3); break;
     case I.LAVA_BUCKET: P(4,6,'#b8b8c0',8,1); P(4,7,'#9a9aa5',1,5); P(11,7,'#9a9aa5',1,5); P(5,11,'#9a9aa5',6,2); P(5,6,'#f08020',6,3); break;
     case I.ENDER_EYE: P(5,5,'#1a3e2a',6,6); P(4,7,'#1a3e2a',2,3); P(11,6,'#1a3e2a',2,4); P(6,6,'#3aa848',3,3); P(7,7,'#a8f0b8',1,1); break;
+    case I.LEFTOVERS: P(4,6,'#c89050',8,6); P(5,5,'#a86838',6,3); P(6,8,'#e8c890',3,2); P(9,9,'#8a5a30',2,2); break;
+    case I.FOCUS_BAND: P(3,7,'#e8e0d0',10,3); P(3,7,'#c83a3a',10,1); P(7,6,'#c83a3a',2,5); break;
+    case I.CHARCOAL: P(5,5,'#2a2a2e',6,7); P(6,4,'#3a3a40',4,2); P(7,7,'#555',2,2); P(6,11,'#1a1a1e',4,2); break;
+    case I.MYSTIC_WATER: P(5,4,'#3a8ad8',6,8); P(6,3,'#5aa8f0',4,2); P(7,6,'#a8d8ff',2,3); P(6,11,'#2a6ab8',4,2); break;
+    case I.MIRACLE_SEED: P(5,6,'#6abe30',6,6); P(6,4,'#8ade50',4,3); P(7,5,'#c8f088',2,2); P(7,3,'#4a8a20',2,2); break;
+    case I.MAGNET: P(4,4,'#c83a3a',3,8); P(9,4,'#3a5ac8',3,8); P(4,10,'#c0c0c0',8,3); break;
     case I.FLINT_STEEL: P(4,5,'#3a3a42',5,5); P(9,8,'#c8c8c8',4,2); P(10,6,'#c8c8c8',2,5); break;
     case I.GOLDEN_APPLE: P(5,5,'#fce14c',6,6); P(4,6,'#fce14c',8,4); P(7,3,'#6b4a2a',1,2); P(8,3,'#3c8a28',2,1); P(5,6,'#fff08c',2,2); break;
     default: P(4,4,'#f0f','8',8); break;
@@ -682,6 +698,13 @@ const RECIPES = [
   { sl:[[B.STONE,2]], out:[B.BUTTON,1] },                                 // 버튼: 돌 2
   { sl:[[B.STONE,3]], out:[B.PLATE,1] },                                  // 압력판: 돌 3
   { p:[' B ','CCC'], k:{B:I.BLAZE_ROD, C:B.COBBLE}, out:[B.BREWING,1] },  // 양조기: 블레이즈막대 + 조약돌3
+  // 🎒 포켓몬 지닌 물건 제작
+  { sl:[[I.PORK_COOKED,1],[I.BEEF_COOKED,1],[I.BREAD,1]], out:[I.LEFTOVERS,1] },
+  { sl:[[I.STRING,3],[I.LEATHER,1]], out:[I.FOCUS_BAND,1] },
+  { sl:[[I.COAL,2],[I.BLAZE_ROD,1]], out:[I.CHARCOAL,1] },
+  { sl:[[I.GLOWDUST,2],[B.GLASS,1]], out:[I.MYSTIC_WATER,1] },
+  { sl:[[I.SEEDS,4],[I.WHEAT,1]], out:[I.MIRACLE_SEED,1] },
+  { sl:[[I.IRON_INGOT,2],[I.REDSTONE,2]], out:[I.MAGNET,1] },
   { p:['IDI','IRI','III'], k:{I:I.IRON_INGOT, D:I.DIAMOND, R:I.REDSTONE}, out:[B.HEAL_MACHINE,1] },
   { p:['IGI','IRI','III'], k:{I:I.IRON_INGOT, G:B.GLASS, R:I.REDSTONE}, out:[B.FOSSIL_MACHINE,1] },
   { p:['GGG','IRI','IPI'], k:{G:B.GLASS, I:I.IRON_INGOT, R:I.REDSTONE, P:B.PLANKS}, out:[B.PC_BLOCK,1] },
@@ -766,5 +789,6 @@ const SMELT_TIME = 4; // 1개당 초
 const POKE_ITEM_SET = new Set([
   I.POKEBALL, I.GREATBALL, I.ULTRABALL, I.MASTERBALL, I.GOD_ORB, I.POTION, I.SUPERPOTION, I.HYPERPOTION,
   I.RARECANDY, I.FIRE_STONE, I.WATER_STONE, I.THUNDER_STONE, I.LEAF_STONE, I.MOON_STONE,
-  I.FOSSIL_HELIX, I.FOSSIL_DOME, I.FOSSIL_AMBER, I.LINK_CABLE, I.MEGA_STONE
+  I.FOSSIL_HELIX, I.FOSSIL_DOME, I.FOSSIL_AMBER, I.LINK_CABLE, I.MEGA_STONE,
+  I.LEFTOVERS, I.FOCUS_BAND, I.CHARCOAL, I.MYSTIC_WATER, I.MIRACLE_SEED, I.MAGNET
 ].filter(x => x !== undefined));
