@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>포케크래프트 - PokeCraft</title>
-<link rel="stylesheet" href="css/style.css?v=78">
+<link rel="stylesheet" href="css/style.css?v=79">
 </head>
 <body>
 <canvas id="game-canvas"></canvas>
@@ -186,9 +186,12 @@
 <!-- ===== 상자 ===== -->
 <div id="chest-overlay" class="overlay hidden">
   <div class="window">
-    <h3>상자</h3>
+    <h3>상자 <span class="label">상자칸 클릭=꺼내기 · 보관함칸 클릭=넣기</span></h3>
     <div id="chest-grid" class="slot-grid"></div>
-    <div id="chest-inv-grid" class="slot-grid"></div>
+    <div id="chest-storage-wrap">
+      <span class="label">📦 내 보관함 (무제한 · 클릭=상자에 넣기 · 우클릭=핫바로)</span>
+      <div id="chest-storage-list"></div>
+    </div>
     <div id="chest-bar-grid" class="slot-grid"></div>
   </div>
 </div>
@@ -394,26 +397,26 @@
 <div id="flash"></div>
 <div id="water-tint"></div>
 <div id="cursor-stack" class="hidden"></div>
-<div id="version">PokeCraft 빌드 v78</div>
+<div id="version">PokeCraft 빌드 v79</div>
 
 <script src="lib/three.min.js"></script>
 <script src="lib/peerjs.min.js"></script>
 <script src="lib/GLTFLoader.js"></script>
-<script src="js/util.js?v=78"></script>
-<script src="js/account.js?v=78"></script>
-<script src="js/content.js?v=78"></script>
-<script src="js/artlist.js?v=78"></script>
-<script src="js/meshlist.js?v=78"></script>
-<script src="js/world.js?v=78"></script>
-<script src="js/entities.js?v=78"></script>
-<script src="js/mobs.js?v=78"></script>
-<script src="js/pokemon.js?v=78"></script>
-<script src="js/player.js?v=78"></script>
-<script src="js/ui.js?v=78"></script>
-<script src="js/extras.js?v=78"></script>
-<script src="js/guide.js?v=78"></script>
-<script src="js/quests.js?v=78"></script>
-<script src="js/net.js?v=78"></script>
-<script src="js/main.js?v=78"></script>
+<script src="js/util.js?v=79"></script>
+<script src="js/account.js?v=79"></script>
+<script src="js/content.js?v=79"></script>
+<script src="js/artlist.js?v=79"></script>
+<script src="js/meshlist.js?v=79"></script>
+<script src="js/world.js?v=79"></script>
+<script src="js/entities.js?v=79"></script>
+<script src="js/mobs.js?v=79"></script>
+<script src="js/pokemon.js?v=79"></script>
+<script src="js/player.js?v=79"></script>
+<script src="js/ui.js?v=79"></script>
+<script src="js/extras.js?v=79"></script>
+<script src="js/guide.js?v=79"></script>
+<script src="js/quests.js?v=79"></script>
+<script src="js/net.js?v=79"></script>
+<script src="js/main.js?v=79"></script>
 </body>
 </html>

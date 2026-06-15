@@ -432,9 +432,10 @@ body.touch #hotbar .hslot { width: 44px; height: 44px; }
 .fb-skill b { color:#ffd866; margin-right:5px; }
 
 /* 📦 분류형 보관함 (마크식 그리드 대체) */
-#storage-wrap { margin: 8px 0; }
-#storage-list { max-height: 250px; overflow-y: auto; background: #16202c; border: 2px solid #3a4f66;
+#storage-wrap, #chest-storage-wrap { margin: 8px 0; }
+#storage-list, #chest-storage-list { max-height: 250px; overflow-y: auto; background: #16202c; border: 2px solid #3a4f66;
   border-radius: 6px; padding: 8px; margin-top: 4px; }
+#chest-storage-list { max-height: 200px; }
 .storage-cat { color: #ffd866; font-size: 12px; margin: 6px 0 4px; font-weight: bold; }
 .storage-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .storage-chip { display: flex; align-items: center; gap: 6px; background: #243447; border: 1px solid #3a4f66;

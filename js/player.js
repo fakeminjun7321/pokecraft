@@ -8,6 +8,7 @@ class Player {
     this.body = new PhysBody(0.5, 45, 0.5, 0.3, 1.8);
     this.yaw = 0; this.pitch = 0;
     this.inventory = new Array(36).fill(null); // 0-8 핫바, 9-35 인벤토리
+    this.storage = []; // 📦 무제한 오버플로 보관함 (36칸 넘으면 여기로 — 아이템 절대 손실 안 됨)
     this.selected = 0;
     this.health = 20; this.maxHealth = 20;
     this.air = 10; this.drownAcc = 0;
@@ -1002,13 +1003,29 @@ class Player {
         if(n <= 0) break;
       }
     }
+    // 📦 36칸이 다 차면 무제한 보관함으로 — 아이템 절대 손실 안 됨
+    if(n > 0){ this.storageAdd(id, n, dur, ench); n = 0; }
     UI.updateHotbar();
     return n;
   }
+  // 무제한 보관함에 추가 (스택 가능하면 합침)
+  storageAdd(id, n, dur, ench){
+    const max = maxStack(id);
+    if(max > 1 && !ench && dur === undefined){
+      for(const st of this.storage){
+        if(st.id === id && !st.ench && st.dur === undefined && st.n < max){
+          const take = Math.min(n, max - st.n); st.n += take; n -= take;
+          if(n <= 0) return;
+        }
+      }
+    }
+    while(n > 0){ const put = Math.min(n, max); const st = { id, n: put }; if(dur !== undefined) st.dur = dur; if(ench) st.ench = ench; this.storage.push(st); n -= put; }
+  }
   countItem(id){
     const inv = this.inventory.reduce((s, it) => s + (it && it.id === id ? it.n : 0), 0);
+    const sto = this.storage.reduce((s, it) => s + (it && it.id === id ? it.n : 0), 0);
     const bag = (typeof PokeMan !== 'undefined' && PokeMan.bag) ? (PokeMan.bag[id] || 0) : 0;
-    return inv + bag;
+    return inv + sto + bag;
   }
   removeItem(id, n){
     for(let i = 0; i < 36 && n > 0; i++){
@@ -1017,6 +1034,14 @@ class Player {
         const take = Math.min(n, s.n);
         s.n -= take; n -= take;
         if(s.n <= 0) this.inventory[i] = null;
+      }
+    }
+    // 📦 보관함에서도 차감
+    for(let i = this.storage.length - 1; i >= 0 && n > 0; i--){
+      const s = this.storage[i];
+      if(s && s.id === id){
+        const take = Math.min(n, s.n); s.n -= take; n -= take;
+        if(s.n <= 0) this.storage.splice(i, 1);
       }
     }
     UI.updateHotbar();
@@ -1028,7 +1053,7 @@ class Player {
       x: this.body.x, y: this.body.y, z: this.body.z,
       yaw: this.yaw, pitch: this.pitch,
       health: this.health, inv: this.inventory, sel: this.selected,
-      armor: this.armor, effects: this.effects, pets
+      armor: this.armor, effects: this.effects, pets, storage: this.storage
     };
   }
   deserialize(d){
@@ -1038,6 +1063,7 @@ class Player {
     this.health = d.health > 0 ? d.health : this.maxHealth;
     this.inventory = (d.inv || new Array(36).fill(null)).map(s => s ? { ...s } : null);
     while(this.inventory.length < 36) this.inventory.push(null);
+    this.storage = (d.storage || []).map(s => ({ ...s })); // 📦 무제한 보관함 복원
     this.selected = d.sel || 0;
     this.armor = (d.armor || [null, null, null]).map(a => a ? { ...a } : null);
     this.effects = d.effects || {};

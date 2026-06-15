@@ -419,7 +419,8 @@ const UI = {
   },
   refresh(){
     this._slots.forEach(s => renderStackEl(s.el, s.opts.output ? s.ref.get() : s.ref.get()));
-    if(this.open === 'inv') this._renderStorage();
+    if(this.open === 'inv') this._renderStorage('inv');
+    if(this.open === 'chest') this._renderStorage('chest');
     // 멀티플레이: 화로/상자 내용 동기화 (UI를 막 열었을 때는 전송 안 함 — 스테일 에코 방지)
     if(!this._suppressSync && typeof Net !== 'undefined' && Net.mode !== 'off'){
       if(this.open === 'furnace' && this.furnaceKey) Net.containerChanged('furnace', this.furnaceKey);
@@ -489,75 +490,98 @@ const UI = {
       }
     }
   },
-  _renderStorage(){
-    const list = $id('storage-list');
+  // 📦 무제한 보관함 스택 합치기
+  _mergeStorage(){
+    const arr = player.storage;
+    for(let i = 0; i < arr.length; i++){
+      const s = arr[i]; if(!s || s.ench || s.dur !== undefined) continue;
+      const max = maxStack(s.id);
+      for(let j = i + 1; j < arr.length; j++){
+        const t = arr[j]; if(!t || t.id !== s.id || t.ench || t.dur !== undefined) continue;
+        const take = Math.min(t.n, max - s.n); s.n += take; t.n -= take;
+        if(t.n <= 0){ arr.splice(j, 1); j--; }
+      }
+    }
+    player.storage = arr.filter(s => s && s.n > 0);
+  },
+  // 상자에 한 스택 넣기 → 남은 수량 반환(0이면 다 들어감)
+  _depositToChest(stack){
+    if(!this.chestKey) return stack.n;
+    const ch = world.chests.get(this.chestKey); if(!ch) return stack.n;
+    let n = stack.n; const max = maxStack(stack.id);
+    if(max > 1 && !stack.ench && stack.dur === undefined){
+      for(const cs of ch.slots){ if(cs && cs.id === stack.id && !cs.ench && cs.dur === undefined && cs.n < max){ const t = Math.min(n, max - cs.n); cs.n += t; n -= t; if(n <= 0) break; } }
+    }
+    for(let i = 0; i < ch.slots.length && n > 0; i++){ if(!ch.slots[i]){ const put = Math.min(n, max); const o = { id: stack.id, n: put }; if(stack.dur !== undefined) o.dur = stack.dur; if(stack.ench) o.ench = stack.ench; ch.slots[i] = o; n -= put; } }
+    return n;
+  },
+  // 분류형 보관함 렌더 (mode: 'inv' = 커서로 들기 / 'chest' = 상자에 넣기)
+  _renderStorage(mode){
+    mode = mode || 'inv';
+    const list = $id(mode === 'chest' ? 'chest-storage-list' : 'storage-list');
     if(!list) return;
     this._mergeBackpack();
+    this._mergeStorage();
     const cats = { '🧱 블록': [], '⚔ 장비': [], '🍖 음식': [], '🔧 재료': [] };
-    for(let i = 9; i < 36; i++){
-      const s = player.inventory[i];
-      if(!s) continue;
-      let cat = '🔧 재료';
-      if(isBlockId(s.id)) cat = '🧱 블록';
-      else if(toolInfo(s.id) || armorInfo(s.id) || s.id === I.BOW || s.id === I.ARROW) cat = '⚔ 장비';
-      else if(foodValue(s.id) > 0) cat = '🍖 음식';
-      cats[cat].push({ slot: i, s });
-    }
+    const catOf = (id) => isBlockId(id) ? '🧱 블록'
+      : (toolInfo(id) || armorInfo(id) || id === I.BOW || id === I.ARROW) ? '⚔ 장비'
+      : foodValue(id) > 0 ? '🍖 음식' : '🔧 재료';
+    // 슬롯 9-35 + 무제한 storage 두 소스를 통합
+    for(let i = 9; i < 36; i++){ const s = player.inventory[i]; if(s) cats[catOf(s.id)].push({ src: 'slot', idx: i, s }); }
+    for(const st of player.storage){ if(st) cats[catOf(st.id)].push({ src: 'store', ref: st, s: st }); }
     list.innerHTML = '';
-    // 커서 아이템 내려놓기 (빈 영역 클릭)
-    list.onmousedown = (e) => {
-      if(e.target !== list || !this.cursor) return;
-      const cur = this.cursor;
-      for(let i = 9; i < 36 && cur.n > 0; i++){
-        const t = player.inventory[i];
-        if(!t){ player.inventory[i] = { ...cur }; cur.n = 0; break; }
-        if(t.id === cur.id && !t.ench && !cur.ench && t.dur === undefined){
-          const take = Math.min(cur.n, maxStack(t.id) - t.n);
-          t.n += take; cur.n -= take;
+    if(mode === 'inv'){
+      // 빈 영역 클릭 = 커서 내려놓기 (슬롯 우선, 차면 무제한 보관함)
+      list.onmousedown = (e) => {
+        if(e.target !== list || !this.cursor) return;
+        const cur = this.cursor;
+        for(let i = 9; i < 36 && cur.n > 0; i++){
+          const t = player.inventory[i];
+          if(!t){ player.inventory[i] = { ...cur }; cur.n = 0; break; }
+          if(t.id === cur.id && !t.ench && !cur.ench && t.dur === undefined){ const take = Math.min(cur.n, maxStack(t.id) - t.n); t.n += take; cur.n -= take; }
         }
-      }
-      if(cur.n <= 0) this.cursor = null;
-      SFX.play('click');
-      this.refresh();
+        if(cur.n > 0){ player.storageAdd(cur.id, cur.n, cur.dur, cur.ench); cur.n = 0; }
+        this.cursor = null; SFX.play('click'); this.refresh();
+      };
+    } else list.onmousedown = null;
+    // 엔트리에서 스택을 꺼냄(소스에서 제거)
+    const takeStack = (entry) => {
+      if(entry.src === 'slot'){ const s = player.inventory[entry.idx]; player.inventory[entry.idx] = null; return s; }
+      const i = player.storage.indexOf(entry.ref); if(i >= 0) player.storage.splice(i, 1); return entry.ref;
     };
+    const putBack = (stack) => { if(stack && stack.n > 0) player.addItem(stack.id, stack.n, stack.dur, stack.ench); };
     let any = false;
     for(const cat in cats){
       if(!cats[cat].length) continue;
       any = true;
-      const h4 = document.createElement('div');
-      h4.className = 'storage-cat';
-      h4.textContent = cat;
-      list.appendChild(h4);
-      const row = document.createElement('div');
-      row.className = 'storage-row';
-      cats[cat].forEach(({ slot, s }) => {
-        const chip = document.createElement('div');
-        chip.className = 'storage-chip';
-        const durHtml = (s.dur !== undefined && toolInfo(s.id)) ?
-          ' <span class="dur">' + Math.round(s.dur / toolInfo(s.id).dur * 100) + '%</span>' : '';
-        chip.innerHTML = '<img src="' + getIconURL(s.id) + '">' + itemName(s.id) +
-          (s.n > 1 ? ' <span class="cnt">×' + s.n + '</span>' : '') + durHtml + (s.ench ? ' ✨' : '');
+      const h4 = document.createElement('div'); h4.className = 'storage-cat'; h4.textContent = cat; list.appendChild(h4);
+      const row = document.createElement('div'); row.className = 'storage-row';
+      cats[cat].forEach((entry) => {
+        const s = entry.s;
+        const chip = document.createElement('div'); chip.className = 'storage-chip';
+        const durHtml = (s.dur !== undefined && toolInfo(s.id)) ? ' <span class="dur">' + Math.round(s.dur / toolInfo(s.id).dur * 100) + '%</span>' : '';
+        chip.innerHTML = '<img src="' + getIconURL(s.id) + '">' + itemName(s.id) + (s.n > 1 ? ' <span class="cnt">×' + s.n + '</span>' : '') + durHtml + (s.ench ? ' ✨' : '');
         chip.addEventListener('mousedown', (e) => {
           e.preventDefault(); e.stopPropagation();
-          const cur = player.inventory[slot];
-          if(!cur) { this.refresh(); return; }
-          if(e.button === 2){
-            // 우클릭: 핫바로 이동
-            this._moveToRange(cur, 0, 8);
-            if(cur.n <= 0) player.inventory[slot] = null;
-          } else {
-            // 좌클릭: 커서로 들기 (제작칸/핫바에 놓을 수 있음)
-            if(!this.cursor){ this.cursor = cur; player.inventory[slot] = null; }
+          if(mode === 'chest'){
+            // 좌클릭: 상자에 다 넣기 / 우클릭: 핫바로 빼기
+            const stack = takeStack(entry);
+            if(!stack){ this.refresh(); return; }
+            if(e.button === 2){ const left = this._moveToRange(stack, 0, 8); stack.n = left; putBack(stack); }
+            else { const left = this._depositToChest(stack); stack.n = left; putBack(stack); }
+            SFX.play('click'); this.refresh(); return;
           }
-          SFX.play('click');
-          this.refresh();
+          // inv 모드: 좌클릭=커서로 들기 / 우클릭=핫바
+          if(e.button === 2){ const stack = takeStack(entry); const left = this._moveToRange(stack, 0, 8); stack.n = left; putBack(stack); }
+          else { if(!this.cursor) this.cursor = takeStack(entry); }
+          SFX.play('click'); this.refresh();
         });
         chip.addEventListener('contextmenu', e => e.preventDefault());
         row.appendChild(chip);
       });
       list.appendChild(row);
     }
-    if(!any) list.innerHTML = '<div class="storage-empty">보관함이 비어 있어요 — 아이템을 주우면 여기 정리돼요</div>';
+    if(!any) list.innerHTML = '<div class="storage-empty">' + (mode === 'chest' ? '넣을 아이템이 없어요' : '보관함이 비어 있어요 — 아이템을 주우면 여기 정리돼요') + '</div>';
   },
 
   openInventory(table){
@@ -685,9 +709,12 @@ const UI = {
     grid.innerHTML = '';
     for(let i = 0; i < 27; i++){
       this._makeSlot(grid, { get: () => ch.slots[i], set: v => { ch.slots[i] = v; } },
-        { quick: s => player.addItem(s.id, s.n, s.dur) });
+        { quick: s => player.addItem(s.id, s.n, s.dur, s.ench) }); // 상자칸 시프트클릭 → 내 인벤(슬롯/무제한보관함)
     }
-    this._buildInvGrids('chest-inv-grid', 'chest-bar-grid');
+    // 핫바만 그리드로 (배낭은 분류형 보관함으로 표시)
+    const bg = $id('chest-bar-grid'); bg.innerHTML = '';
+    for(let i = 0; i < 9; i++) this._makeSlot(bg, this._invRef(i), { quick: s => this._moveToRange(s, 9, 35) });
+    this._renderStorage('chest');
     this.showOverlay('chest-overlay');
     this.open = 'chest';
     this._suppressSync = true;
