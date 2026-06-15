@@ -1278,6 +1278,10 @@ const ABILITY_DEFS = {
   levitate:   { n:'부유',   d:'땅 타입 기술을 받지 않는다' },
   static:     { n:'정전기', d:'공격당하면 상대에게 찌릿 반격 데미지' },
   pickup:     { n:'픽업',   d:'함께 걸으면 가끔 아이템을 주워 온다' },
+  flamebody:  { n:'불꽃몸', d:'공격받으면 30% 확률로 상대를 화상시킨다' },
+  waterabsorb:{ n:'저수',   d:'물 타입 기술을 받으면 피해 대신 회복한다' },
+  thickfat:   { n:'두꺼운지방', d:'불꽃·얼음 타입 기술 피해를 절반으로 줄인다' },
+  speedboost: { n:'가속',   d:'매 턴 스피드가 조금씩 오른다' },
 };
 function abilityOf(sp){
   const spec = SPECIES[sp];
@@ -1286,9 +1290,13 @@ function abilityOf(sp){
   if(t.includes('rock') || t.includes('steel')) return 'sturdy';
   if(t.includes('ghost') || (t.includes('psychic') && t.includes('flying'))) return 'levitate';
   if(t.includes('electric')) return 'static';
+  if(t.includes('water')) return 'waterabsorb';
+  if(t.includes('fire')) return 'flamebody';
+  if(t.includes('ice') || t.includes('normal')) return 'thickfat';
+  if(t.includes('flying')) return 'speedboost';
   if(t.includes('grass') || t.includes('fairy')) return 'regen';
-  if(t.includes('dark') || t.includes('poison') || t.includes('ice') || t.includes('bug')) return 'intimidate';
-  if(t.includes('fire') || t.includes('water') || t.includes('fighting') || t.includes('dragon') || t.includes('ground')) return 'pinch';
+  if(t.includes('dark') || t.includes('poison') || t.includes('bug')) return 'intimidate';
+  if(t.includes('fighting') || t.includes('dragon') || t.includes('ground')) return 'pinch';
   return 'pickup';
 }
 // 🐾 동행 효과: 파트너(1번)가 나와 있을 때 타입별 보너스
@@ -3398,11 +3406,11 @@ const Battle = {
         }
       }
     } finally {
-      // 특성: 재생력 — 턴이 끝날 때 회복
+      // 특성: 재생력 — 턴이 끝날 때 회복 / 가속 — 스피드 상승
       for(const u of [this.ally, this.wild]){
-        if(u && u.hp > 0 && abilityOf(u.sp) === 'regen' && u.hp < u.maxHp){
-          u.hp = Math.min(u.maxHp, u.hp + Math.max(1, Math.round(u.maxHp * 0.06)));
-        }
+        if(!u || u.hp <= 0) continue;
+        if(abilityOf(u.sp) === 'regen' && u.hp < u.maxHp) u.hp = Math.min(u.maxHp, u.hp + Math.max(1, Math.round(u.maxHp * 0.06)));
+        if(abilityOf(u.sp) === 'speedboost'){ if(u._origSpd === undefined) u._origSpd = u.spd; u.spd = Math.round(u.spd * 1.1); }
       }
       // 🎒 지닌 물건: 먹다남은음식 — 매 턴 HP 1/16 회복
       for(const u of [this.ally, this.wild]){
@@ -3464,6 +3472,13 @@ const Battle = {
       await this.say(target.name + '은(는) 부유로 공격을 피했다!');
       return;
     }
+    // 특성: 저수 — 물 기술을 받으면 회복
+    if(mv.t === 'water' && abilityOf(target.sp) === 'waterabsorb'){
+      target.hp = Math.min(target.maxHp, target.hp + Math.round(target.maxHp * 0.25));
+      this.updateBars();
+      await this.say(target.name + '은(는) 저수로 물 공격을 흡수해 회복했다!');
+      return;
+    }
     // 돌진 연출
     const am = isAlly ? this.mA : this.mE, tm = isAlly ? this.mE : this.mA;
     if(am && tm){
@@ -3481,6 +3496,8 @@ const Battle = {
     if(user.held && itemDef(user.held) && itemDef(user.held).held === mv.t) mult *= 1.2;
     const r = calcDamage(user, target, mk, mult);
     if(user.status === 'burn') r.dmg = Math.max(1, Math.round(r.dmg * 0.67)); // 🔥 화상: 공격력 ↓
+    // 특성: 두꺼운지방 — 불꽃·얼음 피해 절반
+    if((mv.t === 'fire' || mv.t === 'ice') && abilityOf(target.sp) === 'thickfat') r.dmg = Math.max(1, Math.round(r.dmg * 0.5));
     if(r.eff === 0){
       await this.say('효과가 없는 것 같다...');
       return;
@@ -3518,6 +3535,11 @@ const Battle = {
     if(stx && target.hp > 0 && Math.random() < stx[1] && applyStatus(target, stx[0])){
       this.updateBars();
       await this.say(target.name + '은(는) ' + STATUS_DEFS[stx[0]].n + ' 상태가 되었다!');
+    }
+    // 특성: 불꽃몸 — 맞은 쪽이 공격자를 화상시킨다
+    if(target.hp > 0 && user.hp > 0 && abilityOf(target.sp) === 'flamebody' && Math.random() < 0.3 && applyStatus(user, 'burn')){
+      this.updateBars();
+      await this.say(user.name + '은(는) 불꽃몸에 닿아 화상을 입었다!');
     }
   },
   async allyAttack(mk){
@@ -3683,6 +3705,10 @@ const Battle = {
     return false;
   },
   end(result){
+    // 가속 특성으로 오른 스피드 원복 (배틀 한정 효과)
+    for(const u of [this.ally, this.wild, ...(PokeMan.party || [])]){
+      if(u && u._origSpd !== undefined){ u.spd = u._origSpd; u._origSpd = undefined; }
+    }
     // 로켓단전 뒷처리: 지면 도둑질, 도망치면 다시 쫓아옴
     if(this.trainer && this.trainer.rocket && this.trainer.mob){
       const mob = this.trainer.mob;
