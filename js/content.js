@@ -14,7 +14,13 @@ const B = {
   LAVA:48, NETHERRACK:49, SOULSAND:50, GLOWSTONE:51, NETHERBRICK:52, PORTAL:53, QUARTZ_ORE:54,
   ENDSTONE:55, END_FRAME:56, END_FRAME_LIT:57, END_PORTAL:58, DRAGON_EGG:59, END_CRYSTAL:60,
   HEAL_MACHINE:61, FOSSIL_MACHINE:62, PC_BLOCK:63, FOSSIL_ORE:64, MYSTIC_ORE:65,
-  DOOR:66, DOOR_OPEN:67
+  DOOR:66, DOOR_OPEN:67,
+  // ===== ID 할당표 (블록 68-99, isBlockId<100) =====
+  // 🌲 지형 바이옴 블록 68-79
+  SPRUCE_LOG:68, SPRUCE_LEAVES:69, JUNGLE_LOG:70, JUNGLE_LEAVES:71, CHERRY_LOG:72, CHERRY_LEAVES:73,
+  MYCELIUM:74, RED_SAND:75, TERRACOTTA:76, DEEPSLATE:77, PODZOL:78, MUSHROOM:79,
+  // 🧱 MC 장식·작물 80-91 (다음 배치 예약)
+  // 92-99 버퍼
 };
 // 렌더 타입
 const RT = { SOLID:0, CROSS:1, WATER:2, GLASS:3 };
@@ -60,7 +66,11 @@ const T = {
   LEVER:52, LEVER_ON_T:53, LAMP:54, LAMP_ON_T:55, IRON_DOOR_T:56,
   LAVA_T:57, NETHERRACK_T:58, SOULSAND_T:59, GLOWSTONE_T:60, NETHERBRICK_T:61, PORTAL_T:62, QUARTZ_T:63,
   ENDSTONE_T:64, ENDFRAME_T:65, ENDFRAME_LIT_T:66, ENDPORTAL_T:67, DRAGONEGG_T:68, CRYSTAL_T:69,
-  HEALM_T:70, HEALM_TOP_T:71, FOSSILM_T:72, PC_T:73, FOSSILORE_T:74, MYSTICORE_T:75, DOOR_T:76
+  HEALM_T:70, HEALM_TOP_T:71, FOSSILM_T:72, PC_T:73, FOSSILORE_T:74, MYSTICORE_T:75, DOOR_T:76,
+  // 🌲 지형 바이옴 타일 77+
+  SPRUCE_SIDE:77, SPRUCE_TOP:78, SPRUCE_LEAVES_T:79, JUNGLE_SIDE:80, JUNGLE_LEAVES_T:81,
+  CHERRY_SIDE:82, CHERRY_TOP:83, CHERRY_LEAVES_T:84, MYCELIUM_TOP:85, MYCELIUM_SIDE:86,
+  RED_SAND_T:87, TERRACOTTA_T:88, DEEPSLATE_T:89, PODZOL_TOP:90, PODZOL_SIDE:91, MUSHROOM_T:92
 };
 
 // ----- 블록 정의 -----
@@ -150,6 +160,20 @@ defBlock(B.MYSTIC_ORE,    { name:'신비한 광석', tiles:{top:T.MYSTICORE_T, b
                             drop:(rng)=>[[ [I.FIRE_STONE, I.WATER_STONE, I.THUNDER_STONE, I.LEAF_STONE, I.MOON_STONE][Math.floor(rng() * 5)], 1 ]] });
 defBlock(B.CROP_RIPE,  { name:'밀 (다 자람)', rt:RT.CROSS, solid:false, tiles:{top:T.CROP2, bottom:T.CROP2, side:T.CROP2}, hard:0.05,
                          drop:(rng)=>[[I.WHEAT,1], [I.SEEDS, 1 + Math.floor(rng() * 2)]] });
+
+// ===== 🌲 지형 바이옴 블록 (68-79) =====
+defBlock(B.SPRUCE_LOG,    { name:'가문비나무 원목', tiles:{top:T.SPRUCE_TOP, bottom:T.SPRUCE_TOP, side:T.SPRUCE_SIDE}, hard:2.2, tool:'axe', drop:()=>[[B.SPRUCE_LOG,1]] });
+defBlock(B.SPRUCE_LEAVES, { name:'가문비나무 잎', tiles:{top:T.SPRUCE_LEAVES_T, bottom:T.SPRUCE_LEAVES_T, side:T.SPRUCE_LEAVES_T}, hard:0.3, drop:(rng)=> rng()<0.06?[[I.STICK,1]]:[] });
+defBlock(B.JUNGLE_LOG,    { name:'정글나무 원목', tiles:{top:T.SPRUCE_TOP, bottom:T.SPRUCE_TOP, side:T.JUNGLE_SIDE}, hard:2.2, tool:'axe', drop:()=>[[B.JUNGLE_LOG,1]] });
+defBlock(B.JUNGLE_LEAVES, { name:'정글나무 잎', tiles:{top:T.JUNGLE_LEAVES_T, bottom:T.JUNGLE_LEAVES_T, side:T.JUNGLE_LEAVES_T}, hard:0.3, drop:(rng)=> rng()<0.08?[[I.APPLE,1]]:[] });
+defBlock(B.CHERRY_LOG,    { name:'벚나무 원목', tiles:{top:T.CHERRY_TOP, bottom:T.CHERRY_TOP, side:T.CHERRY_SIDE}, hard:2.2, tool:'axe', drop:()=>[[B.CHERRY_LOG,1]] });
+defBlock(B.CHERRY_LEAVES, { name:'벚나무 잎', tiles:{top:T.CHERRY_LEAVES_T, bottom:T.CHERRY_LEAVES_T, side:T.CHERRY_LEAVES_T}, hard:0.3, drop:()=>[] });
+defBlock(B.MYCELIUM,      { name:'균사체', tiles:{top:T.MYCELIUM_TOP, bottom:T.DIRT, side:T.MYCELIUM_SIDE}, hard:0.7, tool:'shovel', drop:()=>[[B.DIRT,1]] });
+defBlock(B.RED_SAND,      { name:'붉은 모래', tiles:{top:T.RED_SAND_T, bottom:T.RED_SAND_T, side:T.RED_SAND_T}, hard:0.6, tool:'shovel' });
+defBlock(B.TERRACOTTA,    { name:'테라코타', tiles:{top:T.TERRACOTTA_T, bottom:T.TERRACOTTA_T, side:T.TERRACOTTA_T}, hard:1.5, tool:'pick', drop:()=>[[B.TERRACOTTA,1]] });
+defBlock(B.DEEPSLATE,     { name:'심층암', tiles:{top:T.DEEPSLATE_T, bottom:T.DEEPSLATE_T, side:T.DEEPSLATE_T}, hard:3.2, tool:'pick', drop:()=>[[B.COBBLE,1]] });
+defBlock(B.PODZOL,        { name:'팟졸', tiles:{top:T.PODZOL_TOP, bottom:T.DIRT, side:T.PODZOL_SIDE}, hard:0.7, tool:'shovel', drop:()=>[[B.DIRT,1]] });
+defBlock(B.MUSHROOM,      { name:'버섯', rt:RT.CROSS, solid:false, tiles:{top:T.MUSHROOM_T, bottom:T.MUSHROOM_T, side:T.MUSHROOM_T}, hard:0.05, light:0.2, drop:()=>[[B.MUSHROOM,1]] });
 
 // ----- 아이템 정의 -----
 const ITEMS = {};
@@ -262,7 +286,8 @@ const CREATIVE_ITEMS = [
   I.DIA_PICK,I.DIA_AXE,I.DIA_SHOVEL,I.DIA_SWORD,I.DIA_HOE,
   I.POKEBALL,I.GREATBALL,I.ULTRABALL,I.MASTERBALL,I.GOD_ORB,I.POTION,I.SUPERPOTION,I.HYPERPOTION,I.RARECANDY,I.GOLDEN_APPLE,I.EMERALD,I.ENDERPEARL,
   I.LEATHER,I.L_HELM,I.L_CHEST,I.L_LEGS,I.I_HELM,I.I_CHEST,I.I_LEGS,I.D_HELM,I.D_CHEST,I.D_LEGS,
-  I.POTION_SPEED,I.POTION_JUMP,I.POTION_REGEN,I.FLINT_STEEL,I.QUARTZ,I.GLOWDUST,I.BLAZE_ROD,I.ENDER_EYE,B.END_CRYSTAL
+  I.POTION_SPEED,I.POTION_JUMP,I.POTION_REGEN,I.FLINT_STEEL,I.QUARTZ,I.GLOWDUST,I.BLAZE_ROD,I.ENDER_EYE,B.END_CRYSTAL,
+  B.SPRUCE_LOG,B.SPRUCE_LEAVES,B.JUNGLE_LOG,B.JUNGLE_LEAVES,B.CHERRY_LOG,B.CHERRY_LEAVES,B.MYCELIUM,B.RED_SAND,B.TERRACOTTA,B.DEEPSLATE,B.PODZOL,B.MUSHROOM
 ];
 
 // ===== 텍스처 아틀라스 =====
@@ -372,6 +397,24 @@ function buildAtlas(){
   paint(T.DOOR_T, p=>{ p.fill('#9a7547'); p.rect(0,0,1,16,'#7a5a35'); p.rect(15,0,1,16,'#7a5a35'); p.rect(2,2,5,5,'#b8945f'); p.rect(9,2,5,5,'#b8945f'); p.rect(2,9,5,5,'#b8945f'); p.rect(9,9,5,5,'#b8945f'); p.px(12,8,'#3a3a42'); });
   paint(T.QUARTZ_T, p=>{ p.fill('#6e3533'); p.speck('#5a2a28', 40); for(let i=0;i<5;i++){ const x=1+(p.rng()*13|0), y=1+(p.rng()*13|0); p.rect(x,y,2,2,'#e8dcd0'); p.px(x,y,'#f8f0e8'); } });
   paint(T.CROP2, p=>{ for(let i=0;i<6;i++){ const x=1+i*2+(p.rng()*1|0); p.rect(x,4,1,12,'#b5a23c'); p.rect(x,2,1,3,'#d8c455'); p.px(x-1<0?0:x-1,3,'#d8c455'); p.px(x+1>15?15:x+1,4,'#d8c455'); } });
+
+  // ===== 🌲 지형 바이옴 텍스처 =====
+  paint(T.SPRUCE_SIDE, p=>{ p.fill('#4a3826'); for(let x=0;x<16;x+=3){ p.rect(x,0,1,16,'#39291a'); } p.speck('#574330', 30); });
+  paint(T.SPRUCE_TOP, p=>{ p.fill('#4a3826'); p.rect(2,2,12,12,'#6e5a40'); p.rect(5,5,6,6,'#574330'); });
+  paint(T.SPRUCE_LEAVES_T, p=>{ p.fill('#2e5a30'); p.speck('#244a26', 80); p.speck('#3a6e3c', 60); p.speck('#1c3a1e', 35); });
+  paint(T.JUNGLE_SIDE, p=>{ p.fill('#5a4226'); for(let x=0;x<16;x+=4){ p.rect(x,0,2,16,'#46331c'); } p.speck('#6e5230', 30); });
+  paint(T.JUNGLE_LEAVES_T, p=>{ p.fill('#2f7a18'); p.speck('#256612', 80); p.speck('#3f9422', 65); p.speck('#1a4a0e', 30); });
+  paint(T.CHERRY_SIDE, p=>{ p.fill('#6e4a4e'); for(let x=0;x<16;x+=3){ p.rect(x,0,1,16,'#5a3a3e'); } p.speck('#7e565a', 30); });
+  paint(T.CHERRY_TOP, p=>{ p.fill('#6e4a4e'); p.rect(2,2,12,12,'#9a7074'); p.rect(5,5,6,6,'#7e565a'); });
+  paint(T.CHERRY_LEAVES_T, p=>{ p.fill('#f0a8d0'); p.speck('#e88ec0', 80); p.speck('#ffc4e0', 65); p.speck('#d878b0', 30); });
+  paint(T.MYCELIUM_TOP, p=>{ p.fill('#7a6e7e'); p.speck('#8a7a8e', 50); p.speck('#6a5e6e', 40); p.speck('#9a8a9e', 25); });
+  paint(T.MYCELIUM_SIDE, p=>{ p.fill('#866043'); p.rect(0,0,16,4,'#7a6e7e'); p.speck('#79553a', 40); });
+  paint(T.RED_SAND_T, p=>{ p.fill('#be6a3a'); p.speck('#a85a30', 60); p.speck('#cc7848', 50); });
+  paint(T.TERRACOTTA_T, p=>{ p.fill('#9a5a3c'); p.speck('#8a4e34', 50); p.speck('#aa6a48', 40); p.rect(0,5,16,2,'#7a4028'); p.rect(0,11,16,2,'#aa6a48'); });
+  paint(T.DEEPSLATE_T, p=>{ p.fill('#3a3a40'); p.speck('#2e2e34', 60); p.speck('#46464c', 45); p.speck('#28282e', 30); });
+  paint(T.PODZOL_TOP, p=>{ p.fill('#5a3e22'); p.speck('#4a3219', 55); p.speck('#6e4e2e', 45); p.speck('#3a2814', 25); });
+  paint(T.PODZOL_SIDE, p=>{ p.fill('#866043'); p.rect(0,0,16,4,'#5a3e22'); p.speck('#79553a', 40); });
+  paint(T.MUSHROOM_T, p=>{ p.rect(6,9,4,6,'#e8e0d0'); p.rect(4,5,8,5,'#c83a2a'); p.px(6,6,'#f0e8d8'); p.px(9,7,'#f0e8d8'); p.px(8,5,'#f0e8d8'); });
 
   ATLAS.canvas = cv;
   ATLAS.texture = new THREE.CanvasTexture(cv);
@@ -559,6 +602,9 @@ const RECIPES = [
   { sl:[[B.LOG,1]], out:[B.PLANKS,4] },
   { sl:[[B.BIRCH_LOG,1]], out:[B.PLANKS,4] },
   { sl:[[B.ACACIA_LOG,1]], out:[B.PLANKS,4] },
+  { sl:[[B.SPRUCE_LOG,1]], out:[B.PLANKS,4] },
+  { sl:[[B.JUNGLE_LOG,1]], out:[B.PLANKS,4] },
+  { sl:[[B.CHERRY_LOG,1]], out:[B.PLANKS,4] },
   { p:['.G.','DOD','OOO'], k:{G:B.GLASS, D:I.DIAMOND, O:B.OBSIDIAN}, out:[B.ENCHANT,1] },
   { p:['P','P'], k:{P:B.PLANKS}, out:[I.STICK,4] },
   { p:['PP','PP'], k:{P:B.PLANKS}, out:[B.CRAFT,1] },
@@ -681,12 +727,16 @@ const SMELT = {
   [B.SAND]: [B.GLASS, 1],
   [B.COBBLE]: [B.STONE, 1],
   [B.LOG]: [I.COAL, 1],
+  [B.SPRUCE_LOG]: [I.COAL, 1],
+  [B.JUNGLE_LOG]: [I.COAL, 1],
+  [B.CHERRY_LOG]: [I.COAL, 1],
+  [B.RED_SAND]: [B.GLASS, 1],
   [I.PORK_RAW]: [I.PORK_COOKED, 1],
   [I.BEEF_RAW]: [I.BEEF_COOKED, 1],
   [I.FISH_RAW]: [I.FISH_COOKED, 1],
 };
 // 연료: 제련 가능 아이템 수
-const FUEL = { [I.COAL]:8, [B.PLANKS]:1.5, [B.LOG]:1.5, [I.STICK]:0.5, [B.CRAFT]:1.5 };
+const FUEL = { [I.COAL]:8, [B.PLANKS]:1.5, [B.LOG]:1.5, [B.SPRUCE_LOG]:1.5, [B.JUNGLE_LOG]:1.5, [B.CHERRY_LOG]:1.5, [I.STICK]:0.5, [B.CRAFT]:1.5 };
 const SMELT_TIME = 4; // 1개당 초
 
 // 🎒 포켓몬 가방에 자동 수납되는 아이템들
