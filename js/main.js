@@ -14,6 +14,7 @@ const game = {
   time: 0.06, // 0 = 일출
   keys: {}, locked: false, inBattle: false, paused: false,
   shake: 0, swing: 0, sprint: false, hitstop: 0, fpsHud: false,
+  weather: 'clear', weatherT: 90, lightningT: 0,
   followerOn: true, chatOpen: false, camMode: 0, riding: false, touch: false,
   dim: 'over', portalCd: 0, healCd: 0,
   get uiOpen(){ return typeof UI !== 'undefined' && UI.isOpen(); },
@@ -1451,6 +1452,39 @@ const skyNight = new THREE.Color(0x0b1026);
 const skySunset = new THREE.Color(0xe8915a);
 const _skyColor = new THREE.Color();
 
+// 🌧 날씨 상태머신 + 비/번개 연출 (오버월드만)
+function updateWeather(dt){
+  if(game.dim !== 'over'){ game.weather = 'clear'; return; }
+  game.weatherT -= dt;
+  if(game.weatherT <= 0){
+    const r = Math.random();
+    game.weather = r < 0.62 ? 'clear' : r < 0.88 ? 'rain' : 'thunder';
+    game.weatherT = game.weather === 'clear' ? 90 + Math.random() * 120 : 35 + Math.random() * 50;
+    if(game.weather === 'rain') UI.toast('🌧 비가 내리기 시작한다...', 3500);
+    if(game.weather === 'thunder') UI.toast('⛈ 천둥번개가 친다! 높은 곳을 조심하자', 4000);
+  }
+  if(game.weather === 'clear') return;
+  // 비 파티클 (플레이어 주변 상공 — 저사양 모드에선 생략)
+  if(!game.perfMode && typeof Particles !== 'undefined'){
+    const b = player.body, n = game.weather === 'thunder' ? 7 : 4;
+    for(let i = 0; i < n; i++){
+      const rx = b.x + (Math.random() - 0.5) * 28, rz = b.z + (Math.random() - 0.5) * 28;
+      const ry = b.y + 12 + Math.random() * 4;
+      Particles.spawn(rx, ry, rz, 0x8aa0c8, 1, 0.3, 0.7, -7);
+    }
+  }
+  // 번개 (뇌우)
+  if(game.weather === 'thunder'){
+    game.lightningT -= dt;
+    if(game.lightningT <= 0){
+      game.lightningT = 4 + Math.random() * 9;
+      const fl = document.getElementById('flash');
+      if(fl){ fl.style.transition = 'none'; fl.style.opacity = 0.85; setTimeout(() => { fl.style.transition = 'opacity 0.5s'; fl.style.opacity = 0; }, 70); }
+      if(typeof SFX !== 'undefined') setTimeout(() => SFX.play('boom'), 200 + Math.random() * 400);
+      game.shake = Math.max(game.shake, 0.25);
+    }
+  }
+}
 function updateSky(){
   if(game.dim === 'end'){
     ambLight.intensity = 0.55;
@@ -1487,6 +1521,12 @@ function updateSky(){
   _skyColor.copy(skyNight).lerp(skyDay, dayF);
   const sunsetF = clamp(1 - Math.abs(sunH) / 0.22, 0, 1) * 0.65;
   _skyColor.lerp(skySunset, sunsetF);
+  // 🌧 날씨: 비/뇌우 때 하늘·빛 어둡게 (회색 톤)
+  if(game.weather === 'rain' || game.weather === 'thunder'){
+    const dim = game.weather === 'thunder' ? 0.55 : 0.7;
+    ambLight.intensity *= dim + 0.15; sunLight.intensity *= dim;
+    _skyColor.lerp(new THREE.Color(0x4a4f56), game.weather === 'thunder' ? 0.6 : 0.45);
+  }
 
   // 물 속이면 파랗게 (급격한 깜빡임 방지를 위해 부드럽게 전환)
   const camBlock = world.getBlock(camera.position.x, camera.position.y, camera.position.z);
@@ -1631,6 +1671,7 @@ function tick(t){
     updateSelfModel(dt);
     Minimap.render(dt);
     game.time = (game.time + dt / 600) % 1;
+    updateWeather(dt);
     updateSky();
     updateHighlight();
     UI.tickOpenUI();

@@ -145,6 +145,30 @@ const MOB_DEFS = {
   enderman: { name:'엔더맨', hp:35, speed:2.4, w:0.3, h:2.5, neutral:true, dmg:5, teleporter:true, drops:[[I.ENDERPEARL,1,2]],
     model:()=> buildBiped({ body:'#16161a', headC:'#1d1d22', legC:'#16161a', armC:'#16161a',
       legH:1.15, bh:0.8, bw:0.34, legW:0.1, armW:0.09, armL:1.0, hs:0.42, eyeC:'#c83ae8', pupilC:'#f0a8ff' }) },
+  // 🧙 마녀 — 밤에 출현, 원거리 독물약 투척
+  witch: { name:'마녀', hp:26, speed:1.4, w:0.3, h:1.8, hostile:true, dmg:3, ranged:true, burns:false, drops:[[I.GLOWDUST,1,3],[I.REDSTONE,0,2],[I.EMERALD,0,1]],
+    model:()=> { const m = buildBiped({ body:'#5a3a78', headC:'#7da85d', legC:'#3a2a4a', armC:'#5a3a78', legH:0.7, bh:0.72 });
+      makeBox(m.head, 0.5, 0.1, 0.5, '#2a1a3a', 0, 0.28, 0);            // 모자챙
+      makeBox(m.head, 0.28, 0.4, 0.28, '#2a1a3a', 0, 0.5, 0);          // 고깔모자
+      makeBox(m.head, 0.1, 0.12, 0.06, '#a86a4a', 0, -0.02, 0.3);      // 매부리코
+      makeBox(m.head, 0.1, 0.1, 0.02, '#3a3a3a', -0.13, 0.06, 0.26); makeBox(m.head, 0.1, 0.1, 0.02, '#3a3a3a', 0.13, 0.06, 0.26);
+      return m; } },
+  // 🤖 아이언골렘 — 마을의 수호자, 강하고 느림, 적대몹을 공격
+  iron_golem: { name:'아이언골렘', hp:100, speed:1.3, w:0.55, h:2.7, neutral:true, golem:true, dmg:9, drops:[[I.IRON_INGOT,3,5],[B.FLOWER_R,0,2]],
+    model:()=> { const m = buildBiped({ body:'#c8c4be', headC:'#bcb8b2', legC:'#a8a49e', armC:'#c0bcb6', legH:1.0, bh:1.0, bw:0.6, legW:0.22, armW:0.2, armL:1.3, hs:0.5 });
+      makeBox(m.head, 0.12, 0.3, 0.08, '#9a9690', 0, 0.05, 0.26);     // 코
+      makeBox(m.group, 0.45, 0.2, 0.25, '#8fae5a', 0, 1.15, 0.2);     // 가슴 덩굴
+      return m; } },
+  // 🦇 팬텀 — 밤하늘을 날며 급강하 공격
+  phantom: { name:'팬텀', hp:18, speed:7, w:0.5, h:0.4, hostile:true, flyer:true, dmg:4, fireImmune:true, drops:[[I.LEATHER,1,2]],
+    model:()=> { const g = new THREE.Group();
+      const body = makeBox(g, 0.5, 0.3, 1.0, '#2a4a52', 0, 0.3, 0);
+      const head = makeBox(g, 0.4, 0.3, 0.4, '#2a4a52', 0, 0.35, 0.55);
+      makeBox(head, 0.08, 0.08, 0.03, '#7af0c8', -0.12, 0.04, 0.2); makeBox(head, 0.08, 0.08, 0.03, '#7af0c8', 0.12, 0.04, 0.2);
+      const wingL = makeBox(g, 1.4, 0.06, 0.7, '#1f3a40', -0.9, 0.35, 0);
+      const wingR = makeBox(g, 1.4, 0.06, 0.7, '#1f3a40', 0.9, 0.35, 0);
+      makeBox(g, 0.18, 0.18, 0.7, '#1f3a40', 0, 0.3, -0.8);          // 꼬리
+      return { group: g, legs: [wingL, wingR], head }; } },
   guardian: { name:'가디언', hp:25, speed:2.0, w:0.5, h:0.7, hostile:true, dmg:4, aquatic:true, drops:[[I.FISH_RAW,1,2],[I.EMERALD,0,1]],
     model:()=> { const g = new THREE.Group();
       const body = makeBox(g, 0.8, 0.6, 0.8, '#5a8a78', 0, 0.4, 0);
@@ -417,6 +441,46 @@ class Mob {
       this.group.position.set(b.x, b.y, b.z);
       this.group.rotation.y = this.dir;
       return;
+    }
+    // 🦇 팬텀: 밤하늘 선회 ↔ 급강하 공격 (노클립 비행)
+    if(def.flyer){
+      this._swT = (this._swT || 0) + dt; this.attackCd -= dt;
+      const diving = (this._swT % 6) > 4 && !tgt.dead && dToP < 30;
+      let tx, ty, tz;
+      if(diving){ tx = tgt.x; ty = tgt.y + 0.5; tz = tgt.z; }
+      else { const a = this._swT * 0.6 + this.bobSeed; tx = tgt.x + Math.cos(a) * 11; ty = tgt.y + 9 + Math.sin(a * 1.5) * 2; tz = tgt.z + Math.sin(a) * 11; }
+      const ddx = tx - b.x, ddy = ty - b.y, ddz = tz - b.z, dl = Math.hypot(ddx, ddy, ddz) || 1;
+      const sp = diving ? def.speed * 1.6 : def.speed;
+      b.vx = lerp(b.vx, ddx / dl * sp, Math.min(1, dt * 3));
+      b.vy = lerp(b.vy, ddy / dl * sp, Math.min(1, dt * 3));
+      b.vz = lerp(b.vz, ddz / dl * sp, Math.min(1, dt * 3));
+      b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
+      this.dir = Math.atan2(b.vx, b.vz);
+      if(diving && dToP < 1.8 && this.attackCd <= 0){ this.attackCd = 1.2; tgt.hurt(def.dmg, (tgt.x - b.x) * 0.5, (tgt.z - b.z) * 0.5); SFX.play('hit'); }
+      this.walkPhase += dt * (diving ? 16 : 9);
+      const flap = Math.sin(this.walkPhase) * 0.5;
+      this.legs.forEach((l, i) => { l.rotation.z = (i % 2 === 0 ? flap : -flap); });
+      this.group.position.set(b.x, b.y, b.z);
+      this.group.rotation.y = this.dir;
+      // 낮에는 불타며 사라짐(MC 팬텀)
+      if(world.dim === 'over' && !game.isNight() && Math.random() < dt) this.hurt(2, 0, 0);
+      return;
+    }
+    // 🤖 아이언골렘: 주변 적대몹을 능동적으로 공격 (수호자)
+    if(def.golem && !this.angry){
+      let foe = null, fd = 12;
+      for(const mb of MobManager.list){ if(mb === this || mb.dead || !mb.def.hostile) continue; const d2 = dist3(mb.body.x, mb.body.y, mb.body.z, b.x, b.y, b.z); if(d2 < fd){ fd = d2; foe = mb; } }
+      if(foe){ this.dir = Math.atan2(foe.body.x - b.x, foe.body.z - b.z); this.attackCd -= dt;
+        let speed = fd > 1.8 ? def.speed : 0;
+        if(fd < 2 && this.attackCd <= 0){ this.attackCd = 1.2; foe.hurt(def.dmg, (foe.body.x - b.x) * 1.2, (foe.body.z - b.z) * 1.2); foe.body.vy = 6; SFX.play('hit'); }
+        b.vx = lerp(b.vx, Math.sin(this.dir) * speed, Math.min(1, dt * 8)); b.vz = lerp(b.vz, Math.cos(this.dir) * speed, Math.min(1, dt * 8));
+        if(b.hitWall && b.onGround && speed > 0) b.vy = 8;
+        b.update(dt, world);
+        const sp2 = Math.hypot(b.vx, b.vz); this.walkPhase += sp2 * dt * 4;
+        const sw = Math.sin(this.walkPhase) * Math.min(1, sp2) * 0.7; this.legs.forEach((l, i) => { l.rotation.x = (i % 2 === 0 ? sw : -sw); });
+        this.group.position.set(b.x, b.y, b.z); this.group.rotation.y = this.dir;
+        return;
+      }
     }
     const aggro = (def.hostile || (def.neutral && this.angry)) && !def.npc;
     if(aggro && !tgt.dead && dToP < (def.neutral ? 28 : 16)){
@@ -938,6 +1002,11 @@ const MobManager = {
           mb.homeKey = v.key;
           this.list.push(mb);
         }
+        // 🤖 마을마다 아이언골렘 수호자 1마리
+        if(!this.list.some(m => m.golemHome === v.key)){
+          const gx = v.x + 4, gz = v.z + 4, gy = world.colTop(gx, gz) + 1.4;
+          if(gy > SEA + 1){ const gm = new Mob('iron_golem', gx, gy, gz); gm.golemHome = v.key; this.list.push(gm); }
+        }
       }
       const GYM_NAME = { rock:'바위', water:'물', electric:'전기', fire:'불꽃' };
       for(const g of world.gymsNear(px, pz)){
@@ -1000,7 +1069,8 @@ const MobManager = {
       let type;
       if(hostile){
         const r = Math.random();
-        type = r < 0.3 ? 'zombie' : r < 0.55 ? 'skeleton' : r < 0.7 ? 'creeper' : r < 0.85 ? 'spider' : r < 0.93 ? 'slime' : 'enderman';
+        type = r < 0.26 ? 'zombie' : r < 0.48 ? 'skeleton' : r < 0.62 ? 'creeper' : r < 0.76 ? 'spider' : r < 0.84 ? 'slime'
+          : r < 0.90 ? 'witch' : r < 0.96 ? 'phantom' : 'enderman'; // 🧙🦇 마녀·팬텀 추가
       } else {
         const r = Math.random();
         const biome = world.biomeAt(Math.floor(x), Math.floor(z));
