@@ -78,6 +78,7 @@ class World {
     this.group = new THREE.Group();
     this._tickAcc = 0;
     this.fluidQ = new Set();     // 물 흐름 대기열 "x,y,z"
+    this.waterLvl = new Map();   // 💧 흐르는 물의 레벨 "x,y,z"→1~7 (맵에 없는 물=소스/바다=8)
     this._fluidAcc = 0;
     this.gymsBeaten = new Set(); // 클리어한 체육관 키
 
@@ -443,14 +444,17 @@ class World {
     if(id !== B.AIR){ if(wy > c.maxY) c.maxY = wy; }
     else if(wy >= c.maxY){ c.maxY = this._calcMaxY(c); }
 
-    // 물 흐름: 공기가 생기거나 물/용암이 놓이면 주변 갱신 예약
-    if(id === B.AIR || id === B.WATER || id === B.LAVA){
+    // 💧 물 레벨 정리: 물이 아니게 되면 흐름 레벨 제거 (소스/흐르는물 구분 유지)
+    if(old === B.WATER && id !== B.WATER) this.waterLvl.delete(wx + ',' + wy + ',' + wz);
+    // 물 흐름: 공기가 생기거나 물/용암이 놓이면 주변 갱신 예약 (위쪽도 — 폭포 재평가)
+    if(id === B.AIR || id === B.WATER || id === B.LAVA || old === B.WATER || old === B.LAVA){
       this.fluidQ.add(wx + ',' + wy + ',' + wz);
       this.fluidQ.add((wx+1) + ',' + wy + ',' + wz);
       this.fluidQ.add((wx-1) + ',' + wy + ',' + wz);
       this.fluidQ.add(wx + ',' + wy + ',' + (wz+1));
       this.fluidQ.add(wx + ',' + wy + ',' + (wz-1));
       this.fluidQ.add(wx + ',' + (wy-1) + ',' + wz);
+      this.fluidQ.add(wx + ',' + (wy+1) + ',' + wz);
     }
 
     const pk = wx + ',' + wy + ',' + wz;
@@ -1129,41 +1133,65 @@ class World {
       }
     }
   }
+  // 💧 물 흐름 레벨: WATER가 아니면 0, 맵에 없으면 8(소스/바다), 있으면 1~7(흐르는 물)
+  _wlvl(x, y, z){
+    if(this.getBlock(x, y, z) !== B.WATER) return 0;
+    const v = this.waterLvl.get(x + ',' + y + ',' + z);
+    return v === undefined ? 8 : v;
+  }
+  // 한 칸이 받아야 할 물 레벨 계산 (위에서 떨어지면 7=폭포, 아니면 '받침 있는' 옆 물에서 -1)
+  _waterTarget(x, y, z){
+    if(this._wlvl(x, y + 1, z) > 0) return 7; // 위에 물 → 떨어지는 물 (폭포는 바닥까지 가득)
+    let maxN = 0;
+    for(const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nl = this._wlvl(x + dx, y, z + dz);
+      // 옆 물이 '받침'(아래가 고체/물) 위에 정착해 있을 때만 옆으로 전파 → 공중 물 시트 방지
+      if(nl >= 2 && (this.isSolid(x + dx, y - 1, z + dz) || this.getBlock(x + dx, y - 1, z + dz) === B.WATER)) maxN = Math.max(maxN, nl);
+    }
+    return maxN >= 2 ? maxN - 1 : 0;
+  }
   tickFluids(dt){
     this._fluidAcc += dt;
     if(this._fluidAcc < 0.15) return;
     this._fluidAcc = 0;
     if(!this.fluidQ.size) return;
-    const batch = [...this.fluidQ].slice(0, 30);
+    const batch = [...this.fluidQ].slice(0, 60);
     batch.forEach(k => this.fluidQ.delete(k));
     for(const k of batch){
       const [x, y, z] = k.split(',').map(Number);
       if(y < 1 || y >= WORLD_H - 1) continue;
       const cur = this.getBlock(x, y, z);
+      // ----- 용암: 물 접촉 시 흑요석, 위/옆 2칸 규칙으로 천천히 흐름 -----
       if(cur === B.LAVA){
-        // 물과 직접 접촉한 용암 → 흑요석 (위/아래/옆 전부)
         const touchW = this.getBlock(x, y + 1, z) === B.WATER || this.getBlock(x, y - 1, z) === B.WATER
           || [[1,0,0],[-1,0,0],[0,0,1],[0,0,-1]].some(([dx,dy,dz]) => this.getBlock(x + dx, y + dy, z + dz) === B.WATER);
         if(touchW) this.setBlock(x, y, z, B.OBSIDIAN);
         continue;
       }
+      // ----- 흐르는 물 후퇴 판정 (소스=레벨8은 유지, 흐르는 물은 공급 끊기면 마름) -----
+      if(cur === B.WATER){
+        const key = x + ',' + y + ',' + z;
+        if(!this.waterLvl.has(key)) continue; // 소스/바다 — 그대로
+        const want = this._waterTarget(x, y, z);
+        if(want <= 0){ this.setBlock(x, y, z, B.AIR); } // 공급 끊김 → 마름
+        else if(want !== this.waterLvl.get(key)){ this.waterLvl.set(key, want); this._enqueueFluidNbr(x, y, z); }
+        continue;
+      }
       if(cur !== B.AIR) continue;
-      let wAbove = false, lAbove = false, wH = 0, lH = 0;
-      const ab = this.getBlock(x, y + 1, z);
-      if(ab === B.WATER) wAbove = true;
-      if(ab === B.LAVA) lAbove = true;
-      [[1,0],[-1,0],[0,1],[0,-1]].forEach(([dx, dz]) => {
-        const n = this.getBlock(x + dx, y, z + dz);
-        if(n === B.WATER) wH++;
-        if(n === B.LAVA) lH++;
-      });
-      const wantWater = wAbove || wH >= 2;
+      // ----- 빈 칸: 물/용암이 흘러드는지 -----
+      let lAbove = false, lH = 0;
+      if(this.getBlock(x, y + 1, z) === B.LAVA) lAbove = true;
+      for(const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) if(this.getBlock(x + dx, y, z + dz) === B.LAVA) lH++;
+      const wantW = this._waterTarget(x, y, z);
       const wantLava = lAbove || lH >= 2;
-      if(wantWater && (wantLava || lH > 0 || lAbove)) this.setBlock(x, y, z, B.OBSIDIAN); // 물+용암 = 흑요석!
-      else if(wantLava && wH > 0) this.setBlock(x, y, z, B.OBSIDIAN);
-      else if(wantWater) this.setBlock(x, y, z, B.WATER);
-      else if(wantLava) this.setBlock(x, y, z, B.LAVA);
+      if(wantW > 0 && (wantLava || lH > 0)) this.setBlock(x, y, z, B.OBSIDIAN);      // 물+용암 = 흑요석
+      else if(wantLava && wantW === 0) this.setBlock(x, y, z, B.LAVA);
+      else if(wantW > 0){ this.setBlock(x, y, z, B.WATER); this.waterLvl.set(x + ',' + y + ',' + z, wantW); } // 흐르는 물 (레벨 기록)
     }
+  }
+  _enqueueFluidNbr(x, y, z){
+    this.fluidQ.add(x + ',' + y + ',' + z);
+    for(const [dx, dy, dz] of [[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,-1,0],[0,1,0]]) this.fluidQ.add((x+dx) + ',' + (y+dy) + ',' + (z+dz));
   }
 
   // ---------- 구조물 (마을 / 체육관 / 해저신전) — 모두 시드 결정론 ----------

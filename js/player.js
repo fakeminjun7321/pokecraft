@@ -136,6 +136,16 @@ class Player {
     const prevVy = b.vy;
     b.update(dt, this.world);
     if(b.inWater && jump && b.hitWall && (fw || rt)) b.vy = Math.max(b.vy, 5.2);
+    // 🏊 물에서 1칸 턱 자동 기어오르기 — 앞이 막힌 1칸 턱이고 그 위가 트였으면 올라선다 (수영 탈출)
+    if(b.inWater && b.hitWall && ml > 0 && !this.fly && !game.riding){
+      const ax = b.x + mx * (b.w + 0.45), az = b.z + mz * (b.w + 0.45);
+      const fy = Math.floor(b.y + 0.05);
+      if(this.world.isSolid(ax, fy, az) && !this.world.isSolid(ax, fy + 1, az) && !this.world.isSolid(ax, fy + 2, az)
+         && !this.world.isSolid(b.x, fy + 2, b.z)){
+        b.y = fy + 1.02; b.x += mx * 0.3; b.z += mz * 0.3;
+        b.vy = Math.max(b.vy, 2.5); b.vx = mx * 4; b.vz = mz * 4; // 턱 위로 올라타기
+      }
+    }
     if(this.fly && b.onGround) this.fly = false;
 
     // 낙하 데미지 (🪂 비행 타입 동행 시 무효)
@@ -718,9 +728,8 @@ class Player {
         UI.updateHotbar();
         return;
       }
-      // 💧 물은 마크처럼 바닥·구덩이를 채우고 폭포로 흐른다 (범위 제한 flood-fill). 용암은 소량만.
-      if(item.id === I.WATER_BUCKET) this.world.floodWater(cx2, cy2, cz2, 90, B.WATER);
-      else this.world.floodWater(cx2, cy2, cz2, 14, B.LAVA);
+      // 💧 양동이는 소스 한 칸을 놓고, 흐름 시스템이 마크처럼 퍼뜨린다 (소스 회수하면 마름)
+      this.world.setBlock(cx2, cy2, cz2, item.id === I.WATER_BUCKET ? B.WATER : B.LAVA);
       this.inventory[this.selected] = { id: I.BUCKET, n: 1 };
       SFX.play('pop');
       UI.updateHotbar();
