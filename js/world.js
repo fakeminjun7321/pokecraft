@@ -1103,6 +1103,32 @@ class World {
 
   // ---------- 물 흐름 (간이 무한수원 규칙) ----------
   // 공기 칸이 (위가 물) 또는 (수평 이웃 2칸 이상이 물)이면 물이 됨
+  // 💧 양동이 물/용암: 마크식 흐름 — 떨어지는 칸은 아래로만, 바닥에 닿으면 옆으로 퍼진다 (범위 제한으로 월드 침수 방지)
+  floodWater(sx, sy, sz, max, fluid){
+    fluid = fluid || B.WATER; max = max || 90;
+    if(this.dim === 'nether' && fluid === B.WATER) return; // 네더는 물 증발
+    const passable = (id) => id === B.AIR || (BLOCKS[id] && BLOCKS[id].rt === RT.CROSS);
+    const q = [[sx, sy, sz, true]]; // [x,y,z, canSpreadSideways]
+    const seen = new Set([sx + ',' + sy + ',' + sz]);
+    let placed = 0;
+    while(q.length && placed < max){
+      const [x, y, z, spread] = q.shift();
+      if(!(x === sx && y === sy && z === sz) && !passable(this.getBlock(x, y, z))) continue;
+      this.setBlock(x, y, z, fluid); placed++;
+      // 아래가 비었으면 떨어진다 (떨어지는 동안엔 옆으로 안 퍼짐)
+      const belowKey = x + ',' + (y - 1) + ',' + z;
+      if(y - 1 >= 1 && passable(this.getBlock(x, y - 1, z)) && !seen.has(belowKey)){
+        seen.add(belowKey); q.unshift([x, y - 1, z, true]); continue;
+      }
+      // 바닥(고체/유체)에 닿았을 때만 옆으로 — spread 플래그가 true인 칸에서만
+      if(spread){
+        for(const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){
+          const nx = x + dx, nz = z + dz, key = nx + ',' + y + ',' + nz;
+          if(!seen.has(key) && passable(this.getBlock(nx, y, nz))){ seen.add(key); q.push([nx, y, nz, true]); }
+        }
+      }
+    }
+  }
   tickFluids(dt){
     this._fluidAcc += dt;
     if(this._fluidAcc < 0.15) return;

@@ -586,6 +586,7 @@ const UI = {
 
   openInventory(table){
     this.closeOnly();
+    if(player.flushStorage) player.flushStorage(); // 📦 빈 슬롯에 오버플로 복귀 → 제작·사용 가능
     this._slots = [];
     this.craftSize = table ? 3 : 2;
     this.craftCells = new Array(this.craftSize * this.craftSize).fill(null);

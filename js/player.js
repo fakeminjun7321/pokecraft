@@ -718,7 +718,9 @@ class Player {
         UI.updateHotbar();
         return;
       }
-      this.world.setBlock(cx2, cy2, cz2, item.id === I.WATER_BUCKET ? B.WATER : B.LAVA);
+      // 💧 물은 마크처럼 바닥·구덩이를 채우고 폭포로 흐른다 (범위 제한 flood-fill). 용암은 소량만.
+      if(item.id === I.WATER_BUCKET) this.world.floodWater(cx2, cy2, cz2, 90, B.WATER);
+      else this.world.floodWater(cx2, cy2, cz2, 14, B.LAVA);
       this.inventory[this.selected] = { id: I.BUCKET, n: 1 };
       SFX.play('pop');
       UI.updateHotbar();
@@ -1027,6 +1029,27 @@ class Player {
       }
     }
     while(n > 0){ const put = Math.min(n, max); const st = { id, n: put }; if(dur !== undefined) st.dur = dur; if(ench) st.ench = ench; this.storage.push(st); n -= put; }
+  }
+  // 📦 빈 슬롯이 생기면 오버플로 보관함 아이템을 슬롯으로 복귀 → 제작·사용 가능해짐 (인벤 열 때 호출)
+  flushStorage(){
+    if(!this.storage || !this.storage.length) return;
+    for(let s = this.storage.length - 1; s >= 0; s--){
+      const st = this.storage[s];
+      const max = maxStack(st.id);
+      // 같은 종류 슬롯에 합치기
+      if(max > 1 && !st.ench && st.dur === undefined){
+        for(let i = 0; i < 36 && st.n > 0; i++){
+          const t = this.inventory[i];
+          if(t && t.id === st.id && t.n < max && !t.ench && t.dur === undefined){ const take = Math.min(st.n, max - t.n); t.n += take; st.n -= take; }
+        }
+      }
+      // 빈 슬롯에 채우기
+      for(let i = 0; i < 36 && st.n > 0; i++){
+        if(!this.inventory[i]){ const put = Math.min(st.n, max); const o = { id: st.id, n: put }; if(st.dur !== undefined) o.dur = st.dur; if(st.ench) o.ench = st.ench; this.inventory[i] = o; st.n -= put; }
+      }
+      if(st.n <= 0) this.storage.splice(s, 1);
+    }
+    if(typeof UI !== 'undefined' && UI.updateHotbar) UI.updateHotbar();
   }
   countItem(id){
     const inv = this.inventory.reduce((s, it) => s + (it && it.id === id ? it.n : 0), 0);
