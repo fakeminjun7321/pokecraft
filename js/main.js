@@ -1429,8 +1429,9 @@ function bindInput(){
       else {
         const idx = { KeyZ: 0, KeyX: 1, KeyC: 2, KeyV: 3 }[e.code];
         const par = PokeMan.party[0];
-        const mvKey = par.moves[Math.min(idx, par.moves.length - 1)];
-        partnerFieldMove(mvKey);
+        const mvKey = par.getFieldSlots()[idx]; // 🎮 플레이어가 배치한 슬롯
+        if(mvKey) partnerFieldMove(mvKey);
+        else UI.toast('이 칸엔 기술이 없어요 — 파티(P) 화면에서 Z/X/C/V 기술을 배치하세요');
         return;
       }
     }

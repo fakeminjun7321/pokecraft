@@ -1554,6 +1554,19 @@ class PokeInst {
     this.moves = [...new Set(learned)];
     if(!this.moves.length) this.moves = ['tackle'];
   }
+  // 🎮 필드 빠른키(Z/X/C/V) 슬롯 — 플레이어가 직접 배치. 기본은 앞 4개.
+  getFieldSlots(){
+    if(!this._fieldSlots){ this._fieldSlots = this.moves.slice(0, 4); while(this._fieldSlots.length < 4) this._fieldSlots.push(null); }
+    // 더 이상 보유하지 않는 기술은 비운다
+    this._fieldSlots = this._fieldSlots.map(k => (k && this.moves.includes(k)) ? k : null);
+    while(this._fieldSlots.length < 4) this._fieldSlots.push(null);
+    return this._fieldSlots;
+  }
+  setFieldSlot(idx, key){
+    this.getFieldSlots();
+    if(key){ const j = this._fieldSlots.indexOf(key); if(j >= 0 && j !== idx) this._fieldSlots[j] = null; } // 중복 방지
+    this._fieldSlots[idx] = key;
+  }
   expPct(){
     const a = expForLevel(this.level), b = expForLevel(this.level + 1);
     return clamp((this.exp - a) / (b - a), 0, 1);
@@ -1627,12 +1640,13 @@ class PokeInst {
     this._preMega = null;
   }
   get name(){ return (this.mega ? '메가 ' : '') + this.spec.name; }
-  serialize(){ return { sp:this.sp, level:this.level, exp:this.exp, hp:this.hp, sh:this.shiny ? 1 : 0, st:this.status || 0, stT:this.statusT || 0, hl:this.held || 0 }; }
+  serialize(){ return { sp:this.sp, level:this.level, exp:this.exp, hp:this.hp, sh:this.shiny ? 1 : 0, st:this.status || 0, stT:this.statusT || 0, hl:this.held || 0, fs:this._fieldSlots || null }; }
   static from(d){
     const p = new PokeInst(d.sp, d.level);
     p.exp = d.exp; p.hp = clamp(d.hp, 0, p.maxHp);
     p.shiny = !!d.sh;
     p.status = d.st || null; p.statusT = d.stT || 0; p.held = d.hl || 0; // 상태이상·지닌물건 (기본값)
+    if(Array.isArray(d.fs)) p._fieldSlots = d.fs.slice(0, 4); // 🎮 필드 슬롯 복원
     return p;
   }
 }
@@ -2553,9 +2567,9 @@ function updateSkillBar(){
   if(!Follower.ent || !par){ bar.classList.add('hidden'); return; }
   const keys = ['Z', 'X', 'C', 'V'];
   const styleIcon = k => ({ melee:'⚔', quake:'🌋' }[MOVE_STYLE[k]] || '💥');
-  // 필드는 Z/X/C/V 4개 키 — 배운 기술 중 앞 4개를 빠른키로 (배틀에선 전부 선택 가능)
-  bar.innerHTML = par.moves.slice(0, 4).map((k, i) =>
-    '<span class="fb-skill"><b>' + keys[i] + '</b> ' + styleIcon(k) + MOVES[k].n + '</span>').join('');
+  // 필드는 Z/X/C/V 4개 키 — 플레이어가 파티 화면에서 배치한 슬롯 (빈 칸은 —)
+  bar.innerHTML = par.getFieldSlots().map((k, i) =>
+    '<span class="fb-skill"><b>' + keys[i] + '</b> ' + (k ? styleIcon(k) + MOVES[k].n : '—') + '</span>').join('');
   bar.classList.remove('hidden');
 }
 
@@ -4065,7 +4079,7 @@ const FieldBattle = {
     if(!par) return;
     const keys = ['Z', 'X', 'C', 'V'];
     bar.innerHTML = '<div class="fb-title">⚔ ' + par.name + ' 배틀 중! (자동 — 키로 기술 지시 가능)</div>' +
-      par.moves.slice(0, 4).map((k, i) => '<div><span class="fb-key">' + keys[i] + '</span>' + MOVES[k].n + ' <span style="opacity:.6">' + TYPES[MOVES[k].t].n + ' ' + MOVES[k].p + '</span></div>').join('');
+      par.getFieldSlots().map((k, i) => '<div><span class="fb-key">' + keys[i] + '</span>' + (k ? MOVES[k].n + ' <span style="opacity:.6">' + TYPES[MOVES[k].t].n + ' ' + MOVES[k].p + '</span>' : '—') + '</div>').join('');
     bar.classList.remove('hidden');
   },
   _hideBar(){
@@ -4075,8 +4089,9 @@ const FieldBattle = {
   },
   command(idx){
     const par = PokeMan.party[0];
-    if(!this.target || !par || !par.moves[idx]) return;
-    this.cmd = par.moves[idx];
+    const mk = par && par.getFieldSlots()[idx];
+    if(!this.target || !par || !mk) return;
+    this.cmd = mk;
     SFX.play('click');
     UI.toast('👉 ' + par.name + ', ' + MOVES[this.cmd].n + '!');
   },

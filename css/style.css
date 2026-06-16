@@ -460,3 +460,15 @@ body.touch #hotbar .hslot { width: 44px; height: 44px; }
 
 /* 🌡 상태이상 칩 (배틀) */
 .status-chip { display:inline-block; font-size:11px; padding:1px 5px; border-radius:8px; background:rgba(0,0,0,.4); margin-left:4px; vertical-align:middle; }
+
+/* 🎮 필드 기술 배치 (Z/X/C/V) 패널 */
+.field-slot-panel { background:#1a2230; border:2px solid #3a4f66; border-radius:6px; padding:8px; margin:4px 0 10px; }
+.fs-title { color:#ffd866; font-size:12px; margin-bottom:6px; }
+.fs-slots { display:flex; gap:6px; flex-wrap:wrap; }
+.fs-slot { flex:1; min-width:90px; background:#243447; border:2px solid #3a4f66; color:#fff; border-radius:6px; padding:6px 8px; cursor:pointer; font-size:13px; font-family:inherit; }
+.fs-slot.sel { border-color:#ffd866; background:#2e4258; }
+.fs-slot b { color:#7ad0f5; margin-right:4px; }
+.fs-palette { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; padding-top:8px; border-top:1px dashed #3a4f66; }
+.fs-move { background:#2e4258; border:1px solid #4a6080; color:#fff; border-radius:5px; padding:4px 8px; cursor:pointer; font-size:12px; font-family:inherit; }
+.fs-move:hover { background:#3a5470; }
+.fs-move.used { opacity:.5; }

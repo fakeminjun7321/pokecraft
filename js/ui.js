@@ -1037,7 +1037,7 @@ const UI = {
           btns.appendChild(b);
         }
       });
-      if(player.countItem(I.RARECANDY) > 0 && p.level < 100){
+      if(player.countItem(I.RARECANDY) > 0 && p.level < 9999){
         const b = document.createElement('button');
         b.textContent = '이상한사탕 (' + player.countItem(I.RARECANDY) + ')';
         b.onclick = () => {
@@ -1166,6 +1166,42 @@ const UI = {
       };
       btns.appendChild(rel);
       list.appendChild(row);
+
+      // 🎮 파트너(1번)만: Z/X/C/V 필드 기술 배치 패널
+      if(i === 0 && p.moves.length){
+        const slots = p.getFieldSlots();
+        const keys = ['Z', 'X', 'C', 'V'];
+        const panel = document.createElement('div');
+        panel.className = 'field-slot-panel';
+        panel.innerHTML = '<div class="fs-title">🎮 필드 기술 배치 (Z/X/C/V — 빈 칸 클릭 후 기술 선택)</div>';
+        const slotRow = document.createElement('div'); slotRow.className = 'fs-slots';
+        slots.forEach((mk, si) => {
+          const sb = document.createElement('button');
+          sb.className = 'fs-slot' + (this._fldSel === si ? ' sel' : '');
+          sb.innerHTML = '<b>' + keys[si] + '</b> ' + (mk ? MOVES[mk].n : '<span style="opacity:.5">비어있음</span>');
+          sb.onclick = () => { this._fldSel = (this._fldSel === si ? null : si); this.openParty(); };
+          slotRow.appendChild(sb);
+        });
+        panel.appendChild(slotRow);
+        // 슬롯을 고른 상태면 기술 팔레트 표시
+        if(this._fldSel !== null && this._fldSel !== undefined){
+          const pal = document.createElement('div'); pal.className = 'fs-palette';
+          const mkClear = document.createElement('button');
+          mkClear.className = 'fs-move'; mkClear.textContent = '✕ 비우기';
+          mkClear.onclick = () => { p.setFieldSlot(this._fldSel, null); this._fldSel = null; if(typeof updateSkillBar === 'function') updateSkillBar(); SFX.play('click'); this.openParty(); };
+          pal.appendChild(mkClear);
+          p.moves.forEach(mk => {
+            const mb = document.createElement('button');
+            mb.className = 'fs-move' + (slots.includes(mk) ? ' used' : '');
+            const ic = ({ melee:'⚔', quake:'🌋' }[(typeof MOVE_STYLE !== 'undefined' && MOVE_STYLE[mk])] || '💥');
+            mb.innerHTML = ic + MOVES[mk].n;
+            mb.onclick = () => { p.setFieldSlot(this._fldSel, mk); this._fldSel = null; if(typeof updateSkillBar === 'function') updateSkillBar(); SFX.play('click'); this.openParty(); };
+            pal.appendChild(mb);
+          });
+          panel.appendChild(pal);
+        }
+        list.appendChild(panel);
+      }
     });
     // 보관함
     if(PokeMan.box.length){
