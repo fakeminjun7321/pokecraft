@@ -1119,6 +1119,16 @@ const UI = {
         };
         btns.appendChild(b);
       }
+      // 📀 TM(기술 머신) 가르치기 — 보유한 TM이 있으면
+      {
+        const tmIds = [I.TM_QUAKE, I.TM_ICE, I.TM_THUNDER, I.TM_FLAME, I.TM_SURF, I.TM_HYPER, I.TM_PSYCHIC, I.TM_DRAGON].filter(id => player.countItem(id) > 0);
+        if(tmIds.length){
+          const b = document.createElement('button');
+          b.textContent = '📀 TM 배우기';
+          b.onclick = () => { this._tmSel = (this._tmSel === i ? null : i); this.openParty(); };
+          btns.appendChild(b);
+        }
+      }
       // 멀티: 포켓몬 교환 (제안 받은 상태면 '이걸로 교환')
       if(typeof Net !== 'undefined' && Net.mode !== 'off'){
         if(typeof TradeMan !== 'undefined' && TradeMan._incoming){
@@ -1201,6 +1211,33 @@ const UI = {
           });
           panel.appendChild(pal);
         }
+        list.appendChild(panel);
+      }
+
+      // 📀 이 포켓몬이 TM 배우기를 선택한 상태 → 보유 TM 팔레트
+      if(this._tmSel === i){
+        const tmIds = [I.TM_QUAKE, I.TM_ICE, I.TM_THUNDER, I.TM_FLAME, I.TM_SURF, I.TM_HYPER, I.TM_PSYCHIC, I.TM_DRAGON].filter(id => player.countItem(id) > 0);
+        const panel = document.createElement('div'); panel.className = 'field-slot-panel';
+        panel.innerHTML = '<div class="fs-title">📀 ' + p.name + '에게 가르칠 TM 선택 (소모됨)</div>';
+        const pal = document.createElement('div'); pal.className = 'fs-palette';
+        tmIds.forEach(id => {
+          const mk = itemDef(id).teaches;
+          const known = p.moves.includes(mk);
+          const mb = document.createElement('button');
+          mb.className = 'fs-move' + (known ? ' used' : '');
+          mb.innerHTML = itemName(id) + ' ×' + player.countItem(id) + (known ? ' (이미 보유)' : '');
+          mb.onclick = () => {
+            if(known){ this.toast(p.name + '은(는) 이미 ' + MOVES[mk].n + '을(를) 알아요'); return; }
+            player.removeItem(id, 1);
+            p.taught = p.taught || []; p.taught.push(mk); p.updateMoves();
+            SFX.play('level'); Particles && Particles.spawn(player.body.x, player.body.y + 1.5, player.body.z, 0x7ad0f5, 14, 2, 0.6, 1);
+            this.toast('📀 ' + p.name + '이(가) ' + MOVES[mk].n + '을(를) 배웠다!');
+            this._tmSel = null; this.openParty();
+          };
+          pal.appendChild(mb);
+        });
+        if(!tmIds.length) pal.innerHTML = '<span style="color:#8a9ab0;font-size:13px">보유한 TM이 없어요 (다이아로 제작)</span>';
+        panel.appendChild(pal);
         list.appendChild(panel);
       }
     });

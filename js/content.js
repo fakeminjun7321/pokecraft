@@ -53,6 +53,8 @@ const I = {
   BUCKET:206, WATER_BUCKET:207, LAVA_BUCKET:208, LINK_CABLE:209, MEGA_STONE:210,
   // 🎒 포켓몬 지닌 물건 213+
   LEFTOVERS:213, FOCUS_BAND:214, CHARCOAL:217, MYSTIC_WATER:218, MIRACLE_SEED:219, MAGNET:220,
+  // 📀 기술 머신(TM) 221+ — 원하는 강력기를 포켓몬에게 가르친다
+  TM_QUAKE:221, TM_ICE:222, TM_THUNDER:223, TM_FLAME:224, TM_SURF:225, TM_HYPER:226, TM_PSYCHIC:227, TM_DRAGON:228,
 };
 
 // ----- 타일 인덱스 (아틀라스 16x16 그리드) -----
@@ -267,6 +269,15 @@ defItem(I.CHARCOAL,     { name:'목탄', stack:1, held:'fire' });
 defItem(I.MYSTIC_WATER, { name:'신비의물방울', stack:1, held:'water' });
 defItem(I.MIRACLE_SEED, { name:'기적의씨앗', stack:1, held:'grass' });
 defItem(I.MAGNET,       { name:'자석', stack:1, held:'electric' });
+// 📀 기술 머신 (TM) — teaches = 가르칠 기술 키
+defItem(I.TM_QUAKE,   { name:'TM 지진', stack:1, teaches:'earthquake' });
+defItem(I.TM_ICE,     { name:'TM 냉동빔', stack:1, teaches:'icebeam' });
+defItem(I.TM_THUNDER, { name:'TM 10만볼트', stack:1, teaches:'thunderbolt' });
+defItem(I.TM_FLAME,   { name:'TM 화염방사', stack:1, teaches:'flamethrower' });
+defItem(I.TM_SURF,    { name:'TM 파도타기', stack:1, teaches:'surf' });
+defItem(I.TM_HYPER,   { name:'TM 파괴광선', stack:1, teaches:'hyperbeam' });
+defItem(I.TM_PSYCHIC, { name:'TM 사이코키네시스', stack:1, teaches:'psychic' });
+defItem(I.TM_DRAGON,  { name:'TM 드래곤클로', stack:1, teaches:'dragonclaw' });
 defItem(I.FIRE_STONE,    { name:'불꽃의 돌', stack:16 });
 defItem(I.WATER_STONE,   { name:'물의 돌', stack:16 });
 defItem(I.THUNDER_STONE, { name:'천둥의 돌', stack:16 });
@@ -309,7 +320,8 @@ const CREATIVE_ITEMS = [
   I.POTION_SPEED,I.POTION_JUMP,I.POTION_REGEN,I.FLINT_STEEL,I.QUARTZ,I.GLOWDUST,I.BLAZE_ROD,I.ENDER_EYE,B.END_CRYSTAL,
   B.SPRUCE_LOG,B.SPRUCE_LEAVES,B.JUNGLE_LOG,B.JUNGLE_LEAVES,B.CHERRY_LOG,B.CHERRY_LEAVES,B.MYCELIUM,B.RED_SAND,B.TERRACOTTA,B.DEEPSLATE,B.PODZOL,B.MUSHROOM,
   B.ANVIL,B.BUTTON,B.PLATE,B.BREWING,
-  I.LEFTOVERS,I.FOCUS_BAND,I.CHARCOAL,I.MYSTIC_WATER,I.MIRACLE_SEED,I.MAGNET
+  I.LEFTOVERS,I.FOCUS_BAND,I.CHARCOAL,I.MYSTIC_WATER,I.MIRACLE_SEED,I.MAGNET,
+  I.TM_QUAKE,I.TM_ICE,I.TM_THUNDER,I.TM_FLAME,I.TM_SURF,I.TM_HYPER,I.TM_PSYCHIC,I.TM_DRAGON
 ];
 
 // ===== 텍스처 아틀라스 =====
@@ -626,6 +638,10 @@ function drawItemIcon(ctx, id){
     case I.MAGNET: P(4,4,'#c83a3a',3,8); P(9,4,'#3a5ac8',3,8); P(4,10,'#c0c0c0',8,3); break;
     case I.FLINT_STEEL: P(4,5,'#3a3a42',5,5); P(9,8,'#c8c8c8',4,2); P(10,6,'#c8c8c8',2,5); break;
     case I.GOLDEN_APPLE: P(5,5,'#fce14c',6,6); P(4,6,'#fce14c',8,4); P(7,3,'#6b4a2a',1,2); P(8,3,'#3c8a28',2,1); P(5,6,'#fff08c',2,2); break;
+    case I.TM_QUAKE: case I.TM_ICE: case I.TM_THUNDER: case I.TM_FLAME: case I.TM_SURF: case I.TM_HYPER: case I.TM_PSYCHIC: case I.TM_DRAGON: {
+      const tc = { [I.TM_QUAKE]:'#9a7a4a', [I.TM_ICE]:'#7ad0f0', [I.TM_THUNDER]:'#f5d327', [I.TM_FLAME]:'#f08030', [I.TM_SURF]:'#3a8ad8', [I.TM_HYPER]:'#c860c0', [I.TM_PSYCHIC]:'#f06b9a', [I.TM_DRAGON]:'#6a48c8' }[id] || '#888';
+      P(3,4,'#3a3a42',10,8); P(4,5,tc,8,6); P(5,6,'#fff',6,1); P(5,9,'#1a1a22',6,2); break;
+    }
     default: P(4,4,'#f0f','8',8); break;
   }
 }
@@ -705,6 +721,15 @@ const RECIPES = [
   { sl:[[I.GLOWDUST,2],[B.GLASS,1]], out:[I.MYSTIC_WATER,1] },
   { sl:[[I.SEEDS,4],[I.WHEAT,1]], out:[I.MIRACLE_SEED,1] },
   { sl:[[I.IRON_INGOT,2],[I.REDSTONE,2]], out:[I.MAGNET,1] },
+  // 📀 기술 머신 제작 (다이아 기반 — 원하는 강력기 커스텀)
+  { sl:[[I.DIAMOND,1],[B.COBBLE,4]], out:[I.TM_QUAKE,1] },
+  { sl:[[I.DIAMOND,1],[B.GLASS,4]], out:[I.TM_ICE,1] },
+  { sl:[[I.DIAMOND,1],[I.REDSTONE,4]], out:[I.TM_THUNDER,1] },
+  { sl:[[I.DIAMOND,1],[I.BLAZE_ROD,1]], out:[I.TM_FLAME,1] },
+  { sl:[[I.DIAMOND,1],[I.GLOWDUST,4]], out:[I.TM_PSYCHIC,1] },
+  { sl:[[I.DIAMOND,1],[I.ENDERPEARL,2]], out:[I.TM_DRAGON,1] },
+  { sl:[[I.DIAMOND,2],[I.QUARTZ,2]], out:[I.TM_SURF,1] },
+  { sl:[[I.DIAMOND,2],[I.EMERALD,2]], out:[I.TM_HYPER,1] },
   { p:['IDI','IRI','III'], k:{I:I.IRON_INGOT, D:I.DIAMOND, R:I.REDSTONE}, out:[B.HEAL_MACHINE,1] },
   { p:['IGI','IRI','III'], k:{I:I.IRON_INGOT, G:B.GLASS, R:I.REDSTONE}, out:[B.FOSSIL_MACHINE,1] },
   { p:['GGG','IRI','IPI'], k:{G:B.GLASS, I:I.IRON_INGOT, R:I.REDSTONE, P:B.PLANKS}, out:[B.PC_BLOCK,1] },

@@ -797,17 +797,21 @@ class Player {
     this.damageTool(item);
     const r = Math.random();
     const bx = this.body.x, by = this.body.y + 1.2, bz = this.body.z;
-    if(r < 0.5) ItemDrops.spawn(bx, by, bz, I.FISH_RAW, 1);
-    else if(r < 0.62 && PokeMan.enabled){
-      const lv = 3 + Math.floor(Math.random() * 12);
-      if(typeof Net !== 'undefined' && Net.mode === 'guest') Net.sendSpawnWild(129, lv, bb.x, bb.y + 0.5, bb.z);
-      else { PokeMan.wilds.push(new WildPoke(129, lv, bb.x, bb.y + 0.5, bb.z)); PokeMan.seen.add(129); }
-      UI.toast('앗! 잉어킹이 낚였다! (R키로 배틀)');
+    if(r < 0.45) ItemDrops.spawn(bx, by, bz, I.FISH_RAW, 1);
+    else if(r < 0.66 && PokeMan.enabled){
+      // 🎣 다양한 물 포켓몬이 낚인다 (잉어킹·콘치·쏘드라·별가사리·또도가스아닌 물계열 등)
+      const FISH_POKES = [129, 129, 129, 118, 116, 120, 90, 60, 72, 98];
+      const sp = FISH_POKES[Math.floor(Math.random() * FISH_POKES.length)];
+      const lv = 5 + Math.floor(Math.random() * 22);
+      if(typeof Net !== 'undefined' && Net.mode === 'guest') Net.sendSpawnWild(sp, lv, bb.x, bb.y + 0.5, bb.z);
+      else { PokeMan.wilds.push(new WildPoke(sp, lv, bb.x, bb.y + 0.5, bb.z)); PokeMan.seen.add(sp); }
+      UI.toast('앗! 야생 ' + (SPECIES[sp] ? SPECIES[sp].name : '물고기') + '이(가) 낚였다! (R키로 배틀)');
     }
-    else if(r < 0.78) ItemDrops.spawn(bx, by, bz, I.STRING, 1 + Math.floor(Math.random() * 2));
+    else if(r < 0.80) ItemDrops.spawn(bx, by, bz, I.STRING, 1 + Math.floor(Math.random() * 2));
     else if(r < 0.88) ItemDrops.spawn(bx, by, bz, I.BONE, 1);
-    else if(r < 0.95) ItemDrops.spawn(bx, by, bz, I.POKEBALL, 1);
-    else if(r < 0.99) ItemDrops.spawn(bx, by, bz, I.RARECANDY, 1);
+    else if(r < 0.94) ItemDrops.spawn(bx, by, bz, I.POKEBALL, 1);
+    else if(r < 0.975) ItemDrops.spawn(bx, by, bz, I.RARECANDY, 1);
+    else if(r < 0.992){ const tms = [I.TM_SURF, I.TM_ICE]; ItemDrops.spawn(bx, by, bz, tms[Math.floor(Math.random() * tms.length)], 1); UI.toast('🎣 보물! 기술 머신을 낚았다!'); }
     else ItemDrops.spawn(bx, by, bz, I.DIAMOND, 1);
   }
   updateBobber(dt){

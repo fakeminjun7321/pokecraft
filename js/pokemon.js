@@ -1538,6 +1538,7 @@ class PokeInst {
     this.updateMoves();
     this.status = null; this.statusT = 0; // 🌡 상태이상
     this.held = 0;                        // 🎒 지닌 물건 (아이템 id, 0=없음)
+    this.taught = [];                     // 📀 TM으로 가르친 기술 (레벨업해도 유지)
   }
   get spec(){ return SPECIES[this.sp]; }
   calc(){
@@ -1549,9 +1550,9 @@ class PokeInst {
     this.spd = Math.floor(bs[3] * 2 * lv / 100) + 5;
   }
   updateMoves(){
-    // 배운 기술은 전부 보유·사용 가능 (4개 제한 없음 — 배틀 메뉴에서 모두 선택)
+    // 배운 기술 전부 + TM으로 가르친 기술 (4개 제한 없음 — 배틀 메뉴에서 모두 선택)
     const learned = this.spec.learn.filter(([lv]) => lv <= this.level).map(([, k]) => k);
-    this.moves = [...new Set(learned)];
+    this.moves = [...new Set([...learned, ...(this.taught || [])])];
     if(!this.moves.length) this.moves = ['tackle'];
   }
   // 🎮 필드 빠른키(Z/X/C/V) 슬롯 — 플레이어가 직접 배치. 기본은 앞 4개.
@@ -1640,12 +1641,13 @@ class PokeInst {
     this._preMega = null;
   }
   get name(){ return (this.mega ? '메가 ' : '') + this.spec.name; }
-  serialize(){ return { sp:this.sp, level:this.level, exp:this.exp, hp:this.hp, sh:this.shiny ? 1 : 0, st:this.status || 0, stT:this.statusT || 0, hl:this.held || 0, fs:this._fieldSlots || null }; }
+  serialize(){ return { sp:this.sp, level:this.level, exp:this.exp, hp:this.hp, sh:this.shiny ? 1 : 0, st:this.status || 0, stT:this.statusT || 0, hl:this.held || 0, fs:this._fieldSlots || null, tg:this.taught && this.taught.length ? this.taught : null }; }
   static from(d){
     const p = new PokeInst(d.sp, d.level);
     p.exp = d.exp; p.hp = clamp(d.hp, 0, p.maxHp);
     p.shiny = !!d.sh;
     p.status = d.st || null; p.statusT = d.stT || 0; p.held = d.hl || 0; // 상태이상·지닌물건 (기본값)
+    if(Array.isArray(d.tg)){ p.taught = d.tg.filter(k => MOVES[k]); p.updateMoves(); } // 📀 TM 기술 복원
     if(Array.isArray(d.fs)) p._fieldSlots = d.fs.slice(0, 4); // 🎮 필드 슬롯 복원
     return p;
   }
