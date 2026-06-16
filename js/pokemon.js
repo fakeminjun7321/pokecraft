@@ -213,34 +213,27 @@ const TYPE_MOVES = {};
 })();
 
 function autoLearn(types){
+  // 자기 타입의 기술만 배운다 (+ 기본 노말기). 파괴광선 같은 범용 최종기는 없음 — 노말 타입만 예외.
   const t1 = TYPE_MOVES[types[0]] || [];
   const t2 = types[1] ? (TYPE_MOVES[types[1]] || []) : [];
+  const isNormal = types[0] === 'normal' || types[1] === 'normal';
   const pick = (arr, i, fb) => arr[Math.min(i, arr.length - 1)] || fb;
   const ls = [];
-  // 1레벨부터 기술 2개 (기본기 + 타입기)
-  ls.push([1, types[0] === 'normal' ? 'quick' : 'tackle']);
-  ls.push([1, t1[0] || 'scratch']);
-  ls.push([7, pick(t1, 1, 'quick')]);
-  ls.push([13, t2.length ? pick(t2, Math.min(1, t2.length - 1), 'headbutt') : 'headbutt']);
-  ls.push([20, pick(t1, t1.length >= 3 ? 2 : 1, 'bodyslam')]);
-  ls.push([28, t2.length >= 3 ? t2[2] : 'bodyslam']);
-  ls.push([36, t1[t1.length - 1] || 'bodyslam']);
-  // 🎯 고레벨 커버리지: 자기 타입 밖의 기술 + 최종기 파괴광선
-  const COVER = {
-    normal:'seismictoss', fire:'slash', water:'icepunch', grass:'poisonjab',
-    electric:'swift', flying:'aerialace', bug:'poisonjab', psychic:'shadowclaw',
-    rock:'bulldoze', ground:'rockblast', ice:'zenheadbutt', fairy:'playrough',
-    poison:'sludgebomb', fighting:'rockblast', dark:'shadowclaw', steel:'bulldoze',
-    ghost:'zenheadbutt', dragon:'aquatail',
-  };
-  const cov = COVER[types[0]];
-  if(cov && MOVES[cov].t !== types[0] && MOVES[cov].t !== types[1]) ls.push([44, cov]);
-  else ls.push([44, 'seismictoss']);
-  ls.push([52, 'hyperbeam']);
-  // 중복 제거
+  ls.push([1, types[0] === 'normal' ? 'quick' : 'tackle']);   // 기본기
+  ls.push([1, t1[0] || 'scratch']);                            // 자속 약한기
+  ls.push([6, pick(t1, 1, 'quick')]);
+  if(t2.length) ls.push([10, pick(t2, 0, 'headbutt')]);        // 두 번째 타입기 (있으면)
+  ls.push([15, pick(t1, 2, 'bite')]);
+  if(t2.length) ls.push([21, pick(t2, 1, 'bodyslam')]);
+  ls.push([27, pick(t1, t1.length >= 4 ? 3 : 2, 'bodyslam')]);
+  if(t2.length >= 3) ls.push([33, t2[2]]);
+  ls.push([40, t1[t1.length - 1] || 'bodyslam']);              // 자속 최강기
+  // 파괴광선(노말 최강기)은 노말 타입 포켓몬만 — 모든 포켓몬이 갖던 문제 제거
+  if(isNormal) ls.push([50, 'hyperbeam']);
+  // 중복 제거 (레벨 낮은 쪽 우선)
   const out = [];
   const seen = new Set();
-  ls.forEach(([lv, k]) => { if(!seen.has(k)){ seen.add(k); out.push([lv, k]); } });
+  ls.forEach(([lv, k]) => { if(k && !seen.has(k)){ seen.add(k); out.push([lv, k]); } });
   return out;
 }
 
@@ -1366,7 +1359,7 @@ function evoStage(sp){
   return depth;
 }
 // 통일된 진화 레벨: 1→2단계 = Lv.30, 2→3단계 = Lv.60 (진화는 어렵게!)
-function evoReqLevel(sp){ return evoStage(sp) <= 1 ? 30 : 60; }
+function evoReqLevel(sp){ return evoStage(sp) <= 1 ? 50 : 100; } // 진화: 1→2단계 Lv.50, 2→3단계 Lv.100
 // 네더: 불꽃 타입 천국 (파이어는 네더에서 더 잘 나옴)
 SPAWN_TABLES.nether = [[4, 10], [37, 10], [58, 10], [77, 8], [126, 7], [136, 5], [146, 0.5]];
 // 엔드: 에스퍼·고스트의 영역 — 케이시/윤겔라/후딘, 고오스 계열, 슬리퍼, 마임맨 + 뮤츠/뮤
@@ -1556,7 +1549,9 @@ class PokeInst {
     this.spd = Math.floor(bs[3] * 2 * lv / 100) + 5;
   }
   updateMoves(){
-    this.moves = this.spec.learn.filter(([lv]) => lv <= this.level).map(([, k]) => k).slice(-4);
+    // 배운 기술은 전부 보유·사용 가능 (4개 제한 없음 — 배틀 메뉴에서 모두 선택)
+    const learned = this.spec.learn.filter(([lv]) => lv <= this.level).map(([, k]) => k);
+    this.moves = [...new Set(learned)];
     if(!this.moves.length) this.moves = ['tackle'];
   }
   expPct(){
@@ -1566,7 +1561,7 @@ class PokeInst {
   gainExp(n){
     const ev = [];
     this.exp += n;
-    while(this.level < 100 && this.exp >= expForLevel(this.level + 1)){
+    while(this.level < 9999 && this.exp >= expForLevel(this.level + 1)){ // 레벨 제한 해제 (사실상 무제한)
       this.level++;
       const oldMax = this.maxHp;
       this.calc();
@@ -1584,7 +1579,7 @@ class PokeInst {
     const e = this.spec.evo;
     if(!e) return null;
     if(e.special === 'eevee'){
-      if(this.level < 30) return null;
+      if(this.level < 50) return null;
       const b = world.biomeAt(Math.floor(player.body.x), Math.floor(player.body.z));
       let water = b === 'ocean';
       for(let dx = -4; dx <= 4 && !water; dx += 2){
@@ -2024,13 +2019,13 @@ const PokeMan = {
       if(!onWater && WATER_ONLY.has(sp)) continue;
       const spawnP = world.spawnPoint || { x:0, z:0 };
       const d = Math.hypot(x - spawnP.x, z - spawnP.z);
-      // 야생 레벨 = max(거리 기반, 내 파티 최고레벨 ±5) — 강해질수록 야생도 강해진다!
+      // 야생 레벨: 스폰지점에서 멀수록 강함 + 넓은 분산 → 다양한 레벨이 섞여 나온다 (계속 비슷한 문제 해결)
       const pmax = this.party.length ? Math.max(...this.party.map(q => q.level)) : 5;
-      let lv = Math.floor(4 + d / 45 + Math.random() * 8 - 3);
-      lv = Math.max(lv, pmax - 3 + Math.floor(Math.random() * 9));
-      lv = clamp(lv, 3, 70);
-      if(world.dim === 'nether') lv = clamp(lv + 10, 12, 75); // 네더는 강한 개체
-      if(world.dim === 'end') lv = clamp(lv + 15, 25, 80);    // 엔드는 최상위 개체
+      let lv = Math.floor(3 + d / 38 + (Math.random() - 0.5) * 34); // ±17 넓은 분산
+      if(Math.random() < 0.4) lv = Math.max(lv, pmax - 6 + Math.floor(Math.random() * 14)); // 가끔만 파티에 맞춘 강한 개체
+      lv = clamp(lv, 2, 120);
+      if(world.dim === 'nether') lv = clamp(lv + 12, 14, 130); // 네더는 강한 개체
+      if(world.dim === 'end') lv = clamp(lv + 18, 28, 140);    // 엔드는 최상위 개체
       // 밤에는 아주 낮은 확률로 뮤츠 출현
       if(game.isNight() && world.dim === 'over' && Math.random() < 0.012) sp = 150;
       if(LEGENDARIES.includes(sp)) lv = Math.max(lv, 50 + Math.floor(Math.random() * 15));
@@ -2039,7 +2034,7 @@ const PokeMan = {
       const pmaxB = this.party.length ? Math.max(...this.party.map(q => q.level)) : 0;
       if(pmaxB >= 20 && Math.random() < 0.012 && !LEGENDARIES.includes(wp.inst.sp)){
         wp.boss = true;
-        wp.inst.level = Math.min(85, wp.inst.level + 8 + Math.floor(Math.random() * 5));
+        wp.inst.level = Math.min(150, wp.inst.level + 8 + Math.floor(Math.random() * 5));
         wp.inst.calc(); wp.inst.maxHp = Math.floor(wp.inst.maxHp * 2.2); wp.inst.hp = wp.inst.maxHp;
         wp.inst.updateMoves();
         wp.group.scale.multiplyScalar(1.45);
@@ -2558,7 +2553,8 @@ function updateSkillBar(){
   if(!Follower.ent || !par){ bar.classList.add('hidden'); return; }
   const keys = ['Z', 'X', 'C', 'V'];
   const styleIcon = k => ({ melee:'⚔', quake:'🌋' }[MOVE_STYLE[k]] || '💥');
-  bar.innerHTML = par.moves.map((k, i) =>
+  // 필드는 Z/X/C/V 4개 키 — 배운 기술 중 앞 4개를 빠른키로 (배틀에선 전부 선택 가능)
+  bar.innerHTML = par.moves.slice(0, 4).map((k, i) =>
     '<span class="fb-skill"><b>' + keys[i] + '</b> ' + styleIcon(k) + MOVES[k].n + '</span>').join('');
   bar.classList.remove('hidden');
 }
@@ -2743,7 +2739,7 @@ const Follower = {
       e.group.rotation.y = turnToward(e.group.rotation.y, e.dir, dt);
     }
     // 🚶 동행 경험치: 함께 걸은 거리만큼 조금씩 경험치 (배틀 없이도 성장!)
-    if(!game.inBattle && par.level < 100){
+    if(!game.inBattle && par.level < 9999){
       const moved = Math.hypot(player.body.x - (this._lastPX || player.body.x), player.body.z - (this._lastPZ || player.body.z));
       this._lastPX = player.body.x; this._lastPZ = player.body.z;
       if(moved > 0.05 && moved < 2){
@@ -4069,7 +4065,7 @@ const FieldBattle = {
     if(!par) return;
     const keys = ['Z', 'X', 'C', 'V'];
     bar.innerHTML = '<div class="fb-title">⚔ ' + par.name + ' 배틀 중! (자동 — 키로 기술 지시 가능)</div>' +
-      par.moves.map((k, i) => '<div><span class="fb-key">' + keys[i] + '</span>' + MOVES[k].n + ' <span style="opacity:.6">' + TYPES[MOVES[k].t].n + ' ' + MOVES[k].p + '</span></div>').join('');
+      par.moves.slice(0, 4).map((k, i) => '<div><span class="fb-key">' + keys[i] + '</span>' + MOVES[k].n + ' <span style="opacity:.6">' + TYPES[MOVES[k].t].n + ' ' + MOVES[k].p + '</span></div>').join('');
     bar.classList.remove('hidden');
   },
   _hideBar(){
