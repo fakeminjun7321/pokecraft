@@ -978,19 +978,7 @@ const MobManager = {
         }
         return;
       }
-      // 💀 로켓단 출몰 이벤트 (희귀하게)
-      if(PokeMan.enabled && PokeMan.party.length && !this.list.some(x => x.type === 'rocket') && Math.random() < 0.02){
-        const ra = Math.random() * Math.PI * 2;
-        const rx2 = px + Math.sin(ra) * 24, rz2 = pz + Math.cos(ra) * 24;
-        const ry2 = world.colTop(rx2, rz2) + 1.1;
-        if(ry2 > SEA + 2){
-          const rk = new Mob('rocket', rx2, ry2, rz2);
-          if(Math.random() < 0.15){ rk.rocketBoss = true; rk.setTag('💀 로켓단 간부'); }
-          this.list.push(rk);
-          UI.toast('💀 로켓단이 나타났다!! 이쪽으로 다가온다...', 4500);
-          SFX.play('fuse');
-        }
-      }
+      // 💀 로켓단 폐지 — 더 이상 출몰하지 않음
       // 🎒 교환 상인: 가끔 찾아온다
       if(PokeMan.enabled && PokeMan.party.length && !this.list.some(x => x.type === 'trademan') && Math.random() < 0.05){
         const ma = Math.random() * Math.PI * 2;
