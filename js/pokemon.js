@@ -2651,7 +2651,7 @@ function partnerFieldMove(moveKey){
       const sx0 = fb.x, sy0 = fb.y, sz0 = fb.z;
       setTimeout(() => {
         if(game.inBattle || !Follower.ent || player.dead) return; // 상태 바뀌면 취소
-        const lfb = Follower.ent.body; lfb.vx += d.x * 9; lfb.vz += d.z * 9;
+        Follower.lungeTo(sx0 + d.x * 3, sy0, sz0 + d.z * 3, 0.34); // ⚔ 모델이 앞으로 튀어나간다
         _meleeStreak(sx0, sy0 + 0.7, sz0, sx0 + d.x * 3, sy0 + 0.7, sz0 + d.z * 3, col, () => {
           if(game.inBattle || !Follower.ent || player.dead) return;
           const ix = sx0 + d.x * 2.6, iz = sz0 + d.z * 2.6;
@@ -2671,15 +2671,12 @@ function partnerFieldMove(moveKey){
     _meleeCharge(fb, col);
     setTimeout(() => {
       if(game.inBattle || !Follower.ent || player.dead) return; // 상태 바뀌면 취소
-      // PHASE B: 돌진 잔상 (파트너 → 적)
+      // PHASE B: 파트너 모델이 적에게 실제로 돌진 + 잔상
+      Follower.lungeTo(tb.x, tb.y + 0.6, tb.z, 0.36); // ⚔ 모델이 적에게 튀어나간다 (몸통박치기·지구던지기 등)
       _meleeStreak(sx, sy + 0.7, sz, tb.x, tb.y + 0.7, tb.z, col, () => {
         // PHASE C: 임팩트! — 상태/대상 재검증 (배틀 시작·파트너 회수·대상 기절/제거 시 취소)
         if(game.inBattle || !Follower.ent || player.dead) return;
         if(tgt.fainted || tgt.dead || (tgt.body && !tgt.group)) return;
-        const lfb = Follower.ent.body;
-        const ang = Math.atan2(sx - tb.x, sz - tb.z);
-        lfb.x = tb.x + Math.sin(ang) * 1.1; lfb.z = tb.z + Math.cos(ang) * 1.1; lfb.y = tb.y + 0.3;
-        lfb.vx = lfb.vz = 0;
         Particles.spawn(tb.x, tb.y + 0.7, tb.z, col, 42, 4.2, 0.95, 1.8);
         Particles.spawn(tb.x, tb.y + 0.7, tb.z, 0xffffff, 16, 3, 0.6, 1.2);
         Particles.spawn(tb.x, tb.y + 0.7, tb.z, 0xffe97a, 10, 2, 0.5, 1);
@@ -2779,6 +2776,18 @@ const Follower = {
       disposeObject(this.ent.group);
       this.ent = null; this.sp = 0;
     }
+    this._lunge = null;
+  },
+  // ⚔ 돌진: 기술 시전 시 파트너 모델이 타깃 쪽으로 튀어나갔다가 제자리로 돌아온다 (몸통박치기·지구던지기 등 접촉기 연출)
+  lungeTo(tx, ty, tz, dur){
+    if(!this.ent || game.riding) return;
+    const b = this.ent.body;
+    const ang = Math.atan2(b.x - tx, b.z - tz);
+    this._lunge = {
+      sx: b.x, sy: b.y, sz: b.z,
+      tx: tx + Math.sin(ang) * 1.0, ty: ty + 0.2, tz: tz + Math.cos(ang) * 1.0, // 타깃 살짝 앞에서 멈춤
+      t: 0, dur: dur || 0.36
+    };
   },
   update(dt, world, player){
     if(!PokeMan.enabled || !PokeMan.party.length || player.dead || !game.followerOn){
@@ -2823,6 +2832,26 @@ const Follower = {
       return;
     }
     e.group.visible = true;
+    // ⚔ 돌진(lunge) 중에는 모델이 타깃 쪽으로 튀어나갔다 돌아온다 (일반 추종 로직 스킵)
+    if(this._lunge){
+      const L = this._lunge; L.t += dt;
+      if(L.t >= L.dur){ this._lunge = null; }
+      else {
+        const half = L.dur * 0.5;
+        const f = L.t < half ? (L.t / half) : 1 - (L.t - half) / half; // 0→1→0 (돌진→복귀)
+        const ease = f * f * (3 - 2 * f); // 부드럽게
+        b.x = L.sx + (L.tx - L.sx) * ease; b.y = L.sy + (L.ty - L.sy) * ease; b.z = L.sz + (L.tz - L.sz) * ease;
+        b.vx = b.vy = b.vz = 0;
+        e.dir = Math.atan2(L.tx - L.sx, L.tz - L.sz);
+        e.bob += dt; e.walkPhase += dt * 16;
+        const sw = Math.sin(e.walkPhase) * 0.85;
+        (e.built.legs || []).forEach((l, i) => { l.rotation.x = (i % 2 === 0 ? sw : -sw); });
+        const hoverY = e.built.hover ? Math.sin(e.bob * 2) * 0.15 + 0.1 : 0;
+        e.group.position.set(b.x, b.y + hoverY, b.z);
+        if(!e.built.billboard) e.group.rotation.y = turnToward(e.group.rotation.y, e.dir, dt * 5);
+        return;
+      }
+    }
     const d = dist3(b.x, b.y, b.z, player.body.x, player.body.y, player.body.z);
     if(d > 24){ // 너무 멀면 순간이동
       b.x = player.body.x - 1; b.y = player.body.y + 1; b.z = player.body.z - 1;
