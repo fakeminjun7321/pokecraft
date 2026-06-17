@@ -1131,15 +1131,13 @@ const UI = {
         };
         btns.appendChild(b);
       }
-      // 📀 TM(기술 머신) 가르치기 — 보유한 TM이 있으면
+      // 📀 TM(기술 머신) 가르치기 — 항상 표시 (TM이 없으면 팔레트에서 제작 안내)
       {
-        const tmIds = [I.TM_QUAKE, I.TM_ICE, I.TM_THUNDER, I.TM_FLAME, I.TM_SURF, I.TM_HYPER, I.TM_PSYCHIC, I.TM_DRAGON].filter(id => player.countItem(id) > 0);
-        if(tmIds.length){
-          const b = document.createElement('button');
-          b.textContent = '📀 TM 배우기';
-          b.onclick = () => { this._tmSel = (this._tmSel === i ? null : i); this.openParty(); };
-          btns.appendChild(b);
-        }
+        const tmCount = [I.TM_QUAKE, I.TM_ICE, I.TM_THUNDER, I.TM_FLAME, I.TM_SURF, I.TM_HYPER, I.TM_PSYCHIC, I.TM_DRAGON].reduce((s, id) => s + player.countItem(id), 0);
+        const b = document.createElement('button');
+        b.textContent = tmCount ? ('📀 TM 배우기 (' + tmCount + ')') : '📀 TM 배우기';
+        b.onclick = () => { this._tmSel = (this._tmSel === i ? null : i); this.openParty(); };
+        btns.appendChild(b);
       }
       // 멀티: 포켓몬 교환 (제안 받은 상태면 '이걸로 교환')
       if(typeof Net !== 'undefined' && Net.mode !== 'off'){
@@ -1248,7 +1246,7 @@ const UI = {
           };
           pal.appendChild(mb);
         });
-        if(!tmIds.length) pal.innerHTML = '<span style="color:#8a9ab0;font-size:13px">보유한 TM이 없어요 (다이아로 제작)</span>';
+        if(!tmIds.length) pal.innerHTML = '<span style="color:#8a9ab0;font-size:13px">보유한 TM이 없어요 — B키(조합법)로 제작하세요. 예) TM 지진=다이아1+조약돌4, TM 화염방사=다이아1+불막대1, TM 파괴광선=다이아2+에메랄드2</span>';
         panel.appendChild(pal);
         list.appendChild(panel);
       }
