@@ -1776,6 +1776,24 @@ class WildPoke {
     this.setTag(stIcon + (this.angry > 0 ? '😡 ' : '⚔ ') + (i.shiny ? '✨' : '') + i.name + ' ' + '█'.repeat(Math.max(0, bars)) + '░'.repeat(8 - Math.max(0, bars)) + (ballId ? ' 🎯' + pct + '%' : ''));
   }
   // 🌡 실시간 상태이상 틱 — 반환 true면 이번 프레임 행동불가(얼음/잠/마비 움찔)
+  // 💥 필드에서 기절(폭발·상태이상 등) — 흔적 없이 사라지지 않고 정식 기절 연출 + 20초 포획 기회
+  faintField(winner, msg){
+    if(this.fainted || this.catching) return;
+    const i = this.inst;
+    this.fainted = true; this.faintT = 20; this.catching = false; this.battling = false; this.angry = 0; i.hp = 0;
+    this.group.rotation.x = Math.PI / 2;
+    if(this.built && this.built.sprite) this.built.sprite.rotation.z = Math.PI / 2;
+    if(typeof FieldBattle !== 'undefined' && FieldBattle.target === this){ FieldBattle.target = null; if(FieldBattle._hideBar) FieldBattle._hideBar(); }
+    this.setTag('😵 ' + i.name + ' — 볼을 던져 잡자!');
+    Particles.spawn(this.body.x, this.body.y + 0.6, this.body.z, 0xffe97a, 16, 2, 0.7, 1.5);
+    const par = winner || PokeMan.party[0];
+    if(par && par.gainExp){
+      const evs = par.gainExp(Math.floor(i.spec.bx * i.level / 5) + 1);
+      for(const ev of evs){ if(ev.type === 'level'){ UI.toast(par.name + ' 레벨 ' + ev.lv + '!'); SFX.play('level'); } }
+    }
+    if(typeof QuestMan !== 'undefined') QuestMan.onDefeatWild(i);
+    UI.toast((msg || '💥 ' + i.name + '이(가) 쓰러졌다!') + ' 20초 안에 볼을 던지면 잡을 수 있다!', 3500);
+  }
   _tickFieldStatus(dt){
     const i = this.inst, st = i.status;
     if(!st) return false;
@@ -2459,7 +2477,31 @@ const MOVE_STYLE = {
   // 나머지(빔·구체·원거리)는 전부 projectile
 };
 // 공통: 한 지점 주변 야생/몹에게 기술 피해 (기절·분노·경험치 처리 포함)
+// ❄🔥 기술이 실제 지형 블록에도 작용: 얼음→물 얼리기, 불→얼음/눈 녹이기·인화물 태우기, 물→용암 식히기
+function applyMoveBlockFx(world, cx, cy, cz, R, mtype){
+  if(!world || !mtype) return;
+  if(mtype !== 'ice' && mtype !== 'fire' && mtype !== 'water') return;
+  const r = Math.max(1, Math.min(4, Math.ceil(R)));
+  const BURN = [B.LEAVES, B.BIRCH_LEAVES, B.SPRUCE_LEAVES, B.JUNGLE_LEAVES, B.CHERRY_LEAVES, B.TALLGRASS, B.FLOWER_R, B.FLOWER_Y, B.MUSHROOM, B.CACTUS];
+  const bx = Math.floor(cx), by = Math.floor(cy), bz = Math.floor(cz);
+  for(let dx = -r; dx <= r; dx++) for(let dy = -2; dy <= 2; dy++) for(let dz = -r; dz <= r; dz++){
+    if(dx*dx + dz*dz > r*r) continue;
+    const x = bx+dx, y = by+dy, z = bz+dz, id = world.getBlock(x, y, z);
+    if(id === B.AIR || id === B.BEDROCK) continue;
+    if(mtype === 'ice'){
+      if(id === B.WATER){ world.setBlock(x, y, z, B.ICE); } // 💧→❄
+    } else if(mtype === 'fire'){
+      if(id === B.ICE){ world.setBlock(x, y, z, B.WATER); }            // ❄→💧 녹임
+      else if(id === B.SNOWGRASS){ world.setBlock(x, y, z, B.GRASS); } // 눈 녹임
+      else if(BURN.includes(id)){ world.setBlock(x, y, z, B.AIR); if(Math.random()<0.4) Particles.spawn(x+0.5,y+0.5,z+0.5,0xff7a30,5,1.4,0.5,1); } // 🔥 인화물 태움
+      else if(id === B.TNT){ if(typeof TNTs!=='undefined') TNTs.spawn(x+0.5, y+0.5, z+0.5, 0.2 + Math.random()*0.4); } // TNT 점화
+    } else if(mtype === 'water'){
+      if(id === B.LAVA){ world.setBlock(x, y, z, B.OBSIDIAN); } // 💧 용암 식힘→흑요석
+    }
+  }
+}
 function _skillAreaHit(pos, mv, par, R, dmgMult, kdir, mvKey){
+  applyMoveBlockFx(typeof world !== 'undefined' ? world : null, pos.x, pos.y, pos.z, R, mv.t); // 🌡 지형에도 효과
   const dmg = Math.floor((mv.p * 0.65 + par.level * 0.95) * (dmgMult || 1)); // 야생 HP 상향에 맞춰 비례↑
   let hits = 0;
   for(const w of PokeMan.wilds.slice()){

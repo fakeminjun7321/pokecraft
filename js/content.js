@@ -21,7 +21,9 @@ const B = {
   MYCELIUM:74, RED_SAND:75, TERRACOTTA:76, DEEPSLATE:77, PODZOL:78, MUSHROOM:79,
   // 🧱 MC 시스템 블록 80-85
   ANVIL:80, BUTTON:81, BUTTON_ON:82, PLATE:83, PLATE_ON:84, BREWING:85,
-  // 86-99 버퍼
+  // ❄ 얼음(냉동빔으로 물이 얼면 생성) 86
+  ICE:86,
+  // 87-99 버퍼
 };
 // 렌더 타입
 const RT = { SOLID:0, CROSS:1, WATER:2, GLASS:3 };
@@ -77,7 +79,9 @@ const T = {
   CHERRY_SIDE:82, CHERRY_TOP:83, CHERRY_LEAVES_T:84, MYCELIUM_TOP:85, MYCELIUM_SIDE:86,
   RED_SAND_T:87, TERRACOTTA_T:88, DEEPSLATE_T:89, PODZOL_TOP:90, PODZOL_SIDE:91, MUSHROOM_T:92,
   // 🧱 MC 시스템 타일 93+
-  ANVIL_TOP:93, ANVIL_SIDE:94, BUTTON_T:95, PLATE_T:96, BREWING_T:97
+  ANVIL_TOP:93, ANVIL_SIDE:94, BUTTON_T:95, PLATE_T:96, BREWING_T:97,
+  // ❄ 얼음 98
+  ICE:98
 };
 
 // ----- 블록 정의 -----
@@ -104,6 +108,7 @@ defBlock(B.LOG,        { name:'원목', tiles:{top:T.LOG_TOP, bottom:T.LOG_TOP, 
 defBlock(B.LEAVES,     { name:'나뭇잎', tiles:{top:T.LEAVES, bottom:T.LEAVES, side:T.LEAVES}, hard:0.3,
                          drop:(rng)=> rng() < 0.08 ? [[I.APPLE,1]] : [] });
 defBlock(B.PLANKS,     { name:'나무 판자', tiles:{top:T.PLANKS, bottom:T.PLANKS, side:T.PLANKS}, hard:1.8, tool:'axe' });
+defBlock(B.ICE,        { name:'얼음', tiles:{top:T.ICE, bottom:T.ICE, side:T.ICE}, hard:0.5, tool:'pick', drop:()=>[] }); // ❄ 냉동빔으로 물이 얼면 생성 (부수면 사라짐)
 defBlock(B.GLASS,      { name:'유리', rt:RT.GLASS, tiles:{top:T.GLASS, bottom:T.GLASS, side:T.GLASS}, hard:0.4, drop:()=>[] });
 defBlock(B.COAL_ORE,   { name:'석탄 광석', tiles:{top:T.ORE_COAL, bottom:T.ORE_COAL, side:T.ORE_COAL}, hard:2.6, tool:'pick', tier:0, drop:()=>[[I.COAL,1]] });
 defBlock(B.IRON_ORE,   { name:'철 광석', tiles:{top:T.ORE_IRON, bottom:T.ORE_IRON, side:T.ORE_IRON}, hard:2.8, tool:'pick', tier:1 });
@@ -369,6 +374,7 @@ function buildAtlas(){
   oreTile(T.ORE_DIAMOND, '#4ee1d2', '#9ef2e8');
   oreTile(T.ORE_REDSTONE, '#d32222', '#ff5b5b');
   paint(T.SNOW_TOP, p=>{ p.fill('#f9fefe'); p.speck('#e8f2f2', 45); p.speck('#ffffff', 45); });
+  paint(T.ICE, p=>{ p.fill('#9cd6f0'); p.speck('#bce6f8', 50); p.speck('#7fc0e8', 30); p.rect(2,3,7,1,'#cdeefb'); p.rect(9,8,5,1,'#cdeefb'); p.rect(4,11,6,1,'#80c2ea'); }); // ❄ 얼음
   paint(T.SNOW_SIDE, p=>{ p.fill('#866043'); p.speck('#79553a', 45); p.rect(0,0,16,4,'#f9fefe'); p.speck('#e8f2f2', 8); });
   paint(T.CACTUS, p=>{ p.fill('#5b8f3a'); p.rect(0,0,1,16,'#487a2c'); p.rect(15,0,1,16,'#487a2c'); for(let i=0;i<8;i++) p.px(2+(p.rng()*12|0), p.rng()*16|0, '#76b052'); p.speck('#487a2c', 20); });
   paint(T.FLOWER_R, p=>{ p.rect(7,7,2,8,'#3c8a28'); p.rect(5,3,5,4,'#e23b3b'); p.rect(6,2,3,6,'#e23b3b'); p.rect(7,4,1,2,'#ffd83d'); });

@@ -530,8 +530,16 @@ function explode(world, x, y, z, r, dropItems){
   }
   if(typeof PokeMan !== 'undefined'){
     PokeMan.wilds.slice().forEach(w => {
+      if(w.fainted || w.catching) return;
       const d = dist3(x, y, z, w.body.x, w.body.y, w.body.z);
-      if(d < r) PokeMan.removeWild(w, true);
+      if(d >= hurtR) return;
+      // 💥 폭발은 야생을 흔적 없이 지우지 않고, 큰 피해를 주고 정식으로 기절시킨다 (포획 기회 유지)
+      const dmg = Math.ceil((1 - d / hurtR) * (w.inst.maxHp * 0.6 + 30));
+      w.inst.hp -= dmg;
+      if(typeof spawnFloatNumber === 'function') spawnFloatNumber(w.body.x, w.body.y + 1.3, w.body.z, '-' + dmg, 0xffa030, true);
+      Particles.spawn(w.body.x, w.body.y + 0.7, w.body.z, 0xffa030, 14, 2.2, 0.7, 1.6);
+      if(w.inst.hp <= 0){ if(w.faintField) w.faintField(null, '💥 ' + w.inst.name + '이(가) 폭발에 쓰러졌다!'); }
+      else { if(w.updateHpTag) w.updateHpTag(); if(PokeMan.aggroAt) PokeMan.aggroAt(w, 0); }
     });
   }
   if(typeof game !== 'undefined') game.shake = 0.5;
