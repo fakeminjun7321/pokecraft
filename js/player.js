@@ -25,6 +25,30 @@ class Player {
     this.charging = -1;   // 활 차징 (-1 = 안 함)
     this.armor = [null, null, null]; // 투구/갑옷/바지
     this.effects = {};    // {speed:t, jump:t, regen:t}
+    this.xpLevel = 0;     // ⭐ 플레이어 경험치 레벨
+    this.xp = 0;          // 현재 레벨에서의 진행 경험치
+  }
+  // ⭐ 플레이어 경험치
+  xpNeed(level){ return 18 + level * 7; } // 다음 레벨까지 필요한 경험치
+  addXP(n){
+    if(!n || n <= 0 || this.dead) return;
+    this.xp += n;
+    let leveled = false;
+    while(this.xp >= this.xpNeed(this.xpLevel)){ this.xp -= this.xpNeed(this.xpLevel); this.xpLevel++; leveled = true; }
+    if(leveled){
+      SFX.play('level');
+      if(typeof UI !== 'undefined' && UI.toast) UI.toast('⭐ 레벨 업! 플레이어 레벨 ' + this.xpLevel, 2500);
+      if(typeof Particles !== 'undefined') Particles.spawn(this.body.x, this.body.y + 1.2, this.body.z, 0x7CFC00, 18, 2, 0.7, 1.4);
+    }
+    if(typeof UI !== 'undefined' && UI.updateXP) UI.updateXP();
+  }
+  // 인챈트 등에서 레벨 소비
+  spendXPLevels(n){
+    if(this.xpLevel < n) return false;
+    this.xpLevel -= n;
+    if(this.xp > this.xpNeed(this.xpLevel)) this.xp = this.xpNeed(this.xpLevel) - 1;
+    if(typeof UI !== 'undefined' && UI.updateXP) UI.updateXP();
+    return true;
   }
 
   spawnAt(p){
@@ -309,6 +333,11 @@ class Player {
     if(withDrops && typeof QuestMan !== 'undefined' &&
        [B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.REDSTONE_ORE, B.DIAMOND_ORE, B.MYSTIC_ORE].includes(hit.id))
       QuestMan.onMineOre(hit.id);
+    // ⭐ 광물 채굴 경험치
+    if(withDrops && game.mode !== 'creative'){
+      const OXP = { [B.COAL_ORE]:2, [B.IRON_ORE]:3, [B.GOLD_ORE]:4, [B.REDSTONE_ORE]:4, [B.QUARTZ_ORE]:3, [B.FOSSIL_ORE]:5, [B.DIAMOND_ORE]:7, [B.MYSTIC_ORE]:9 };
+      if(OXP[hit.id]) this.addXP(OXP[hit.id]);
+    }
     if(hit.id === B.END_CRYSTAL){
       this.world.setBlock(hit.bx, hit.by, hit.bz, B.AIR);
       explode(this.world, hit.bx + 0.5, hit.by + 0.5, hit.bz + 0.5, 2, false);
@@ -1099,7 +1128,8 @@ class Player {
       x: this.body.x, y: this.body.y, z: this.body.z,
       yaw: this.yaw, pitch: this.pitch,
       health: this.health, inv: this._trimmedInv(), sel: this.selected,
-      armor: this.armor, effects: this.effects, pets, storage: this.storage
+      armor: this.armor, effects: this.effects, pets, storage: this.storage,
+      xp: this.xp, xpLv: this.xpLevel
     };
   }
   deserialize(d){
@@ -1113,6 +1143,7 @@ class Player {
     this.selected = d.sel || 0;
     this.armor = (d.armor || [null, null, null]).map(a => a ? { ...a } : null);
     this.effects = d.effects || {};
+    this.xp = d.xp || 0; this.xpLevel = d.xpLv || 0;
     // 길들인 늑대 복원
     for(let i = 0; i < (d.pets || 0); i++){
       const w = new Mob('wolf', this.body.x + 1 + i, this.body.y + 1, this.body.z + 1);

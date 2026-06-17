@@ -758,16 +758,18 @@ const UI = {
     [1, 2, 3].forEach(cost => {
       const b = document.createElement('button');
       b.className = 'big-btn';
-      b.textContent = '✨ 인챈트 ' + roman[cost] + ' (다이아 ' + cost + '개)';
+      b.textContent = '✨ 인챈트 ' + roman[cost] + ' (다이아 ' + cost + ' · 레벨 ' + cost + ')';
       b.onclick = () => {
         const it = this.enchSlot;
         if(!it){ msg.textContent = '도구를 먼저 올려주세요!'; return; }
         const tool = toolInfo(it.id);
         if(!tool){ msg.textContent = '도구만 인챈트할 수 있어요'; return; }
         if(player.countItem(I.DIAMOND) < cost){ msg.textContent = '다이아몬드가 부족해요 (' + cost + '개 필요)'; return; }
+        if(player.xpLevel < cost){ msg.textContent = '플레이어 레벨이 부족해요 (레벨 ' + cost + ' 필요 · 채굴/사냥으로 경험치 획득)'; return; }
         const pool = Object.keys(ENCH_DEFS).filter(k => ENCH_DEFS[k].kinds.includes(tool.kind));
         if(!pool.length){ msg.textContent = '이 도구에 맞는 인챈트가 없어요'; return; }
         player.removeItem(I.DIAMOND, cost);
+        player.spendXPLevels(cost);
         const k = pool[Math.floor(Math.random() * pool.length)];
         it.ench = { k, l: cost };
         SFX.play('evolve');
@@ -1431,8 +1433,15 @@ const UI = {
   },
 
   // ---------- HUD ----------
+  updateXP(){
+    if(!player) return;
+    const lv = $id('xp-level'), fill = $id('xp-fill');
+    if(lv) lv.textContent = player.xpLevel > 0 ? player.xpLevel : '';
+    if(fill){ const need = player.xpNeed(player.xpLevel); fill.style.width = Math.max(0, Math.min(100, player.xp / need * 100)) + '%'; }
+  },
   updateHUD(){
     if(!player) return;
+    this.updateXP();
     // 버프 표시
     const eff = $id('effects');
     if(eff){

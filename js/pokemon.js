@@ -2124,6 +2124,7 @@ const PokeMan = {
     this.seen.add(inst.sp);
     const isNew = !this.caught.has(inst.sp);
     this.caught.add(inst.sp);
+    if(typeof player !== 'undefined' && player && player.addXP) player.addXP(8 + (inst.level || 1)); // ⭐ 포획 경험치
     if(typeof QuestMan !== 'undefined') QuestMan.onCatch(inst);
     // 🎁 포획 보상: 어떤 포켓몬이든 잡으면 파티 선두가 경험치 획득!
     if(this.party.length && this.party[0] !== inst){

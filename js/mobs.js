@@ -285,7 +285,7 @@ class Mob {
     this.attackCd = 0; this.fuse = -1; this.burnAcc = 0;
     this.hurtFlash = 0; this.walkPhase = 0;
     this.dead = false;
-    this.angry = false; this.hopT = 0; this.tpT = 3; this.bobSeed = Math.random() * 10; this.lavaAcc = 0;
+    this.angry = 0; this.hopT = 0; this.tpT = 3; this.bobSeed = Math.random() * 10; this.lavaAcc = 0; // angry: 도발 남은 시간(초)
     this.love = 0; this.tamed = false; this.babyT = 0; // 번식/펫/아기
     if(this.def.npc) this.setTag(this.def.leader ? '체육관 관장' : this.def.trainer ? '트레이너 · 우클릭 배틀!' : this.def.rocket ? '💀 로켓단' : this.def.trademan ? '🎒 교환 상인 · 우클릭!' : '주민');
     // 👑 보스 초기화 — 파티 최고 레벨로 HP 스케일 (전부 transient, 저장 안 함)
@@ -325,6 +325,7 @@ class Mob {
       return;
     }
     const b = this.body, def = this.def;
+    if(this.angry > 0) this.angry -= dt; // 😡 도발 타이머 (맞으면 일정 시간 추격)
     // 교환 상인: 시간이 지나면 떠난다
     if(def.trademan){
       this._life = (this._life === undefined ? 180 : this._life) - dt;
@@ -472,7 +473,7 @@ class Mob {
       return;
     }
     // 🤖 아이언골렘: 주변 적대몹을 능동적으로 공격 (수호자)
-    if(def.golem && !this.angry){
+    if(def.golem && this.angry <= 0){
       let foe = null, fd = 12;
       for(const mb of MobManager.list){ if(mb === this || mb.dead || !mb.def.hostile) continue; const d2 = dist3(mb.body.x, mb.body.y, mb.body.z, b.x, b.y, b.z); if(d2 < fd){ fd = d2; foe = mb; } }
       if(foe){ this.dir = Math.atan2(foe.body.x - b.x, foe.body.z - b.z); this.attackCd -= dt;
@@ -487,8 +488,12 @@ class Mob {
         return;
       }
     }
-    const aggro = (def.hostile || (def.neutral && this.angry)) && !def.npc;
-    if(aggro && !tgt.dead && dToP < (def.neutral ? 28 : 16)){
+    // 😡 맞으면(this.angry>0) 적대/중립 가리지 않고 추격. 도발 중엔 추격 범위가 크게 늘어난다.
+    const aggro = (def.hostile || this.angry > 0) && !def.npc;
+    const aggroRange = this.angry > 0 ? 42 : (def.neutral ? 28 : 16);
+    let chasing = false;
+    if(aggro && !tgt.dead && dToP < aggroRange){
+      chasing = true;
       this.dir = Math.atan2(tgt.x - b.x, tgt.z - b.z);
       if(def.creeper){
         if(dToP < 3){
@@ -556,7 +561,9 @@ class Mob {
       speed = this.moving ? def.speed * 0.5 : 0;
     }
 
-    const tvx = Math.sin(this.dir) * speed, tvz = Math.cos(this.dir) * speed;
+    // 🏃 추격 시 실제로 따라잡을 수 있는 속도 (걷는 플레이어엔 바짝, 달리면 도망 가능)
+    const moveSp = chasing ? speed * 2.5 : speed;
+    const tvx = Math.sin(this.dir) * moveSp, tvz = Math.cos(this.dir) * moveSp;
     if(def.bounce){
       // 슬라임: 통통 튀며 이동
       this.hopT -= dt;
@@ -585,10 +592,10 @@ class Mob {
         b.vy = lerp(b.vy, clamp(ty - b.y, -2.2, 2.2), Math.min(1, dt * 4));
       }
     }
-    if(!def.bounce && b.hitWall && b.onGround && speed > 0){
+    if(!def.bounce && b.hitWall && b.onGround && moveSp > 0){
       b.vy = 8.8;
-      b.vx = Math.sin(this.dir) * Math.max(speed, 3);
-      b.vz = Math.cos(this.dir) * Math.max(speed, 3);
+      b.vx = Math.sin(this.dir) * Math.max(moveSp, 3);
+      b.vz = Math.cos(this.dir) * Math.max(moveSp, 3);
     }
     if(b.inWater && !def.aquatic) b.vy = Math.max(b.vy, 1.5);
     b.update(dt, world);
@@ -836,7 +843,7 @@ class Mob {
       return;
     }
     if(this.def.leader) return; // 관장은 배틀로만 상대
-    if(this.def.neutral) this.angry = true;
+    this.angry = 12; // 😡 맞으면 종류 불문 12초간 도발 → 실제 속도로 추격
     if(this.def.teleporter && Math.random() < 0.5){
       this._teleport(world);
       return; // 순간이동으로 회피
@@ -856,6 +863,7 @@ class Mob {
     if(this.def.boss && !this._deathSeq){
       this._deathSeq = true;
       this.hp = 0; this.bossState = 'dead';
+      if(typeof player !== 'undefined' && player && player.addXP) player.addXP(350); // ⭐ 보스 처치 대량 경험치
       // ⚠ 처치는 죽는 순간 즉시 확정 — 연출 도중 차원이동/사망해도 포탈·보상·플래그 보존 (dragonDefeated는 중복 방지 가드 있음)
       if(typeof dragonDefeated === 'function') dragonDefeated(this);
       if(typeof UI !== 'undefined' && UI.bossSet) UI.bossSet(0, false, this.phase);
@@ -870,6 +878,9 @@ class Mob {
         if(n > 0) ItemDrops.spawn(this.body.x, this.body.y + 0.5, this.body.z, id, n);
       });
     }
+    // ⭐ 플레이어 경험치: 몹 처치 보상 (덩치/보스일수록 많이)
+    if(withDrops && !this.def.npc && typeof player !== 'undefined' && player && player.addXP)
+      player.addXP(this.def.boss ? 350 : Math.max(2, Math.round((this.def.hp || 10) / 4)));
     Particles.spawn(this.body.x, this.body.y + 0.6, this.body.z, 0xdddddd, 12, 2, 0.5, 1);
     scene.remove(this.group);
     disposeObject(this.group);
