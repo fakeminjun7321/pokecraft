@@ -609,7 +609,11 @@ const UI = {
         el.title = itemName(id);
         el.addEventListener('mousedown', e => {
           e.preventDefault();
-          if(e.button === 0) this.cursor = { id, n: maxStack(id) };
+          const qm = e.shiftKey || e.metaKey || e.ctrlKey; // ⚡ 셰프트/Cmd-클릭
+          if(e.button === 0){
+            if(qm) player.addItem(id, maxStack(id)); // 셰프트클릭 → 인벤토리(무제한 가방)로 한 묶음 바로 지급
+            else this.cursor = { id, n: maxStack(id) };
+          }
           else if(e.button === 2){
             if(this.cursor && this.cursor.id === id && this.cursor.n < maxStack(id)) this.cursor.n++;
             else if(!this.cursor) this.cursor = { id, n: 1 };
