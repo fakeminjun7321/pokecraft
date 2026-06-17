@@ -472,3 +472,7 @@ body.touch #hotbar .hslot { width: 44px; height: 44px; }
 .fs-move { background:#2e4258; border:1px solid #4a6080; color:#fff; border-radius:5px; padding:4px 8px; cursor:pointer; font-size:12px; font-family:inherit; }
 .fs-move:hover { background:#3a5470; }
 .fs-move.used { opacity:.5; }
+
+/* 🔴 다이맥스: 아트 카드 거대화 + 빨강 오라 */
+#b-ally-art.dynamax { transform: scale(1.7); transform-origin: bottom center; filter: drop-shadow(0 0 14px #ff2a4a) drop-shadow(0 0 26px #e8443a); animation: dynaPulse 1s ease-in-out infinite; }
+@keyframes dynaPulse { 0%,100% { filter: drop-shadow(0 0 12px #ff2a4a) drop-shadow(0 0 22px #e8443a); } 50% { filter: drop-shadow(0 0 20px #ff5a6a) drop-shadow(0 0 36px #ff2a4a); } }

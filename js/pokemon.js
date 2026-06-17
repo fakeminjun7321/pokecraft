@@ -1312,6 +1312,8 @@ function companionType(){
 // 🔮 메가진화 가능 종 (배틀 한정 강화)
 const MEGA_FORMS = new Set([3, 6, 9, 65, 80, 94, 115, 127, 130, 142, 150, 181, 212, 229, 248,
   254, 257, 260, 282, 302, 303, 306, 308, 310, 319, 323, 334, 354, 359, 362, 373, 376, 380, 381, 384]);
+// 🔴 거다이맥스 가능 종 (이 종은 Lv.200+에서 다이맥스 대신 더 강력한 거다이맥스 가능)
+const GMAX_FORMS = new Set([3, 6, 9, 25, 12, 68, 94, 99, 130, 131, 143, 149]);
 // 통신교환 진화 (연결의 끈으로 레벨 무관 즉시 진화 — 레벨 38 진화도 그대로 가능)
 const TRADE_EVOS = { 64:65, 67:68, 75:76, 93:94, 117:230, 79:199, 95:208, 123:212, 137:233 };
 // 진화 세리머니: 빛 + 사운드 + 모델 갱신 + 축하 메시지
@@ -1640,7 +1642,37 @@ class PokeInst {
     this.hp = Math.max(1, Math.min(this.maxHp, Math.round(this.maxHp * ratio)));
     this._preMega = null;
   }
-  get name(){ return (this.mega ? '메가 ' : '') + this.spec.name; }
+  // 🔴 다이맥스/거다이맥스 (Lv.200+ 전용 — 거대화 + 강화, 3턴 지속)
+  canDynamax(){ return this.level >= 200; }
+  applyDynamax(gmax){
+    if(this.dyna) return false;
+    this.dyna = true; this.gmax = !!(gmax && GMAX_FORMS.has(this.sp));
+    this._preDyna = { atk: this.atk, def: this.def, spd: this.spd, maxHp: this.maxHp };
+    const hpMul = this.gmax ? 3.0 : 2.4, atkMul = this.gmax ? 1.7 : 1.5;
+    const ratio = this.hp / this.maxHp;
+    this.maxHp = Math.round(this.maxHp * hpMul);
+    this.hp = Math.max(1, Math.round(this.maxHp * Math.min(1, ratio + 0.15))); // 약간 회복하며 거대화
+    this.atk = Math.round(this.atk * atkMul);
+    this.def = Math.round(this.def * 1.25);
+    this.dynaTurns = 3; // 3턴 후 원래대로
+    return true;
+  }
+  tickDynamax(){
+    if(!this.dyna) return false;
+    this.dynaTurns--;
+    if(this.dynaTurns <= 0){ this.revertDynamax(); return true; } // 풀림
+    return false;
+  }
+  revertDynamax(){
+    if(!this.dyna) return;
+    this.dyna = false; this.gmax = false;
+    const fainted = this.hp <= 0;
+    const ratio = this.hp / this.maxHp;
+    Object.assign(this, this._preDyna);
+    this.hp = fainted ? 0 : Math.max(1, Math.min(this.maxHp, Math.round(this.maxHp * ratio)));
+    this._preDyna = null;
+  }
+  get name(){ return (this.gmax ? '거다이맥스 ' : this.dyna ? '다이맥스 ' : this.mega ? '메가 ' : '') + this.spec.name; }
   serialize(){ return { sp:this.sp, level:this.level, exp:this.exp, hp:this.hp, sh:this.shiny ? 1 : 0, st:this.status || 0, stT:this.statusT || 0, hl:this.held || 0, fs:this._fieldSlots || null, tg:this.taught && this.taught.length ? this.taught : null }; }
   static from(d){
     const p = new PokeInst(d.sp, d.level);
@@ -3303,6 +3335,8 @@ const Battle = {
     const stChip = (inst) => inst.status && STATUS_DEFS[inst.status] ? ' <span class="status-chip">' + STATUS_DEFS[inst.status].icon + STATUS_DEFS[inst.status].n + '</span>' : '';
     // 🎭 더블 배틀: 짝 포켓몬 HP를 이름 옆에 표시
     const partner = (inst) => this.double && inst ? ' <span class="status-chip" style="background:rgba(80,40,80,.5)">🤝' + inst.name + ' ' + Math.max(0, inst.hp) + '/' + inst.maxHp + '</span>' : '';
+    // 🔴 다이맥스: 아트 카드 거대화 + 빨강 오라
+    const aDy = this.$('b-ally-art'); if(aDy) aDy.classList.toggle('dynamax', !!(a && a.dyna));
     const eArt = this.$('b-enemy-art'), eSrc = artURL(w.sp);
     if(eArt){ eArt.classList.toggle('hidden', !eSrc); if(eSrc) eArt.src = eSrc; eArt.classList.toggle('shiny', !!w.shiny); }
     this.$('b-enemy-name').innerHTML = w.name + ' ' + typeTagsHTML(w.spec.types) + stChip(w) + partner(this.enemyB);
@@ -3364,6 +3398,14 @@ const Battle = {
       mb.innerHTML = '🔮 메가진화!' + ` <span class="sub-detail">${this.ally.spec.name} → 메가 ${this.ally.spec.name}</span>`;
       mb.onclick = () => { this.turn({ type: 'mega' }); };
       s.appendChild(mb);
+    }
+    // 🔴 다이맥스/거다이맥스 (Lv.200+ 전용, 배틀당 1회 — 거대화 3턴)
+    if(this.ally && this.ally.canDynamax() && !this.ally.dyna && !this._dynaUsed){
+      const gmax = GMAX_FORMS.has(this.ally.sp);
+      const db = document.createElement('button');
+      db.innerHTML = (gmax ? '🔴 거다이맥스!!' : '🔴 다이맥스!') + ` <span class="sub-detail">Lv.${this.ally.level} ${this.ally.spec.name} — 3턴 거대화 (HP·공격 대폭↑)</span>`;
+      db.onclick = () => { this.turn({ type: 'dynamax' }); };
+      s.appendChild(db);
     }
     [I.POKEBALL, I.GREATBALL, I.ULTRABALL, I.MASTERBALL, I.POTION, I.SUPERPOTION, I.HYPERPOTION].forEach(id => {
       const cnt = player.countItem(id);
@@ -3489,6 +3531,20 @@ const Battle = {
           await this.say('🔮 ' + this.ally.spec.name + '이(가) 메가진화했다!! 힘이 넘쳐흐른다!');
         }
         await this.enemyAttack(enemyMove);
+      } else if(action.type === 'dynamax'){
+        const gmax = GMAX_FORMS.has(this.ally.sp);
+        if(this.ally.applyDynamax(gmax)){
+          this._dynaUsed = true;
+          SFX.play('evolve'); if(SFX.tone) SFX.tone(60, 0.6, 'sawtooth', 0.2, 30);
+          if(this.mA){
+            this.mA.root.scale.setScalar(gmax ? 2.0 : 1.7); // 거대화!
+            Particles.spawn(this.mA.root.position.x, this.mA.root.position.y + 1.2, this.mA.root.position.z, gmax ? 0xff2a4a : 0xe8443a, 40, 4, 1.4, 2.6);
+          }
+          game.shake = Math.max(game.shake || 0, 0.8);
+          this.updateBars();
+          await this.say('🔴 ' + this.ally.spec.name + (gmax ? '이(가) 거다이맥스했다!! 산처럼 거대해진다!!' : '이(가) 다이맥스했다!! 거대해진다!'));
+        }
+        await this.enemyAttack(enemyMove);
       } else if(action.type === 'potion'){
         const healItem = action.id || I.POTION;
         const heal = itemDef(healItem).pokeHeal || 25;
@@ -3525,6 +3581,12 @@ const Battle = {
         }
       }
     } finally {
+      // 🔴 다이맥스 지속시간 — 3턴 후 원래 크기로
+      if(this.ally && this.ally.dyna && this.ally.tickDynamax()){
+        if(this.mA) this.mA.root.scale.setScalar(1);
+        this.updateBars();
+        await this.say('🔴 ' + this.ally.spec.name + '의 다이맥스가 풀렸다!');
+      }
       // 특성: 재생력 — 턴이 끝날 때 회복 / 가속 — 스피드 상승
       for(const u of [this.ally, this.wild]){
         if(!u || u.hp <= 0) continue;
@@ -3854,8 +3916,9 @@ const Battle = {
       this._pvpHpSnap = null;
       this.pvp = false; this.pvpMirror = false; this._pvpOpp = null; this._pvpActResolve = null;
     }
-    PokeMan.party.forEach(q => q.revertMega && q.revertMega());
-    this._megaUsed = false;
+    PokeMan.party.forEach(q => { if(q.revertMega) q.revertMega(); if(q.revertDynamax) q.revertDynamax(); });
+    this._megaUsed = false; this._dynaUsed = false;
+    if(this.mA && this.mA.root) this.mA.root.scale.setScalar(1); // 다이맥스 거대화 원복
     // 🎭 더블 배틀 정리 (둘째 야생도 처리)
     if(this.double){
       this.double = false; this.allyB = null; this.enemyB = null;
