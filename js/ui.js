@@ -275,10 +275,11 @@ const UI = {
   // 우클릭 드래그: 지나가는 슬롯마다 1개씩 놓기 / 좌클릭 드래그: 마우스 뗄 때 균등 분배
   _dragEnter(slot){
     const d = this._drag;
-    if(!d || !this.cursor || slot.opts.output) return;
+    if(!d || slot.opts.output) return;
     const s = slot.ref.get();
-    if(slot.opts.filter && !slot.opts.filter(this.cursor)) return;
+    if(slot.opts.filter && !slot.opts.filter(this.cursor || { id: d.id, n: 1 })) return;
     if(d.btn === 2){
+      if(!this.cursor) return;
       if(!s){ slot.ref.set({ ...this.cursor, n: 1 }); this.cursor.n--; }
       else if(s.id === this.cursor.id && !s.ench && !this.cursor.ench && s.n < maxStack(s.id)){ s.n++; this.cursor.n--; }
       else return;
@@ -287,6 +288,12 @@ const UI = {
       this.refresh();
     } else if(d.btn === 0){
       if((!s || (s.id === d.id && !s.ench)) && !d.slots.includes(slot)){
+        // 다른 빈 칸으로 처음 끌면: 즉시 놓았던 origin 스택을 커서로 회수 → 균등분배 모드
+        if(d.origin && !d.reclaimed){
+          const placed = d.origin.ref.get();
+          if(placed){ this.cursor = { ...placed }; d.origin.ref.set(null); this.refresh(); }
+          d.reclaimed = true;
+        }
         d.slots.push(slot);
         slot.el.classList.add('drag-mark');
       }
@@ -331,14 +338,16 @@ const UI = {
   _slotClick(slot, e, right){
     const { ref, opts } = slot;
     const cur = this.cursor;
+    // ⌨ 빠른이동(셰프트) — 맥에서 흔히 쓰는 Command(metaKey)/Ctrl도 동일하게 인정
+    const qmove = e.shiftKey || e.metaKey || e.ctrlKey;
     // 🎒 포켓몬 가방은 내 인벤토리 밖으로 옮길 수 없다 (상자/화로/제작칸 금지)
     if(cur && cur.id === I.POKE_BAG && !ref.inv && !opts.output){ this.toast('포켓몬 가방은 인벤토리에만 둘 수 있어요!'); return; }
     const _src = ref.get();
-    if(_src && _src.id === I.POKE_BAG && e.shiftKey){ this.toast('포켓몬 가방은 항상 지니고 있어야 해요!'); return; }
+    if(_src && _src.id === I.POKE_BAG && qmove && !cur){ this.toast('포켓몬 가방은 항상 지니고 있어야 해요!'); return; }
     if(opts.output){
       const s = ref.get();
       if(!s) return;
-      if(e.shiftKey && !right){
+      if(qmove && !right){
         let guard = 0;
         while(guard++ < 64){
           const r = ref.get();
@@ -361,7 +370,8 @@ const UI = {
       return;
     }
     const s = ref.get();
-    if(e.shiftKey && !right){
+    // 빠른이동: 커서가 비어 있을 때만 (아이템을 들고 있으면 아래 '놓기'로 진행 → Command 누른 채 놓기도 정상 동작)
+    if(qmove && !right && !cur){
       if(s && opts.quick){
         const left = opts.quick(s);
         ref.set(left > 0 ? { ...s, n: left } : null);
@@ -396,10 +406,12 @@ const UI = {
         this.cursor = s;
       } else if(cur && !s){
         if(opts.filter && !opts.filter(cur)) return;
-        // 드래그 분배 시작 (마우스 뗄 때 확정)
-        this._drag = { btn: 0, id: cur.id, slots: [slot] };
+        // ✅ 즉시 놓기 — mouseup(드래그 종료)에 의존하지 않아 Command 키 등으로 mouseup이 안 와도 확실히 들어간다.
+        //    좌클릭 드래그 균등분배는 origin을 기억해 두고, 다른 빈 칸으로 끌면 회수해 재분배.
+        ref.set(cur);
+        this.cursor = null;
+        this._drag = { btn: 0, id: ref.get().id, slots: [slot], origin: slot };
         slot.el.classList.add('drag-mark');
-        return;
       } else if(cur && s){
         if(opts.filter && !opts.filter(cur)) return;
         if(cur.id === s.id && maxStack(s.id) > 1){
