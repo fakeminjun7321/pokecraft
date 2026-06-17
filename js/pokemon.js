@@ -1545,8 +1545,8 @@ class PokeInst {
   get spec(){ return SPECIES[this.sp]; }
   calc(){
     const bs = this.spec.bs, lv = this.level;
-    // 고레벨 한방 방지: HP가 레벨에 따라 공격보다 빠르게 성장
-    this.maxHp = Math.floor(bs[0] * 3.2 * lv / 100) + Math.floor(lv * 1.8) + 12;
+    // 고레벨 한방 방지: HP가 레벨에 따라 공격보다 빠르게 성장 (체력 대폭 상향)
+    this.maxHp = Math.floor(bs[0] * 4.0 * lv / 100) + Math.floor(lv * 2.4) + 20;
     this.atk = Math.floor(bs[1] * 2 * lv / 100) + 5;
     this.def = Math.floor(bs[2] * 2 * lv / 100) + 5;
     this.spd = Math.floor(bs[3] * 2 * lv / 100) + 5;
@@ -1638,7 +1638,7 @@ class PokeInst {
     if(!this.mega) return;
     this.mega = false;
     const ratio = this.hp / this.maxHp;
-    Object.assign(this, this._preMega);
+    this.calc(); // 스냅샷 복원 대신 현재 레벨로 재계산 (레벨업·체력공식 변경에도 안전)
     this.hp = Math.max(1, Math.min(this.maxHp, Math.round(this.maxHp * ratio)));
     this._preMega = null;
   }
@@ -1668,7 +1668,7 @@ class PokeInst {
     this.dyna = false; this.gmax = false;
     const fainted = this.hp <= 0;
     const ratio = this.hp / this.maxHp;
-    Object.assign(this, this._preDyna);
+    this.calc(); // 스냅샷 복원 대신 현재 레벨로 재계산
     this.hp = fainted ? 0 : Math.max(1, Math.min(this.maxHp, Math.round(this.maxHp * ratio)));
     this._preDyna = null;
   }
@@ -1691,8 +1691,8 @@ function calcDamage(att, def, moveKey, mult){
   if(eff === 0) return { dmg:0, eff:0, crit:false };
   const stab = att.spec.types.includes(mv.t) ? 1.5 : 1;
   const crit = Math.random() < 1 / 16;
-  const ratio = clamp(att.atk / Math.max(1, def.def), 0.5, 2.0); // ⚖ 공/방 격차 폭주 방지
-  let dmg = ((2 * att.level / 5 + 2) * mv.p * ratio) / 52 + 2;
+  const ratio = clamp(att.atk / Math.max(1, def.def), 0.45, 2.5); // ⚖ 공/방 격차 — 레벨/스탯 우위가 더 반영되도록 폭 확대
+  let dmg = ((2.6 * att.level / 5 + 2) * mv.p * ratio) / 50 + 2; // 레벨이 오를수록 기술 위력↑
   dmg *= stab * eff * (crit ? 1.3 : 1) * (0.85 + Math.random() * 0.15) * (mult || 1);
   return { dmg: Math.max(1, Math.floor(dmg)), eff, crit };
 }
@@ -1701,8 +1701,8 @@ function estimateDamage(att, def, moveKey, mult){
   const eff = typeMult(mv.t, def.spec.types);
   if(eff === 0 || mv.p === 0) return { min:0, max:0, eff };
   const stab = att.spec.types.includes(mv.t) ? 1.5 : 1;
-  const ratio = clamp(att.atk / Math.max(1, def.def), 0.5, 2.0);
-  let dmg = ((2 * att.level / 5 + 2) * mv.p * ratio) / 52 + 2;
+  const ratio = clamp(att.atk / Math.max(1, def.def), 0.45, 2.5);
+  let dmg = ((2.6 * att.level / 5 + 2) * mv.p * ratio) / 50 + 2;
   dmg *= stab * eff * (mult || 1);
   const max = Math.max(1, Math.floor(dmg));
   return { min:Math.max(1, Math.floor(dmg * 0.85)), max, eff };
@@ -2025,8 +2025,9 @@ const PokeMan = {
     const x = pb.x + d0.x / fl * 2.8, z = pb.z + d0.z / fl * 2.8;
     const spawnP = world.spawnPoint || { x: 0, z: 0 };
     const pmax = this.party.length ? Math.max(...this.party.map(q => q.level)) : 5;
-    let lv = Math.floor(4 + Math.hypot(x - spawnP.x, z - spawnP.z) / 45 + Math.random() * 8 - 3);
-    lv = clamp(Math.max(lv, pmax - 3 + Math.floor(Math.random() * 9)), 3, 75);
+    // 풀숲 인카운터는 파티 강함에 바짝 맞춰 등장 (레벨 캡 해제)
+    let lv = Math.floor(pmax - 2 + Math.random() * 8 + Math.hypot(x - spawnP.x, z - spawnP.z) / 60);
+    lv = Math.max(3, lv);
     const w2 = new WildPoke(sp, lv, x, world.colTop(x, z) + 1, z);
     w2.update(0.05, world, pl);
     this.wilds.push(w2);
@@ -2079,11 +2080,12 @@ const PokeMan = {
       const d = Math.hypot(x - spawnP.x, z - spawnP.z);
       // 야생 레벨: 스폰지점에서 멀수록 강함 + 넓은 분산 → 다양한 레벨이 섞여 나온다 (계속 비슷한 문제 해결)
       const pmax = this.party.length ? Math.max(...this.party.map(q => q.level)) : 5;
-      let lv = Math.floor(3 + d / 38 + (Math.random() - 0.5) * 34); // ±17 넓은 분산
-      if(Math.random() < 0.4) lv = Math.max(lv, pmax - 6 + Math.floor(Math.random() * 14)); // 가끔만 파티에 맞춘 강한 개체
-      lv = clamp(lv, 2, 120);
-      if(world.dim === 'nether') lv = clamp(lv + 12, 14, 130); // 네더는 강한 개체
-      if(world.dim === 'end') lv = clamp(lv + 18, 28, 140);    // 엔드는 최상위 개체
+      // 🌍 야생 레벨: 파티가 강해질수록 주변 포켓몬도 '항상' 강해진다 + 넓은 분산으로 다양하게 (레벨 캡 해제)
+      const base = pmax * 0.72 + 2;
+      let lv = Math.floor(base + (Math.random() - 0.5) * (base * 0.7 + 12) + d / 55);
+      lv = Math.max(2, lv);
+      if(world.dim === 'nether') lv = Math.max(lv + 12, 14); // 네더는 더 강한 개체
+      if(world.dim === 'end') lv = Math.max(lv + 18, 28);    // 엔드는 최상위 개체
       // 밤에는 아주 낮은 확률로 뮤츠 출현
       if(game.isNight() && world.dim === 'over' && Math.random() < 0.012) sp = 150;
       if(LEGENDARIES.includes(sp)) lv = Math.max(lv, 50 + Math.floor(Math.random() * 15));
@@ -2375,7 +2377,7 @@ const MOVE_STYLE = {
 };
 // 공통: 한 지점 주변 야생/몹에게 기술 피해 (기절·분노·경험치 처리 포함)
 function _skillAreaHit(pos, mv, par, R, dmgMult, kdir){
-  const dmg = Math.floor((mv.p * 0.5 + par.level * 0.7) * (dmgMult || 1));
+  const dmg = Math.floor((mv.p * 0.65 + par.level * 0.95) * (dmgMult || 1)); // 야생 HP 상향에 맞춰 비례↑
   let hits = 0;
   for(const w of PokeMan.wilds.slice()){
     if(w.catching || w.fainted) continue;
@@ -2748,7 +2750,7 @@ const Follower = {
     }
     if(ctgt && cbd < 1.8 && this._atkCd <= 0){
       this._atkCd = 1.1;
-      let dmg = Math.round(3 + par.level * 0.4 + par.atk * 0.08);
+      let dmg = Math.round(4 + par.level * 0.55 + par.atk * 0.1); // 몹 HP 상향에 맞춰↑
       if(par.spec.types[0] === 'fire') dmg = Math.round(dmg * 1.3); // 🔥 불꽃 동행 보너스
       ctgt.hurt(dmg, (ctgt.body.x - b.x) * 0.4, (ctgt.body.z - b.z) * 0.4);
       Particles.spawn(ctgt.body.x, ctgt.body.y + 0.8, ctgt.body.z, 0xffe97a, 8, 1.6, 0.5, 1.5);
@@ -2907,7 +2909,7 @@ const ExtraFollowers = {
         if(td < 1.8 && e.atkCd <= 0){
           e.atkCd = 1.2;
           if(tgt.hurt){
-            let dm2 = Math.round(3 + p.level * 0.4 + p.atk * 0.08);
+            let dm2 = Math.round(4 + p.level * 0.55 + p.atk * 0.1); // 몹 HP 상향에 맞춰↑
             if(p.spec.types[0] === 'fire') dm2 = Math.round(dm2 * 1.3);
             tgt.hurt(dm2, (tgt.body.x - b.x) * 0.4, (tgt.body.z - b.z) * 0.4);
           } else {
@@ -4140,7 +4142,7 @@ const Battle = {
 // ---------- ⚔ 실시간 자율 배틀 (파트너를 내보내고 나는 자유!) ----------
 function fieldDmg(att, def){
   // 5~10회 공방에 끝나도록 조정된 간이 공식
-  const raw = (att.atk * 2.1 - def.def * 0.9) * (0.85 + Math.random() * 0.3) / 5.5;
+  const raw = (att.atk * 2.1 - def.def * 0.9) * (0.85 + Math.random() * 0.3) / 4.4;
   return Math.max(1, Math.round(raw));
 }
 function fieldDmgMove(att, def, mk){

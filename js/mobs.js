@@ -274,7 +274,12 @@ class Mob {
     this.tailPart = built.tail || null;
     this.wingPivots = built.wingPivots || this.legs;
     scene.add(this.group);
-    this.hp = this.def.hp;
+    // 🌍 주변 몹도 플레이어(파티)가 강해질수록 강해진다 — HP·공격력 스케일 (전부 transient, 저장 안 함)
+    const _pl = (typeof PokeMan !== 'undefined' && PokeMan.party && PokeMan.party.length) ? Math.max(...PokeMan.party.map(q => q.level || 1)) : 5;
+    const _ms = Math.max(0, _pl - 10);
+    this.hp = Math.round(this.def.hp * (1 + Math.min(_ms * 0.06, 5)));   // 최대 6배 HP
+    this.maxHp = this.hp;
+    this.dmg = this.def.dmg ? Math.max(1, Math.round(this.def.dmg * (1 + Math.min(_ms * 0.03, 2)))) : (this.def.dmg || 0); // 최대 3배 데미지
     this.dir = Math.random() * Math.PI * 2;
     this.moveTimer = 0; this.moving = false;
     this.attackCd = 0; this.fuse = -1; this.burnAcc = 0;
@@ -456,7 +461,7 @@ class Mob {
       b.vz = lerp(b.vz, ddz / dl * sp, Math.min(1, dt * 3));
       b.x += b.vx * dt; b.y += b.vy * dt; b.z += b.vz * dt;
       this.dir = Math.atan2(b.vx, b.vz);
-      if(diving && dToP < 1.8 && this.attackCd <= 0){ this.attackCd = 1.2; tgt.hurt(def.dmg, (tgt.x - b.x) * 0.5, (tgt.z - b.z) * 0.5); SFX.play('hit'); }
+      if(diving && dToP < 1.8 && this.attackCd <= 0){ this.attackCd = 1.2; tgt.hurt(this.dmg, (tgt.x - b.x) * 0.5, (tgt.z - b.z) * 0.5); SFX.play('hit'); }
       this.walkPhase += dt * (diving ? 16 : 9);
       const flap = Math.sin(this.walkPhase) * 0.5;
       this.legs.forEach((l, i) => { l.rotation.z = (i % 2 === 0 ? flap : -flap); });
@@ -472,7 +477,7 @@ class Mob {
       for(const mb of MobManager.list){ if(mb === this || mb.dead || !mb.def.hostile) continue; const d2 = dist3(mb.body.x, mb.body.y, mb.body.z, b.x, b.y, b.z); if(d2 < fd){ fd = d2; foe = mb; } }
       if(foe){ this.dir = Math.atan2(foe.body.x - b.x, foe.body.z - b.z); this.attackCd -= dt;
         let speed = fd > 1.8 ? def.speed : 0;
-        if(fd < 2 && this.attackCd <= 0){ this.attackCd = 1.2; foe.hurt(def.dmg, (foe.body.x - b.x) * 1.2, (foe.body.z - b.z) * 1.2); foe.body.vy = 6; SFX.play('hit'); }
+        if(fd < 2 && this.attackCd <= 0){ this.attackCd = 1.2; foe.hurt(this.dmg, (foe.body.x - b.x) * 1.2, (foe.body.z - b.z) * 1.2); foe.body.vy = 6; SFX.play('hit'); }
         b.vx = lerp(b.vx, Math.sin(this.dir) * speed, Math.min(1, dt * 8)); b.vz = lerp(b.vz, Math.cos(this.dir) * speed, Math.min(1, dt * 8));
         if(b.hitWall && b.onGround && speed > 0) b.vy = 8;
         b.update(dt, world);
@@ -517,7 +522,7 @@ class Mob {
           this.attackCd = 2;
           const dx = tgt.x - b.x, dy = (tgt.y + 1.1) - (b.y + 1.4), dz = tgt.z - b.z;
           const len = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
-          Projectiles.shootArrow(b.x, b.y + 1.4, b.z, dx/len, dy/len + 0.05, dz/len);
+          Projectiles.shootArrow(b.x, b.y + 1.4, b.z, dx/len, dy/len + 0.05, dz/len, { dmg: this.dmg });
         }
       } else {
         speed = def.speed;
@@ -528,7 +533,7 @@ class Mob {
         const dToF = fent ? dist3(b.x, b.y, b.z, fent.body.x, fent.body.y, fent.body.z) : 1e9;
         if(fpar && fpar.hp > 0 && dToF < 1.7 && dToF <= dToP && this.attackCd <= 0){
           this.attackCd = 1;
-          fpar.hp = Math.max(0, fpar.hp - def.dmg);
+          fpar.hp = Math.max(0, fpar.hp - this.dmg);
           Particles.spawn(fent.body.x, fent.body.y + 0.8, fent.body.z, 0xc83a3a, 8, 1.6, 0.5, 1.5);
           SFX.play('hit');
           if(fpar.hp <= 0){
@@ -538,7 +543,7 @@ class Mob {
         } else if(dToP < 1.7 && this.attackCd <= 0){
           this.attackCd = 1;
           const kb = this.type === 'zombie' ? 0.75 : 0.5;
-          tgt.hurt(def.dmg, (tgt.x - b.x) * kb, (tgt.z - b.z) * kb);
+          tgt.hurt(this.dmg, (tgt.x - b.x) * kb, (tgt.z - b.z) * kb);
         }
       }
     } else {
