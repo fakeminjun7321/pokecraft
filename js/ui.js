@@ -259,6 +259,7 @@ const UI = {
     const slot = { el, ref, opts: opts || {} };
     el.addEventListener('mousedown', e => {
       e.preventDefault();
+      this._btnDown = true;
       if(e.button === 0) this._slotClick(slot, e, false);
       else if(e.button === 2) this._slotClick(slot, e, true);
     });
@@ -275,28 +276,17 @@ const UI = {
   // 우클릭 드래그: 지나가는 슬롯마다 1개씩 놓기 / 좌클릭 드래그: 마우스 뗄 때 균등 분배
   _dragEnter(slot){
     const d = this._drag;
-    if(!d || slot.opts.output) return;
+    // ⚠ 버튼이 실제로 눌려 있는 동안 + 커서에 아이템이 있을 때만 (stale _drag로 hover 중 아이템이 움직이지 않도록)
+    if(!d || !this._btnDown || !this.cursor || slot.opts.output) return;
+    if(slot.opts.filter && !slot.opts.filter(this.cursor)) return;
     const s = slot.ref.get();
-    if(slot.opts.filter && !slot.opts.filter(this.cursor || { id: d.id, n: 1 })) return;
-    if(d.btn === 2){
-      if(!this.cursor) return;
+    if(d.btn === 2){ // 우클릭 드래그: 지나가는 칸마다 1개씩
       if(!s){ slot.ref.set({ ...this.cursor, n: 1 }); this.cursor.n--; }
       else if(s.id === this.cursor.id && !s.ench && !this.cursor.ench && s.n < maxStack(s.id)){ s.n++; this.cursor.n--; }
       else return;
       if(this.cursor.n <= 0){ this.cursor = null; this._drag = null; }
       SFX.play('click');
       this.refresh();
-    } else if(d.btn === 0){
-      if((!s || (s.id === d.id && !s.ench)) && !d.slots.includes(slot)){
-        // 다른 빈 칸으로 처음 끌면: 즉시 놓았던 origin 스택을 커서로 회수 → 균등분배 모드
-        if(d.origin && !d.reclaimed){
-          const placed = d.origin.ref.get();
-          if(placed){ this.cursor = { ...placed }; d.origin.ref.set(null); this.refresh(); }
-          d.reclaimed = true;
-        }
-        d.slots.push(slot);
-        slot.el.classList.add('drag-mark');
-      }
     }
   },
   _finishDrag(){
@@ -406,12 +396,10 @@ const UI = {
         this.cursor = s;
       } else if(cur && !s){
         if(opts.filter && !opts.filter(cur)) return;
-        // ✅ 즉시 놓기 — mouseup(드래그 종료)에 의존하지 않아 Command 키 등으로 mouseup이 안 와도 확실히 들어간다.
-        //    좌클릭 드래그 균등분배는 origin을 기억해 두고, 다른 빈 칸으로 끌면 회수해 재분배.
+        // ✅ 즉시 놓기 — mouseup/드래그에 전혀 의존하지 않는다.
+        //    (좌클릭 드래그 균등분배 제거: hover 중 origin 칸 아이템이 커서로 끌려가 사라지던 문제 차단)
         ref.set(cur);
         this.cursor = null;
-        this._drag = { btn: 0, id: ref.get().id, slots: [slot], origin: slot };
-        slot.el.classList.add('drag-mark');
       } else if(cur && s){
         if(opts.filter && !opts.filter(cur)) return;
         if(cur.id === s.id && maxStack(s.id) > 1){
@@ -1417,6 +1405,7 @@ const UI = {
       this.cursor = null;
     }
     this._drag = null;
+    this._btnDown = false;
     document.querySelectorAll('.drag-mark').forEach(el => el.classList.remove('drag-mark'));
     this._slots = [];
     this.open = null;

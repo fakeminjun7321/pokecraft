@@ -386,6 +386,19 @@ function ensurePokeBag(){
   if(moved) UI.toast('🎒 포켓몬 아이템 ' + moved + '개가 포켓몬 가방으로 들어갔어요! (V키로 열기)', 6000);
 }
 
+// ---------- 🎁 사라진 아이템 보상 (계정당 1회) ----------
+function grantLostItemComp(){
+  if(!player) return;
+  let key;
+  try { key = storeKey('comp_lost40_v96'); } catch(e){ key = 'pokecraft_comp_lost40_v96'; }
+  if(localStorage.getItem(key)) return; // 이미 지급됨
+  player.addItem(I.DIAMOND, 40);
+  player.addItem(I.IRON_INGOT, 40);
+  try { localStorage.setItem(key, '1'); } catch(e){}
+  if(typeof UI !== 'undefined' && UI.toast) UI.toast('🎁 사라진 아이템 보상: 다이아몬드 40 + 철 40 지급!', 6000);
+  if(typeof saveGame === 'function') saveGame();
+}
+
 // ---------- 저사양 모드 ----------
 function applyPerfMode(on){
   game.perfMode = !!on;
@@ -647,6 +660,7 @@ function startGame(opts){
     document.getElementById('hud').classList.remove('hidden');
     game.started = true;
     ensurePokeBag();
+    grantLostItemComp();
     if(typeof QuestMan !== 'undefined') QuestMan.init();
     Music.start();
     Minimap.reset();
@@ -1318,6 +1332,7 @@ function bindInput(){
   document.addEventListener('mouseup', e => {
     if(e.button === 0 && player) player.mouseLeft = false;
     if(e.button === 2 && player) player.releaseBow();
+    UI._btnDown = false;
     if(UI._drag) UI._finishDrag();
   });
   document.addEventListener('contextmenu', e => {
