@@ -1006,7 +1006,7 @@ class Player {
     }
     const max = maxStack(id);
     if(max > 1 && !ench){
-      for(let i = 0; i < 36; i++){
+      for(let i = 0; i < this.inventory.length; i++){
         const s = this.inventory[i];
         if(s && s.id === id && s.n < max && !s.ench){
           const take = Math.min(n, max - s.n);
@@ -1015,20 +1015,27 @@ class Player {
         }
       }
     }
-    for(let i = 0; i < 36; i++){
+    // 빈 칸 채우기
+    for(let i = 0; i < this.inventory.length && n > 0; i++){
       if(!this.inventory[i]){
         const put = Math.min(n, max);
         this.inventory[i] = { id, n: put };
         if(dur !== undefined) this.inventory[i].dur = dur;
         if(ench) this.inventory[i].ench = ench;
         n -= put;
-        if(n <= 0) break;
       }
     }
-    // 📦 36칸이 다 차면 무제한 보관함으로 — 아이템 절대 손실 안 됨
-    if(n > 0){ this.storageAdd(id, n, dur, ench); n = 0; }
+    // ♾️ 인벤토리는 무제한 — 칸이 다 차면 새 칸을 만들어 담는다 (아이템 절대 손실/숨김 없음, 전부 그리드에 보임)
+    while(n > 0){
+      const put = Math.min(n, max);
+      const o = { id, n: put };
+      if(dur !== undefined) o.dur = dur;
+      if(ench) o.ench = ench;
+      this.inventory.push(o);
+      n -= put;
+    }
     UI.updateHotbar();
-    return n;
+    return 0;
   }
   // 무제한 보관함에 추가 (스택 가능하면 합침)
   storageAdd(id, n, dur, ench){
@@ -1043,24 +1050,14 @@ class Player {
     }
     while(n > 0){ const put = Math.min(n, max); const st = { id, n: put }; if(dur !== undefined) st.dur = dur; if(ench) st.ench = ench; this.storage.push(st); n -= put; }
   }
-  // 📦 빈 슬롯이 생기면 오버플로 보관함 아이템을 슬롯으로 복귀 → 제작·사용 가능해짐 (인벤 열 때 호출)
+  // 📦 (구버전 세이브 호환) 보관함에 남은 아이템을 전부 무제한 인벤토리로 흡수 → 모두 그리드에 보이게
   flushStorage(){
     if(!this.storage || !this.storage.length) return;
     for(let s = this.storage.length - 1; s >= 0; s--){
       const st = this.storage[s];
-      const max = maxStack(st.id);
-      // 같은 종류 슬롯에 합치기
-      if(max > 1 && !st.ench && st.dur === undefined){
-        for(let i = 0; i < 36 && st.n > 0; i++){
-          const t = this.inventory[i];
-          if(t && t.id === st.id && t.n < max && !t.ench && t.dur === undefined){ const take = Math.min(st.n, max - t.n); t.n += take; st.n -= take; }
-        }
-      }
-      // 빈 슬롯에 채우기
-      for(let i = 0; i < 36 && st.n > 0; i++){
-        if(!this.inventory[i]){ const put = Math.min(st.n, max); const o = { id: st.id, n: put }; if(st.dur !== undefined) o.dur = st.dur; if(st.ench) o.ench = st.ench; this.inventory[i] = o; st.n -= put; }
-      }
-      if(st.n <= 0) this.storage.splice(s, 1);
+      if(!st){ this.storage.splice(s, 1); continue; }
+      this.addItem(st.id, st.n, st.dur, st.ench); // addItem이 무제한으로 받아 담음
+      this.storage.splice(s, 1);
     }
     if(typeof UI !== 'undefined' && UI.updateHotbar) UI.updateHotbar();
   }
@@ -1071,7 +1068,7 @@ class Player {
     return inv + sto + bag;
   }
   removeItem(id, n){
-    for(let i = 0; i < 36 && n > 0; i++){
+    for(let i = 0; i < this.inventory.length && n > 0; i++){
       const s = this.inventory[i];
       if(s && s.id === id){
         const take = Math.min(n, s.n);
@@ -1090,12 +1087,18 @@ class Player {
     UI.updateHotbar();
     if(n > 0 && typeof PokeMan !== 'undefined' && PokeMan.bag) n = PokeMan.bagRemove(id, n);
   }
+  // 무제한 인벤토리 저장 시 꼬리의 빈 칸은 잘라낸다 (최소 36칸은 유지)
+  _trimmedInv(){
+    let last = this.inventory.length;
+    while(last > 36 && !this.inventory[last - 1]) last--;
+    return this.inventory.slice(0, last);
+  }
   serialize(){
     const pets = MobManager.list.filter(m => m.tamed).length;
     return {
       x: this.body.x, y: this.body.y, z: this.body.z,
       yaw: this.yaw, pitch: this.pitch,
-      health: this.health, inv: this.inventory, sel: this.selected,
+      health: this.health, inv: this._trimmedInv(), sel: this.selected,
       armor: this.armor, effects: this.effects, pets, storage: this.storage
     };
   }
@@ -1119,5 +1122,7 @@ class Player {
     }
     // 저장 당시 커서/제작칸에 있던 아이템 복원
     (d.extra || []).forEach(s => { if(s) this.addItem(s.id, s.n, s.dur); });
+    // 📦 구버전 세이브의 보관함 오버플로를 무제한 인벤토리로 흡수 (모두 그리드에 보이게)
+    if(this.storage && this.storage.length) this.flushStorage();
   }
 }

@@ -419,7 +419,7 @@ const UI = {
   },
   refresh(){
     this._slots.forEach(s => renderStackEl(s.el, s.opts.output ? s.ref.get() : s.ref.get()));
-    if(this.open === 'inv') this._renderStorage('inv');
+    // (inv 모드: 카테고리 보관함 뷰는 숨김 — 무제한 그리드가 모든 아이템을 직접 표시)
     if(this.open === 'chest') this._renderStorage('chest');
     // 멀티플레이: 화로/상자 내용 동기화 (UI를 막 열었을 때는 전송 안 함 — 스테일 에코 방지)
     if(!this._suppressSync && typeof Net !== 'undefined' && Net.mode !== 'off'){
@@ -466,21 +466,26 @@ const UI = {
   _buildInvGrids(invGridId, barGridId){
     const ig = $id(invGridId), bg = $id(barGridId);
     ig.innerHTML = ''; bg.innerHTML = '';
-    for(let i = 9; i < 36; i++){
+    // ♾️ 무제한 인벤토리: 내용 전부 + 여유 빈 칸을 한 그리드에 표시 (세로 스크롤). 숨겨지는 보관함 없음.
+    const inv = player.inventory;
+    let last = inv.length; while(last > 36 && !inv[last - 1]) last--;
+    let target = Math.ceil(Math.max(36, last + 9) / 9) * 9; // 항상 최소 한 줄 이상 빈 칸 확보
+    while(inv.length < target) inv.push(null);
+    for(let i = 9; i < target; i++){
       this._makeSlot(ig, this._invRef(i), { quick: s => this._moveToRange(s, 0, 8) });
     }
     for(let i = 0; i < 9; i++){
-      this._makeSlot(bg, this._invRef(i), { quick: s => this._moveToRange(s, 9, 35) });
+      this._makeSlot(bg, this._invRef(i), { quick: s => this._moveToRange(s, 9, player.inventory.length - 1) });
     }
   },
 
   // ---------- 인벤토리/제작 ----------
   // 📦 분류형 보관함 (슬롯 9~35를 카테고리로 정리해 표시)
   _mergeBackpack(){
-    for(let i = 9; i < 36; i++){
+    for(let i = 9; i < player.inventory.length; i++){
       const s = player.inventory[i];
       if(!s || s.ench || s.dur !== undefined) continue;
-      for(let j = i + 1; j < 36; j++){
+      for(let j = i + 1; j < player.inventory.length; j++){
         const t = player.inventory[j];
         if(!t || t.id !== s.id || t.ench || t.dur !== undefined) continue;
         const max = maxStack(s.id);
@@ -527,7 +532,7 @@ const UI = {
       : (toolInfo(id) || armorInfo(id) || id === I.BOW || id === I.ARROW) ? '⚔ 장비'
       : foodValue(id) > 0 ? '🍖 음식' : '🔧 재료';
     // 슬롯 9-35 + 무제한 storage 두 소스를 통합
-    for(let i = 9; i < 36; i++){ const s = player.inventory[i]; if(s) cats[catOf(s.id)].push({ src: 'slot', idx: i, s }); }
+    for(let i = 9; i < player.inventory.length; i++){ const s = player.inventory[i]; if(s) cats[catOf(s.id)].push({ src: 'slot', idx: i, s }); }
     for(const st of player.storage){ if(st) cats[catOf(st.id)].push({ src: 'store', ref: st, s: st }); }
     list.innerHTML = '';
     if(mode === 'inv'){
@@ -651,8 +656,9 @@ const UI = {
       this._makeSlot(ag, { get: () => player.armor[i], set: v => { player.armor[i] = v; } },
         { filter: s => armorInfo(s.id) && armorInfo(s.id).slot === i, quick: s => player.addItem(s.id, s.n, s.dur) });
     }
+    this._mergeBackpack();            // 스택 합치기 (그리드 빌드 전)
     this._buildInvGrids('inv-grid', 'invbar-grid');
-    this._renderStorage();
+    $id('storage-wrap').classList.add('hidden'); // 카테고리 보관함 뷰 숨김 — 무제한 그리드가 전부 표시
     this.showOverlay('inv-overlay');
     this.open = 'inv';
     this.refresh();
@@ -714,7 +720,7 @@ const UI = {
     }
     // 핫바만 그리드로 (배낭은 분류형 보관함으로 표시)
     const bg = $id('chest-bar-grid'); bg.innerHTML = '';
-    for(let i = 0; i < 9; i++) this._makeSlot(bg, this._invRef(i), { quick: s => this._moveToRange(s, 9, 35) });
+    for(let i = 0; i < 9; i++) this._makeSlot(bg, this._invRef(i), { quick: s => this._moveToRange(s, 9, player.inventory.length - 1) });
     this._renderStorage('chest');
     this.showOverlay('chest-overlay');
     this.open = 'chest';

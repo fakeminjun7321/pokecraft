@@ -113,6 +113,10 @@ img, canvas, .slot { image-rendering: pixelated; }
 
 /* ===== 슬롯 그리드 ===== */
 .slot-grid { display: grid; grid-template-columns: repeat(9, 46px); gap: 2px; }
+/* 🎒 무제한 가방: 세로 스크롤 (약 7줄 표시 후 스크롤) */
+#inv-grid, #fur-inv-grid, #ench-inv-grid, #anvil-inv-grid, #brewing-inv-grid {
+  max-height: 300px; overflow-y: auto; overflow-x: hidden; align-content: start; padding-right: 2px;
+}
 #craft-grid.size2 { grid-template-columns: repeat(2, 46px); }
 #craft-grid.size3 { grid-template-columns: repeat(3, 46px); }
 #craft-out, #fur-in, #fur-fuel, #fur-out { grid-template-columns: 46px; }
