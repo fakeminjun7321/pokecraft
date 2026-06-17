@@ -1740,6 +1740,8 @@ class WildPoke {
     this.angry = 0; // 😡 공격당하면 분노해서 반격!
     this.aquatic = WATER_ONLY.has(sp); // 🐟 물 전용 종은 물속에서 헤엄친다
     this.swimDepth = y; // 헤엄칠 목표 수심 (스폰 깊이로 시작)
+    // 🕊️ 날 수 있는 종(비행 타입 또는 부유 모델)은 추격 시 실제로 날아서 온다
+    this.flying = (this.inst.spec.types && this.inst.spec.types.includes('flying')) || !!(this.built && this.built.hover);
   }
   setTag(text){
     if(this.tag){ this.group.remove(this.tag); disposeObject(this.tag); }
@@ -1816,6 +1818,7 @@ class WildPoke {
       Particles.spawn(this.body.x, this.body.y + this.body.h * 0.7, this.body.z, 0xffe97a, 2, 1.2, 0.5, 1.2);
     const b = this.body;
     let speed = 0;
+    let flyTargetY = null; // 🕊️ 비행 종 추격 시 목표 고도
     if(this.angry > 0 && !this.battling){
       // 😡 분노: 플레이어와 내 포켓몬 중 가까운 쪽을 추격해 공격!
       this.angry -= dt;
@@ -1832,7 +1835,9 @@ class WildPoke {
       if(td > 28 || this.angry <= 0){ this.angry = 0; this.updateHpTag(); }
       else {
         this.dir = Math.atan2(tgt.body.x - b.x, tgt.body.z - b.z);
-        speed = td > 1.6 ? 3.4 : 0;
+        // 🏃 실제 속도로 추격: 걷는 플레이어(4.3)는 따라잡고 달리면(5.8) 도망 가능. 비행 종은 더 빠르게 직선 비행.
+        speed = td > 1.5 ? (this.flying ? 5.4 : 4.7) : 0;
+        if(this.flying && td > 1.5) flyTargetY = tgt.body.y + 1.2; // 타깃 위에서 덮친다
         this._aCd = (this._aCd || 0) - dt;
         if(td < 1.8 && this._aCd <= 0){
           this._aCd = 1.3;
@@ -1860,18 +1865,26 @@ class WildPoke {
     }
     b.vx = lerp(b.vx, Math.sin(this.dir) * speed, Math.min(1, dt * 8));
     b.vz = lerp(b.vz, Math.cos(this.dir) * speed, Math.min(1, dt * 8));
-    if(b.hitWall && b.onGround && speed > 0){
-      b.vy = 8.8; // 1칸 턱을 확실히 넘는 점프 (중력 26 기준 ~1.5칸)
-      b.vx = Math.sin(this.dir) * Math.max(speed, 3);
-      b.vz = Math.cos(this.dir) * Math.max(speed, 3);
-    }
-    if(b.inWater){
-      if(this.aquatic){
-        // 🐟 물 포켓몬: 수면 위로 떠오르지 않고 물속에서 자유롭게 헤엄친다
-        if(Math.random() < dt * 0.3) this.swimDepth = SEA - (0.6 + Math.random() * 4.5);
-        b.vy = clamp((this.swimDepth - b.y) * 2.0, -2.2, 2.2);
-      } else {
-        b.vy = Math.max(b.vy, Math.min(2.2, (SEA + 0.75 - b.y) * 2)); // 수면 부유 (육지 종이 물에 빠지면 떠오름)
+    if(flyTargetY !== null){
+      // 🕊️ 비행 추격: 중력 무시하고 장애물 위로 날아서 타깃에게 직행
+      b.noGravity = true;
+      const ty = b.hitWall ? b.y + 3 : flyTargetY; // 벽에 막히면 더 솟구쳐 넘어간다
+      b.vy = clamp((ty - b.y) * 2.2, -4, 6);
+    } else {
+      if(b.noGravity) b.noGravity = false; // 추격이 끝나면 다시 떨어진다
+      if(b.hitWall && b.onGround && speed > 0){
+        b.vy = 8.8; // 1칸 턱을 확실히 넘는 점프 (중력 26 기준 ~1.5칸)
+        b.vx = Math.sin(this.dir) * Math.max(speed, 3);
+        b.vz = Math.cos(this.dir) * Math.max(speed, 3);
+      }
+      if(b.inWater){
+        if(this.aquatic){
+          // 🐟 물 포켓몬: 수면 위로 떠오르지 않고 물속에서 자유롭게 헤엄친다
+          if(Math.random() < dt * 0.3) this.swimDepth = SEA - (0.6 + Math.random() * 4.5);
+          b.vy = clamp((this.swimDepth - b.y) * 2.0, -2.2, 2.2);
+        } else {
+          b.vy = Math.max(b.vy, Math.min(2.2, (SEA + 0.75 - b.y) * 2)); // 수면 부유 (육지 종이 물에 빠지면 떠오름)
+        }
       }
     }
     b.update(dt, world);
