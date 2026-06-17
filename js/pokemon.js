@@ -1738,6 +1738,8 @@ class WildPoke {
     this.walkPhase = 0; this.bob = Math.random() * 10;
     this.catching = false; this.fleeTimer = 0;
     this.angry = 0; // 😡 공격당하면 분노해서 반격!
+    this.aquatic = WATER_ONLY.has(sp); // 🐟 물 전용 종은 물속에서 헤엄친다
+    this.swimDepth = y; // 헤엄칠 목표 수심 (스폰 깊이로 시작)
   }
   setTag(text){
     if(this.tag){ this.group.remove(this.tag); disposeObject(this.tag); }
@@ -1863,7 +1865,15 @@ class WildPoke {
       b.vx = Math.sin(this.dir) * Math.max(speed, 3);
       b.vz = Math.cos(this.dir) * Math.max(speed, 3);
     }
-    if(b.inWater) b.vy = Math.max(b.vy, Math.min(2.2, (SEA + 0.75 - b.y) * 2)); // 수면 부유
+    if(b.inWater){
+      if(this.aquatic){
+        // 🐟 물 포켓몬: 수면 위로 떠오르지 않고 물속에서 자유롭게 헤엄친다
+        if(Math.random() < dt * 0.3) this.swimDepth = SEA - (0.6 + Math.random() * 4.5);
+        b.vy = clamp((this.swimDepth - b.y) * 2.0, -2.2, 2.2);
+      } else {
+        b.vy = Math.max(b.vy, Math.min(2.2, (SEA + 0.75 - b.y) * 2)); // 수면 부유 (육지 종이 물에 빠지면 떠오름)
+      }
+    }
     b.update(dt, world);
     // 애니메이션
     this.bob += dt;
@@ -2077,7 +2087,13 @@ const PokeMan = {
       // 밤에는 아주 낮은 확률로 뮤츠 출현
       if(game.isNight() && world.dim === 'over' && Math.random() < 0.012) sp = 150;
       if(LEGENDARIES.includes(sp)) lv = Math.max(lv, 50 + Math.floor(Math.random() * 15));
-      const wp = new WildPoke(sp, lv, x, y + 0.1, z);
+      // 🐟 물 전용 종은 수면 위가 아니라 물속(바다 바닥~수면 사이)에 스폰
+      let spawnY = y;
+      if(onWater && WATER_ONLY.has(sp)){
+        const floor = world.colTop(x, z); // 바다 바닥
+        spawnY = clamp(floor + 1.2 + Math.random() * Math.max(0.5, SEA - floor - 2), floor + 1.0, SEA - 0.4);
+      }
+      const wp = new WildPoke(sp, lv, x, spawnY + 0.1, z);
       // 👑 보스 야생 (1.2% — 파티 Lv20+): 강하지만 보상이 크다!
       const pmaxB = this.party.length ? Math.max(...this.party.map(q => q.level)) : 0;
       if(pmaxB >= 20 && Math.random() < 0.012 && !LEGENDARIES.includes(wp.inst.sp)){

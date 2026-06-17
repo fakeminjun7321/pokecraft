@@ -490,6 +490,8 @@ const TNTs = {
 };
 
 // ---------- 폭발 ----------
+// 💎 폭발에도 반드시 떨어지는 광물 (다이아 등 100%, 일반 블록은 65%)
+const EXPLODE_ORES = new Set([B.COAL_ORE, B.IRON_ORE, B.GOLD_ORE, B.DIAMOND_ORE, B.REDSTONE_ORE, B.QUARTZ_ORE, B.FOSSIL_ORE, B.MYSTIC_ORE]);
 function explode(world, x, y, z, r, dropItems){
   SFX.play('boom');
   Particles.spawn(x, y, z, 0xffa030, 40, 9, 0.9, 2);
@@ -505,7 +507,7 @@ function explode(world, x, y, z, r, dropItems){
         world.setBlock(wx, wy, wz, B.AIR);
         if(id === B.TNT){
           TNTs.spawn(wx + 0.5, wy + 0.5, wz + 0.5, 0.3 + Math.random() * 0.6);
-        } else if(dropItems && Math.random() < 0.3){
+        } else if(dropItems && (EXPLODE_ORES.has(id) || Math.random() < 0.65)){
           const def = BLOCKS[id];
           const drops = def.drop ? def.drop(Math.random) : [[id, 1]];
           drops.forEach(([did, dn]) => ItemDrops.spawn(wx + 0.5, wy + 0.5, wz + 0.5, did, dn));
