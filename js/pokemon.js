@@ -2352,15 +2352,15 @@ const PokeMan = {
     this.bag = d.bag || {};
     this.activeBall = d.activeBall || I.POKEBALL;
   },
-  // ---------- 🎒 포켓몬 가방 ----------
-  bagAdd(id, n){ this.bag[id] = (this.bag[id] || 0) + n; if(UI.open === 'bag') UI.openBag(); },
-  bagCount(id){ return this.bag[id] || 0; },
-  bagRemove(id, n){
-    const have = this.bag[id] || 0, take = Math.min(have, n);
-    this.bag[id] = have - take;
-    if(this.bag[id] <= 0) delete this.bag[id];
-    if(UI.open === 'bag') UI.openBag();
-    return n - take;
+  // ---------- 🎒 포켓몬 가방 → 인벤토리 통합 (모든 포켓몬 아이템이 일반 인벤토리에 보관됨) ----------
+  bagAdd(id, n){ if(typeof player !== 'undefined' && player) player.addItem(id, n); if(UI.open === 'bag') UI.openBag(); },
+  bagCount(id){ return (typeof player !== 'undefined' && player) ? player.countItem(id) : 0; },
+  bagRemove(id, n){ const left = (typeof player !== 'undefined' && player) ? player.removeItem(id, n) : n; if(UI.open === 'bag') UI.openBag(); return left; },
+  // 구버전 세이브의 가방 내용물을 인벤토리로 흡수 (로드 시 1회)
+  flushBagToInventory(){
+    if(!this.bag || typeof player === 'undefined' || !player) return;
+    for(const k of Object.keys(this.bag)){ const id = +k, n = this.bag[k]; if(n > 0) player.addItem(id, n); }
+    this.bag = {};
   },
   // ⚡ 신의 오브로 신급 포켓몬 소환
   summonGod(){

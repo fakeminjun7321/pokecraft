@@ -976,13 +976,13 @@ const UI = {
     $id('bag-ball-info').textContent = '장착한 볼: ' + itemName(PokeMan.activeBall);
     const list = $id('bag-list');
     list.innerHTML = '';
-    const ids = Object.keys(PokeMan.bag).map(Number).filter(id => PokeMan.bag[id] > 0 && CATS[this._bagTab](id))
+    const ids = [...POKE_ITEM_SET].filter(id => player.countItem(id) > 0 && CATS[this._bagTab](id))
       .sort((a, b) => a - b);
-    if(!ids.length){ list.innerHTML = '<p style="padding:10px">이 칸은 비어 있어요. 포켓몬 아이템을 얻으면 자동으로 가방에 들어와요!</p>'; }
+    if(!ids.length){ list.innerHTML = '<p style="padding:10px">이 칸은 비어 있어요. (포켓몬 아이템은 이제 일반 인벤토리에 보관돼요 — 여기선 빠르게 보기/볼 장착만)</p>'; }
     ids.forEach(id => {
       const row = document.createElement('div');
       row.className = 'bag-row' + (ballBonus(id) && id === PokeMan.activeBall ? ' equipped' : '');
-      row.innerHTML = `<img src="${getIconURL(id)}" alt=""><span class="bag-name">${itemName(id)}</span><span class="bag-cnt">×${PokeMan.bag[id]}</span>`;
+      row.innerHTML = `<img src="${getIconURL(id)}" alt=""><span class="bag-name">${itemName(id)}</span><span class="bag-cnt">×${player.countItem(id)}</span>`;
       if(id === I.GOD_ORB){
         const b = document.createElement('button');
         b.className = 'mini-btn'; b.textContent = '⚡ 소환';
@@ -1120,12 +1120,12 @@ const UI = {
         const b = document.createElement('button');
         b.textContent = p.held ? ('🎒 ' + itemName(p.held) + ' ✕') : '🎒 지닌물건';
         b.onclick = () => {
-          if(p.held){ PokeMan.bagAdd(p.held, 1); p.held = 0; this.toast('지닌 물건을 가방에 넣었어요'); this.openParty(); return; }
-          const heldIds = Object.keys(PokeMan.bag).map(Number).filter(id => PokeMan.bag[id] > 0 && itemDef(id) && itemDef(id).held);
-          if(!heldIds.length){ this.toast('가방에 지닐 수 있는 물건이 없어요 (먹다남은음식·목탄·기합의띠 등을 만들어보세요)'); return; }
+          if(p.held){ player.addItem(p.held, 1); p.held = 0; this.toast('지닌 물건을 인벤토리에 넣었어요'); this.openParty(); return; }
+          const heldIds = [...POKE_ITEM_SET].filter(id => player.countItem(id) > 0 && itemDef(id) && itemDef(id).held);
+          if(!heldIds.length){ this.toast('인벤토리에 지닐 수 있는 물건이 없어요 (먹다남은음식·목탄·기합의띠 등을 만들어보세요)'); return; }
           // 가장 작은 id부터 순환 장착
           const pick = heldIds.sort((a, c) => a - c)[0];
-          PokeMan.bagRemove(pick, 1); p.held = pick;
+          player.removeItem(pick, 1); p.held = pick;
           SFX.play('pop'); this.toast('🎒 ' + p.name + '에게 ' + itemName(pick) + '을(를) 들렸어요!');
           this.openParty();
         };

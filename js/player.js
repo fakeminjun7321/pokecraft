@@ -576,21 +576,16 @@ class Player {
         return;
       }
       if(hit.id === B.FOSSIL_MACHINE){
-        // 화석은 포켓몬 가방으로 자동 수납되므로 가방에서 찾아 부활 (핫바 우선, 없으면 가방)
+        // 화석 부활: 손에 든 화석 우선, 없으면 인벤토리에서 찾기
         const held1 = this.currentItem();
         let fid = (held1 && FOSSIL_POKES[held1.id]) ? held1.id : null;
-        let fromBag = false;
-        if(!fid && typeof PokeMan !== 'undefined' && PokeMan.bag){
-          fid = Object.keys(PokeMan.bag).map(Number).find(id => FOSSIL_POKES[id] && PokeMan.bag[id] > 0) || null;
-          fromBag = !!fid;
-        }
+        if(!fid) fid = [I.FOSSIL_HELIX, I.FOSSIL_DOME, I.FOSSIL_AMBER].find(id => id !== undefined && this.countItem(id) > 0) || null;
         if(fid){
-          if(fromBag) PokeMan.bagRemove(fid, 1);
-          else { held1.n--; if(held1.n <= 0) this.inventory[this.selected] = null; UI.updateHotbar(); }
+          this.removeItem(fid, 1);
           Particles.spawn(hit.bx + 0.5, hit.by + 1.2, hit.bz + 0.5, 0x7ad0c8, 20, 2, 1, 2);
           PokeMan.reviveFossil(fid);
         } else {
-          UI.toast('화석이 없어요! 화석 광석(지하 y20 아래)을 캐면 가방에 들어와요');
+          UI.toast('화석이 없어요! 화석 광석(지하 y20 아래)을 캐면 얻을 수 있어요');
         }
         return;
       }
@@ -1027,12 +1022,7 @@ class Player {
 
   // ----- 인벤토리 -----
   addItem(id, n, dur, ench){
-    // 🎒 포켓몬 아이템은 포켓몬 가방으로 자동 수납
-    if(typeof POKE_ITEM_SET !== 'undefined' && POKE_ITEM_SET.has(id) &&
-       typeof PokeMan !== 'undefined' && PokeMan.enabled){
-      PokeMan.bagAdd(id, n);
-      return 0;
-    }
+    // (포켓몬 아이템도 이제 일반 인벤토리에 보관 — 가방은 인벤토리로 통합됨)
     const max = maxStack(id);
     if(max > 1 && !ench){
       for(let i = 0; i < this.inventory.length; i++){
@@ -1114,7 +1104,7 @@ class Player {
       }
     }
     UI.updateHotbar();
-    if(n > 0 && typeof PokeMan !== 'undefined' && PokeMan.bag) n = PokeMan.bagRemove(id, n);
+    return n; // 못 뺀 나머지
   }
   // 무제한 인벤토리 저장 시 꼬리의 빈 칸은 잘라낸다 (최소 36칸은 유지)
   _trimmedInv(){

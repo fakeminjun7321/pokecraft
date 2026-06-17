@@ -366,25 +366,19 @@ function showStarterScreen(cb){
 // ---------- 🎒 포켓몬 가방 지급 + 기존 포켓몬 아이템 이동 ----------
 function ensurePokeBag(){
   if(!PokeMan.enabled || !player) return;
-  player.migratePokeItems = function(){
-    let moved = 0;
-    for(let i = 0; i < this.inventory.length; i++){
-      const st = this.inventory[i];
-      if(st && POKE_ITEM_SET.has(st.id)){ PokeMan.bagAdd(st.id, st.n); this.inventory[i] = null; moved += st.n; }
-    }
-    if(moved) UI.updateHotbar();
-    return moved;
-  };
-  const moved = player.migratePokeItems();
+  player.migratePokeItems = function(){ return 0; }; // (가방 통합 — 더 이상 인벤토리 아이템을 가방으로 옮기지 않음)
+  // 📦 구버전 세이브의 가방 내용물(볼·돌·화석 등)을 인벤토리로 흡수 → 조합·이동 가능
+  const hadBag = PokeMan.bag && Object.keys(PokeMan.bag).length;
+  if(PokeMan.flushBagToInventory) PokeMan.flushBagToInventory();
   if(!player.inventory.some(st => st && st.id === I.POKE_BAG)){
-    // 핫바 빈 칸 우선으로 가방 지급
+    // 핫바 빈 칸 우선으로 가방(아이템 뷰어) 지급
     let slot = -1;
     for(let i = 0; i < 9; i++){ if(!player.inventory[i]){ slot = i; break; } }
     if(slot < 0) for(let i = 9; i < player.inventory.length; i++){ if(!player.inventory[i]){ slot = i; break; } }
     if(slot < 0){ slot = player.inventory.length; player.inventory.push(null); } // 무제한: 자리 없으면 새 칸
     player.inventory[slot] = { id: I.POKE_BAG, n: 1 }; UI.updateHotbar();
   }
-  if(moved) UI.toast('🎒 포켓몬 아이템 ' + moved + '개가 포켓몬 가방으로 들어갔어요! (V키로 열기)', 6000);
+  if(hadBag) UI.toast('🎒 포켓몬 가방이 인벤토리로 통합됐어요! 볼·돌·화석을 조합/이동에 바로 쓸 수 있어요', 6000);
 }
 
 // ---------- 🎁 사라진 아이템 보상 (계정당 1회) ----------
