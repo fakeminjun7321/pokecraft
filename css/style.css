@@ -118,6 +118,15 @@ img, canvas, .slot { image-rendering: pixelated; }
 
 /* ===== 슬롯 그리드 ===== */
 .slot-grid { display: grid; grid-template-columns: repeat(9, 46px); gap: 2px; }
+/* 🌡 전투 아트 상태이상 시각효과 */
+#b-ally-art.st-freeze, #b-enemy-art.st-freeze { filter: drop-shadow(0 0 6px #7ad0f5) hue-rotate(-12deg) brightness(1.05) saturate(1.3); animation: stFreeze 1.4s ease-in-out infinite; }
+#b-ally-art.st-burn, #b-enemy-art.st-burn { filter: drop-shadow(0 0 7px #ff6a3a) brightness(1.05); animation: stBurn .5s ease-in-out infinite; }
+#b-ally-art.st-paralyze, #b-enemy-art.st-paralyze { filter: drop-shadow(0 0 6px #f5d327); animation: stPara .25s steps(2) infinite; }
+#b-ally-art.st-poison, #b-enemy-art.st-poison { filter: drop-shadow(0 0 6px #b06ae8) hue-rotate(18deg) saturate(1.3); }
+#b-ally-art.st-sleep, #b-enemy-art.st-sleep { filter: brightness(.78) saturate(.7); }
+@keyframes stFreeze { 0%,100%{ filter: drop-shadow(0 0 5px #7ad0f5) saturate(1.25);} 50%{ filter: drop-shadow(0 0 10px #aee8ff) saturate(1.5) brightness(1.1);} }
+@keyframes stBurn { 0%,100%{ filter: drop-shadow(0 0 5px #ff6a3a);} 50%{ filter: drop-shadow(0 0 10px #ffb030) brightness(1.12);} }
+@keyframes stPara { 0%{ transform: translateX(-1px);} 100%{ transform: translateX(2px);} }
 /* 🎒 무제한 가방: 세로 스크롤 (약 7줄 표시 후 스크롤) */
 #inv-grid, #fur-inv-grid, #ench-inv-grid, #anvil-inv-grid, #brewing-inv-grid {
   max-height: 300px; overflow-y: auto; overflow-x: hidden; align-content: start; padding-right: 2px;

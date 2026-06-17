@@ -152,8 +152,25 @@ const STATUS_DEFS = {
 };
 // 기술 → 부가 상태이상 (확률) — 자속/이름 기준
 const MOVE_STATUS = {
-  ember:['burn',0.1], flamethrower:['burn',0.12], fireblast:['burn',0.18], firewheel:['burn',0.1], firepunch:['burn',0.12], flareblitz:['burn',0.1], sludge:['poison',0.3], sludgebomb:['poison',0.3], poisonsting:['poison',0.2], poisonjab:['poison',0.3], thundershock:['paralyze',0.1], spark:['paralyze',0.3], thunderbolt:['paralyze',0.12], thunder:['paralyze',0.3], thunderpunch:['paralyze',0.12], wildcharge:['paralyze',0.1], bodyslam:['paralyze',0.2], icebeam:['freeze',0.1], blizzard:['freeze',0.12], icepunch:['freeze',0.1], icywind:['freeze',0.05], lick:['paralyze',0.2],
+  // 기술별 부가효과(상태이상)와 발동 확률 — 실제 포켓몬처럼 체감되도록 상향
+  ember:['burn',0.2], flamethrower:['burn',0.25], fireblast:['burn',0.35], firewheel:['burn',0.2], firepunch:['burn',0.25], flareblitz:['burn',0.2], heatwave:['burn',0.25], lavaplume:['burn',0.3], scald:['burn',0.3],
+  sludge:['poison',0.35], sludgebomb:['poison',0.4], poisonsting:['poison',0.3], poisonjab:['poison',0.4], acid:['poison',0.2], smog:['poison',0.4], toxic:['poison',1],
+  thundershock:['paralyze',0.25], spark:['paralyze',0.35], thunderbolt:['paralyze',0.3], thunder:['paralyze',0.35], thunderpunch:['paralyze',0.3], wildcharge:['paralyze',0.2], bodyslam:['paralyze',0.3], discharge:['paralyze',0.3], nuzzle:['paralyze',1],
+  icebeam:['freeze',0.22], blizzard:['freeze',0.3], icepunch:['freeze',0.2], icywind:['freeze',0.12], frostbreath:['freeze',0.2],
+  lick:['paralyze',0.3], sing:['sleep',0.6], spore:['sleep',1], sleeppowder:['sleep',0.75], hypnosis:['sleep',0.7], yawn:['sleep',0.9],
 };
+// 🌡 실시간(필드/오버월드) 상태이상 적용 + 시각효과
+function applyFieldStatus(w, st){
+  if(!w || !w.inst || !applyStatus(w.inst, st)) return false; // 면역/중복은 applyStatus가 걸러줌
+  const d = STATUS_DEFS[st];
+  w._statTime = st === 'freeze' ? 4.5 : st === 'sleep' ? 5.5 : st === 'paralyze' ? 7 : 9; // 실시간 지속(초)
+  w._chipT = 1.4;
+  if(typeof Particles !== 'undefined') Particles.spawn(w.body.x, w.body.y + 0.7, w.body.z, d.col, 20, 2.4, 0.9, 1.9);
+  if(typeof spawnFloatNumber === 'function') spawnFloatNumber(w.body.x, w.body.y + 1.4, w.body.z, d.icon + d.n + '!', d.col, true);
+  if(typeof UI !== 'undefined') UI.toast(d.icon + ' ' + w.inst.name + '은(는) ' + d.n + ' 상태가 됐다!', 2200);
+  if(w.updateHpTag) w.updateHpTag();
+  return true;
+}
 // 상태이상 적용 (이미 걸려있으면 무시)
 function applyStatus(inst, st){
   if(!inst || inst.status || !STATUS_DEFS[st]) return false;
@@ -1755,7 +1772,43 @@ class WildPoke {
     // 🎯 현재 장착 볼 기준 포획률 표시
     const ballId = (typeof PokeMan !== 'undefined' && PokeMan.bestBall) ? PokeMan.bestBall() : 0;
     const pct = ballId ? Math.round(catchChance(i, ballBonus(ballId)) * 100) : 0;
-    this.setTag((this.angry > 0 ? '😡 ' : '⚔ ') + (i.shiny ? '✨' : '') + i.name + ' ' + '█'.repeat(Math.max(0, bars)) + '░'.repeat(8 - Math.max(0, bars)) + (ballId ? ' 🎯' + pct + '%' : ''));
+    const stIcon = (i.status && STATUS_DEFS[i.status]) ? STATUS_DEFS[i.status].icon + ' ' : ''; // 🌡 상태이상 아이콘
+    this.setTag(stIcon + (this.angry > 0 ? '😡 ' : '⚔ ') + (i.shiny ? '✨' : '') + i.name + ' ' + '█'.repeat(Math.max(0, bars)) + '░'.repeat(8 - Math.max(0, bars)) + (ballId ? ' 🎯' + pct + '%' : ''));
+  }
+  // 🌡 실시간 상태이상 틱 — 반환 true면 이번 프레임 행동불가(얼음/잠/마비 움찔)
+  _tickFieldStatus(dt){
+    const i = this.inst, st = i.status;
+    if(!st) return false;
+    this._statTime = (this._statTime || 0) - dt;
+    const d = STATUS_DEFS[st];
+    if(st === 'burn' || st === 'poison'){ // 도트 데미지
+      this._chipT = (this._chipT || 1.4) - dt;
+      if(this._chipT <= 0){
+        this._chipT = 1.4;
+        const cd = Math.max(1, Math.round(i.maxHp / (st === 'burn' ? 16 : 12)));
+        i.hp = Math.max(0, i.hp - cd);
+        Particles.spawn(this.body.x, this.body.y + 0.6, this.body.z, d.col, 8, 1.6, 0.5, 1.2);
+        if(typeof spawnFloatNumber === 'function') spawnFloatNumber(this.body.x, this.body.y + 1.2, this.body.z, '-' + cd, d.col, false);
+        this.updateHpTag();
+        if(i.hp <= 0){ // 상태이상으로 기절
+          this.fainted = true; this.faintT = 20; this.catching = false; i.hp = 0;
+          this.group.rotation.x = Math.PI / 2;
+          if(this.built && this.built.sprite) this.built.sprite.rotation.z = Math.PI / 2;
+          this.setTag('😵 ' + i.name + ' — 볼을 던져 잡자!');
+          if(typeof FieldBattle !== 'undefined' && FieldBattle.target === this){ FieldBattle.target = null; if(FieldBattle._hideBar) FieldBattle._hideBar(); }
+          const par0 = PokeMan.party[0];
+          if(par0) par0.gainExp(Math.floor(i.spec.bx * i.level / 5) + 1);
+          UI.toast(d.icon + ' ' + i.name + '이(가) ' + d.n + '으로 쓰러졌다! 볼을 던져 잡자!', 3200);
+          return false;
+        }
+      }
+    }
+    if((st === 'freeze' || st === 'sleep') && Math.random() < dt * 5)
+      Particles.spawn(this.body.x, this.body.y + 0.5, this.body.z, d.col, 3, 1, 0.5, 1.3); // 언/잠 시각효과
+    if(this._statTime <= 0){ i.status = null; i.statusT = 0; this.updateHpTag(); return false; } // 만료
+    if(st === 'freeze' || st === 'sleep') return true;     // 완전 행동불가
+    if(st === 'paralyze') return Math.random() < 0.35;     // 가끔 움찔
+    return false;
   }
   update(dt, world, player){
     if(this.fainted){
@@ -1785,6 +1838,17 @@ class WildPoke {
         return;
       }
       const b = this.body;
+      // 🌡 상태이상: 얼음/잠/마비움찔이면 이번 프레임 공격·이동 불가, 화상/독은 도트뎀
+      if(this.inst.status){
+        const imb = this._tickFieldStatus(dt);
+        if(this.fainted) return; // 도트뎀으로 기절
+        if(imb){
+          b.vx = lerp(b.vx, 0, Math.min(1, dt * 6)); b.vz = lerp(b.vz, 0, Math.min(1, dt * 6));
+          if(b.inWater) b.vy = Math.max(b.vy, Math.min(2.2, (SEA + 0.75 - b.y) * 2));
+          b.update(dt, world); this.group.position.set(b.x, b.y, b.z);
+          return;
+        }
+      }
       const dF = dist3(b.x, b.y, b.z, fent.body.x, fent.body.y, fent.body.z);
       this.dir = Math.atan2(fent.body.x - b.x, fent.body.z - b.z);
       const sp3 = dF > 1.6 ? this.inst.spec.bs[3] / 130 * 4 + 2 : 0;
@@ -1819,7 +1883,12 @@ class WildPoke {
     const b = this.body;
     let speed = 0;
     let flyTargetY = null; // 🕊️ 비행 종 추격 시 목표 고도
-    if(this.angry > 0 && !this.battling){
+    // 🌡 실시간 상태이상 (얼음/잠=행동불가, 마비=움찔, 화상/독=도트뎀)
+    let frozen = false;
+    if(this.inst.status){ frozen = this._tickFieldStatus(dt); if(this.fainted) return; }
+    if(frozen){
+      speed = 0; // 행동불가 — 제자리
+    } else if(this.angry > 0 && !this.battling){
       // 😡 분노: 플레이어와 내 포켓몬 중 가까운 쪽을 추격해 공격!
       this.angry -= dt;
       const targets = [{ body: player.body, hit: () => {
@@ -2390,7 +2459,7 @@ const MOVE_STYLE = {
   // 나머지(빔·구체·원거리)는 전부 projectile
 };
 // 공통: 한 지점 주변 야생/몹에게 기술 피해 (기절·분노·경험치 처리 포함)
-function _skillAreaHit(pos, mv, par, R, dmgMult, kdir){
+function _skillAreaHit(pos, mv, par, R, dmgMult, kdir, mvKey){
   const dmg = Math.floor((mv.p * 0.65 + par.level * 0.95) * (dmgMult || 1)); // 야생 HP 상향에 맞춰 비례↑
   let hits = 0;
   for(const w of PokeMan.wilds.slice()){
@@ -2419,6 +2488,8 @@ function _skillAreaHit(pos, mv, par, R, dmgMult, kdir){
       if(w.boss){ player.addItem(I.RARECANDY, 2); player.addItem(I.ULTRABALL, 2); UI.toast('👑 보스 보상! 이상한사탕 2 + 하이퍼볼 2'); }
     } else {
       PokeMan.aggroAt(w, 0); // 😡 살아남은 야생은 분노해서 반격!
+      const stx = mvKey && MOVE_STATUS[mvKey]; // 🌡 기술 부가효과(얼림/화상/마비 등)
+      if(stx && Math.random() < stx[1]) applyFieldStatus(w, stx[0]);
     }
   }
   for(const mb of MobManager.list.slice()){
@@ -2547,7 +2618,7 @@ function partnerFieldMove(moveKey){
           game.shake = Math.max(game.shake, 0.4);
           SFX.play('hit');
           // 돌진 경로에 닿는 적은 맞는다 (정확히 안 봐도 헛치지 않게)
-          _skillAreaHit({ x: ix, y: sy0 + 0.5, z: iz }, mv, par, 2.2, 1.2, d);
+          _skillAreaHit({ x: ix, y: sy0 + 0.5, z: iz }, mv, par, 2.2, 1.2, d, mvKey);
         });
       }, 140);
       return;
@@ -2576,7 +2647,7 @@ function partnerFieldMove(moveKey){
         SFX.play('hit');
         if(SFX.tone) SFX.tone(90, 0.12, 'square', 0.14, 40); // 묵직한 충격음
         if(tgt.body){ tgt.body.vx += d.x * 5; tgt.body.vz += d.z * 5; if(mv.p >= 80) tgt.body.vy = Math.max(tgt.body.vy || 0, 7); }
-        _skillAreaHit({ x: tb.x, y: tb.y + 0.5, z: tb.z }, mv, par, 1.8, 1.35, d);
+        _skillAreaHit({ x: tb.x, y: tb.y + 0.5, z: tb.z }, mv, par, 1.8, 1.35, d, mvKey);
       });
     }, 140);
     return;
@@ -2608,7 +2679,7 @@ function partnerFieldMove(moveKey){
       // 전방 2.5블록 지점 균열 (파트너·플레이어 발밑은 안전)
       explode(world, fb.x + d.x * 2.5, fb.y, fb.z + d.z * 2.5, 1, true);
     }
-    const hits = _skillAreaHit({ x: fb.x, y: fb.y + 0.5, z: fb.z }, mv, par, R, 0.9, d);
+    const hits = _skillAreaHit({ x: fb.x, y: fb.y + 0.5, z: fb.z }, mv, par, R, 0.9, d, mvKey);
     if(!hits) UI.toast('대지가 울렸지만... 주변에 아무도 없다', 2000);
     return;
   }
@@ -2622,7 +2693,7 @@ function partnerFieldMove(moveKey){
       explode(world, pos.x, pos.y, pos.z, mv.p >= 90 ? 2 : 1, true);
     }
     const R = 3.2 + mv.p / 90; // 위력 클수록 폭발 범위↑
-    _skillAreaHit(pos, mv, par, R, 1, d);
+    _skillAreaHit(pos, mv, par, R, 1, d, mvKey);
   });
 }
 // 🎚 기술 바: 파트너가 나와 있으면 하단에 Z/X/C/V 기술 표시
@@ -2736,10 +2807,12 @@ const Follower = {
       if(dW < 1.9 && this._atkCd <= 0){
         this._atkCd = 1.3;
         let dmg, fxColor = 0xffe97a;
+        FieldBattle._lastCmd = null;
         if(FieldBattle.cmd){
           // 👉 플레이어 지시 기술!
           const mk = FieldBattle.cmd;
           FieldBattle.cmd = null;
+          FieldBattle._lastCmd = mk; // 부가효과 적용용
           dmg = fieldDmgMove(par, fbT.inst, mk);
           const eff = typeMult(MOVES[mk].t, fbT.inst.spec.types);
           fxColor = parseInt(TYPES[MOVES[mk].t].c.slice(1), 16);
@@ -2752,6 +2825,11 @@ const Follower = {
         fbT.inst.hp = Math.max(0, fbT.inst.hp - dmg);
         fbT.updateHpTag();
         SFX.play('hit');
+        // 🌡 지시 기술의 부가효과(얼림/화상/마비 등)를 야생에 적용
+        if(FieldBattle._lastCmd && fbT.inst.hp > 0){
+          const stx = MOVE_STATUS[FieldBattle._lastCmd];
+          if(stx && Math.random() < stx[1]) applyFieldStatus(fbT, stx[0]);
+        }
         if(fbT.inst.hp <= 0) FieldBattle.wildDefeated(fbT);
       }
       ctgt = null; // 몹보다 야생 우선
@@ -3378,6 +3456,9 @@ const Battle = {
     this.$('b-enemy-hptext').textContent = w.hp + ' / ' + w.maxHp;
     const aArt = this.$('b-ally-art'), aSrc = artURL(a.sp);
     if(aArt){ aArt.classList.toggle('hidden', !aSrc); if(aSrc) aArt.src = aSrc; aArt.classList.toggle('shiny', !!a.shiny); }
+    // 🌡 상태이상 시각효과 (얼음=파란 결정, 화상=불빛, 마비=노란 깜빡임 등)
+    const stClass = (el, inst) => { if(!el) return; ['st-freeze','st-burn','st-paralyze','st-poison','st-sleep'].forEach(c => el.classList.remove(c)); if(inst && inst.status) el.classList.add('st-' + inst.status); };
+    stClass(eArt, w); stClass(aArt, a);
     this.$('b-ally-name').innerHTML = a.name + ' ' + typeTagsHTML(a.spec.types) + stChip(a) + partner(this.allyB);
     this.$('b-ally-lv').textContent = 'Lv.' + a.level;
     this.$('b-ally-hpfill').style.width = (a.hp / a.maxHp * 100) + '%';
